@@ -22,4 +22,4 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
 
 ## Already done
 
-Email and password, email verification, password reset, Google and GitHub, passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, and DigitalOcean deployment. See the [guides](/docs/quickstart).
+Email and password, email verification, password reset, Google and GitHub, passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key and `MASTER_KEY` rotation, and DigitalOcean deployment. See the [guides](/docs/quickstart).
