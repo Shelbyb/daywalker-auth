@@ -48,6 +48,19 @@ POST /v1/client/mfa/totp/disable { code } → { enabled: false }
 POST /v1/client/mfa/backup_codes { code } → { backupCodes: [...] }
 ```
 
+## Account (signed in)
+
+```http
+PATCH /v1/client/me                  { "firstName": "Grace", "lastName": null } → { user }
+GET   /v1/client/me/security         → { hasPassword, twoFactorEnabled, backupCodesRemaining, connectedAccounts }
+POST  /v1/client/password/change     { "currentPassword", "newPassword" } → { changed, otherSessionsSignedOut }
+GET   /v1/client/sessions            → { sessions: [{ id, current, device, ipHint, lastActiveAt, createdAt }] }
+POST  /v1/client/sessions/{id}/revoke
+POST  /v1/client/sessions/revoke_others → { signedOut }
+```
+
+A session ID that isn't yours returns `404`, the same as one that doesn't exist, so IDs can't be probed.
+
 ## Get a fresh token
 
 ```http

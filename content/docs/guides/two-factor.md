@@ -23,7 +23,7 @@ Daywalker Auth uses **TOTP**, the 6-digit codes that change every 30 seconds. It
 ## Using the hosted pages
 
 - **Sign-in:** the hosted page shows the code step automatically when an account has 2FA, for both password and social sign-in.
-- **Setup:** build it into your settings page with the SDK (below). A hosted account page is coming next.
+- **Setup:** users turn 2FA on from the [hosted account page](/docs/guides/account-page), or you can build your own screen (below).
 
 ## Handling 2FA in your own sign-in form
 

@@ -21,6 +21,14 @@ export type AuthState = {
 /** `needs_second_factor`: password/provider was right; call `completeSecondFactor(code)` next. */
 export type SignInResult = { status: "complete"; user: User } | { status: "needs_second_factor" };
 
+export type SessionInfo = { id: string; current: boolean; device: string; ipHint: string | null; lastActiveAt: string; createdAt: string };
+export type SecurityInfo = {
+  hasPassword: boolean;
+  twoFactorEnabled: boolean;
+  backupCodesRemaining: number;
+  connectedAccounts: { provider: "google" | "github"; createdAt: string }[];
+};
+
 export class AuthError extends Error {
   constructor(
     public status: number,
@@ -244,6 +252,38 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return request<{ name: string; oauthProviders: ("google" | "github")[]; passwordMinLength: number }>("environment", { method: "GET" });
   }
 
+  /** Update the signed-in user's name. Pass null to clear a field. */
+  async function updateProfile(input: { firstName?: string | null; lastName?: string | null }) {
+    const r = await request<{ user: User }>("me", { method: "PATCH", body: JSON.stringify(input) });
+    setState({ user: r.user });
+    return r.user;
+  }
+
+  /** Change password. Requires the current one; signs out all other sessions. */
+  function changePassword(input: { currentPassword: string; newPassword: string }) {
+    return request<{ changed: true; otherSessionsSignedOut: number }>("password/change", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  /** Password / 2FA / connected-account status for a settings screen. */
+  function getSecurity() {
+    return request<SecurityInfo>("me/security", { method: "GET" });
+  }
+
+  /** The user's active sessions across devices. */
+  async function listSessions() {
+    return (await request<{ sessions: SessionInfo[] }>("sessions", { method: "GET" })).sessions;
+  }
+
+  /** Sign out another device. */
+  async function revokeSession(sessionId: string) {
+    await request(`sessions/${encodeURIComponent(sessionId)}/revoke`, { method: "POST" });
+  }
+
+  /** Sign out every device except this one. */
+  async function revokeOtherSessions() {
+    return (await request<{ signedOut: number }>("sessions/revoke_others", { method: "POST" })).signedOut;
+  }
+
   /** `fetch` that attaches `Authorization: Bearer <jwt>` for calls to your own backend. */
   async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
     const jwt = await getToken();
@@ -286,6 +326,12 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     confirmTotpSetup,
     disableTwoFactor,
     regenerateBackupCodes,
+    updateProfile,
+    changePassword,
+    getSecurity,
+    listSessions,
+    revokeSession,
+    revokeOtherSessions,
   };
 }
 

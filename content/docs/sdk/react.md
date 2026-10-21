@@ -48,6 +48,12 @@ const {
   confirmTotpSetup,     // (code) => Promise<string[]> backup codes
   disableTwoFactor,     // (code) => Promise<void>
   regenerateBackupCodes,// (code) => Promise<string[]>
+  updateProfile,        // ({ firstName?, lastName? }) => Promise<User>
+  changePassword,       // ({ currentPassword, newPassword }) => Promise<{ otherSessionsSignedOut }>
+  getSecurity,          // () => Promise<SecurityInfo>
+  listSessions,         // () => Promise<SessionInfo[]>
+  revokeSession,        // (sessionId) => Promise<void>
+  revokeOtherSessions,  // () => Promise<number>
 } = useAuth();
 ```
 
@@ -74,7 +80,7 @@ Returns the underlying [browser client](/docs/sdk/client), for example to build 
 | `<SignInButton mode? redirectUrl? className?>` | A button that opens the hosted sign-in (or `mode="sign-up"`) page and returns to `redirectUrl` (default: current page) |
 | `<OAuthButton provider redirectUrl? className?>` | "Continue with Google/GitHub". See [Social sign-in](/docs/guides/social-sign-in). |
 | `<SignOutButton afterSignOutUrl? className?>` | A button that signs out, then optionally navigates |
-| `<UserButton afterSignOutUrl? className?>` | Initials avatar with name, email and **Sign out** |
+| `<UserButton afterSignOutUrl? className?>` | Initials avatar with name, email, **Manage account** ([account page](/docs/guides/account-page)) and **Sign out** |
 
 All buttons accept `children` to change their label:
 

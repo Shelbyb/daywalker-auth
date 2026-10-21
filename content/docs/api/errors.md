@@ -44,6 +44,8 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `already_enabled` | 409 | 2FA is already on | Nothing to do, or disable it first |
 | `no_pending_enrollment` | 400 | Confirmed 2FA without starting setup | Call `startTotpSetup()` first |
 | `not_enabled` | 400 | 2FA action on an account without 2FA | |
+| `no_password` | 400 | Password change on an account that signs in with Google/GitHub only | Use password reset to set one |
+| `current_session` | 400 | Tried to revoke the current session through the devices list | Use sign out instead |
 | `already_verified` | 400 | Email is already verified | Nothing to do |
 | `unauthenticated` | 401 | No valid session or key | Sign in, or check your keys |
 | `forbidden` | 403 | Origin not allowed, or account suspended | Add the origin, or contact support |

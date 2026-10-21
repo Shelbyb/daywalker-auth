@@ -4,6 +4,7 @@
  */
 import { verifyToken, createBackendClient } from "@daywalker/auth/server";
 import { instanceIdFromKey } from "@daywalker/auth";
+import { cache, closeCache } from "../src/lib/cache";
 
 const AUTH = "http://localhost:3000";
 const APP = "http://localhost:3001";
@@ -14,6 +15,14 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${name}${ok ? "" : ` — ${JSON.stringify(detail)}`}`);
   if (!ok) failures++;
 };
+
+// Test setup: this suite reuses the example app's instance (its keys are baked into the app at
+// build time), so repeated runs eventually hit the real sign-up limit (10/hour per IP).
+// Clear only that instance's sign-up buckets; the limit itself stays in force.
+{
+  const stream = cache().scanStream({ match: `rl:${instanceIdFromKey(pk)}:sign_up:*`, count: 100 });
+  for await (const keys of stream) if ((keys as string[]).length) await cache().del(...(keys as string[]));
+}
 
 // Sign up as the example app's origin would
 const email = `grace.${Date.now()}@example.com`;
@@ -71,5 +80,6 @@ check("hosted page keeps an allow-listed redirect", prop(ok) === `${APP}/dashboa
 check("hosted page drops a foreign redirect (no open redirect)", prop(evil) === null, prop(evil));
 check("hosted page drops javascript: redirects", prop(proto) === null, prop(proto));
 
+await closeCache();
 console.log(failures ? `\n${failures} check(s) failed` : "\nAll SDK checks passed");
 process.exit(failures ? 1 : 0);

@@ -58,6 +58,12 @@ export function useAuth() {
     confirmTotpSetup: c.confirmTotpSetup,
     disableTwoFactor: c.disableTwoFactor,
     regenerateBackupCodes: c.regenerateBackupCodes,
+    updateProfile: c.updateProfile,
+    changePassword: c.changePassword,
+    getSecurity: c.getSecurity,
+    listSessions: c.listSessions,
+    revokeSession: c.revokeSession,
+    revokeOtherSessions: c.revokeOtherSessions,
   };
 }
 
@@ -137,8 +143,12 @@ export function UserButton({ className, afterSignOutUrl }: { className?: string;
         <div role="menu" style={{ position: "absolute", right: 0, top: 44, minWidth: 220, background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, padding: 12, boxShadow: "0 10px 30px rgba(0,0,0,.12)", zIndex: 50 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>{name}</div>
           {name !== email && <div style={{ fontSize: 12, color: "#78716c" }}>{email}</div>}
+          <a role="menuitem" href={c.hostedUrl("account", typeof window !== "undefined" ? window.location.href : undefined)}
+            style={{ display: "block", marginTop: 10, padding: "6px 0", fontSize: 14, color: "inherit", textDecoration: "none" }}>
+            Manage account
+          </a>
           <button role="menuitem" type="button" onClick={async () => { await c.signOut(); setOpen(false); if (afterSignOutUrl) window.location.assign(afterSignOutUrl); }}
-            style={{ marginTop: 10, width: "100%", textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: 14, cursor: "pointer" }}>
+            style={{ width: "100%", textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: 14, cursor: "pointer" }}>
             Sign out
           </button>
         </div>
