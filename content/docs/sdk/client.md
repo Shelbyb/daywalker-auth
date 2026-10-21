@@ -10,7 +10,7 @@ import { createAuthClient } from "@daywalker/auth";
 
 const auth = createAuthClient({
   publishableKey: "pk_test_…",
-  frontendApi: "https://auth.daywalker.dev",
+  frontendApi: "https://users.daywalker.dev",
 });
 
 await auth.load(); // find out if someone is signed in

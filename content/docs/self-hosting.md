@@ -47,7 +47,7 @@ In development, emails aren't sent; they're printed in the server console.
 4. Put the service behind a load balancer that terminates HTTPS and sets `X-Forwarded-For`.
 5. Run `npm run db:migrate` on each deploy, before starting the new version.
 6. Verify your sending domain in Resend (SPF/DKIM) so codes don't land in spam.
-7. Serve it from a subdomain of your apps (e.g. `auth.example.com`), so its cookies count as first-party.
+7. Serve it from a subdomain of your apps (e.g. `users.example.com`), so its cookies count as first-party.
 
 ## Scaling
 

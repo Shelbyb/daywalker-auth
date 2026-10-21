@@ -7,7 +7,7 @@ description: Verify session tokens in any JavaScript server.
 
 ```bash
 DAYWALKER_PUBLISHABLE_KEY=pk_test_...
-DAYWALKER_AUTH_URL=https://auth.daywalker.dev
+DAYWALKER_AUTH_URL=https://users.daywalker.dev
 ```
 
 ## Express

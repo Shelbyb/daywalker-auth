@@ -8,7 +8,7 @@ description: Server helpers for the Next.js App Router.
 | Variable | Required | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY` | yes | `pk_test_…` / `pk_live_…` |
-| `NEXT_PUBLIC_DAYWALKER_AUTH_URL` | yes | e.g. `https://auth.daywalker.dev` |
+| `NEXT_PUBLIC_DAYWALKER_AUTH_URL` | yes | e.g. `https://users.daywalker.dev` |
 | `DAYWALKER_SECRET_KEY` | for `backend()` | `sk_…`. Never prefix with `NEXT_PUBLIC_`. |
 | `DAYWALKER_AUTHORIZED_PARTIES` | no | Comma-separated origins allowed to have minted tokens (`azp`) |
 

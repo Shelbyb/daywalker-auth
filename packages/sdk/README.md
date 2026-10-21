@@ -17,7 +17,7 @@ A complete working app is in [`examples/nextjs`](../../examples/nextjs).
 
 ```bash
 NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY=pk_test_...
-NEXT_PUBLIC_DAYWALKER_AUTH_URL=https://auth.daywalker.dev
+NEXT_PUBLIC_DAYWALKER_AUTH_URL=https://users.daywalker.dev
 DAYWALKER_SECRET_KEY=sk_test_...                      # server only, never NEXT_PUBLIC_
 DAYWALKER_AUTHORIZED_PARTIES=https://app.example.com  # optional, recommended
 ```
@@ -84,7 +84,7 @@ if (session.isSignedIn) {
 ```ts
 // Browser
 import { createAuthClient } from "@daywalker/auth";
-const client = createAuthClient({ publishableKey, frontendApi: "https://auth.daywalker.dev" });
+const client = createAuthClient({ publishableKey, frontendApi: "https://users.daywalker.dev" });
 await client.load();
 await client.signIn({ email, password });
 const res = await client.authFetch("/api/orders");
@@ -92,7 +92,7 @@ const res = await client.authFetch("/api/orders");
 // Any Node/edge server (Express, Hono, NestJS guard…)
 import { verifyToken } from "@daywalker/auth/server";
 const session = await verifyToken(req.headers.authorization?.slice(7), {
-  publishableKey, frontendApi: "https://auth.daywalker.dev", authorizedParties: ["https://app.example.com"],
+  publishableKey, frontendApi: "https://users.daywalker.dev", authorizedParties: ["https://app.example.com"],
 });
 if (!session) return res.status(401).end();
 ```

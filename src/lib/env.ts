@@ -17,7 +17,7 @@ const schema = z
     // "resend" sends real email; "dev" logs to the server console and (outside production) keeps the last code for tests.
     MAIL_TRANSPORT: z.enum(["resend", "dev"]).default("dev"),
     RESEND_API_KEY: z.string().optional(),
-    MAIL_FROM: z.string().default("Daywalker Auth <no-reply@auth.daywalker.dev>"),
+    MAIL_FROM: z.string().default("Daywalker Auth <no-reply@users.daywalker.dev>"),
   })
   // In production every hop is encrypted: HTTPS for clients, TLS to Postgres and Valkey.
   .superRefine((e, ctx) => {

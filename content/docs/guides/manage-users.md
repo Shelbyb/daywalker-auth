@@ -12,7 +12,7 @@ const api = backend();
 
 // Anywhere else
 import { createBackendClient } from "@daywalker/auth/server";
-const api = createBackendClient({ secretKey: process.env.DAYWALKER_SECRET_KEY!, apiUrl: "https://auth.daywalker.dev" });
+const api = createBackendClient({ secretKey: process.env.DAYWALKER_SECRET_KEY!, apiUrl: "https://users.daywalker.dev" });
 ```
 
 ## List users

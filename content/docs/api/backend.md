@@ -74,7 +74,7 @@ See [Require terms at sign-up](/docs/guides/terms-acceptance).
 ## Example with curl
 
 ```bash
-curl https://auth.daywalker.dev/v1/users?limit=5 \
+curl https://users.daywalker.dev/v1/users?limit=5 \
   -H "Authorization: Bearer $DAYWALKER_SECRET_KEY"
 ```
 

@@ -14,7 +14,7 @@ Everything here is a client component or hook. In Next.js, use it from files mar
 Loads the session and keeps the token fresh. Wrap your whole app once.
 
 ```tsx
-<AuthProvider publishableKey="pk_test_…" frontendApi="https://auth.daywalker.dev">
+<AuthProvider publishableKey="pk_test_…" frontendApi="https://users.daywalker.dev">
   {children}
 </AuthProvider>
 ```

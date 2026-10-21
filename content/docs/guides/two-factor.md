@@ -141,7 +141,7 @@ const fresh = await regenerateBackupCodes(code); // old backup codes stop workin
 If someone loses their phone **and** their backup codes, an admin can remove 2FA with the backend API:
 
 ```bash
-curl -X DELETE https://auth.example.com/v1/users/user_123/mfa \
+curl -X DELETE https://users.example.com/v1/users/user_123/mfa \
   -H "Authorization: Bearer $DAYWALKER_SECRET_KEY"
 ```
 

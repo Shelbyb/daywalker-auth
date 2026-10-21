@@ -10,7 +10,7 @@ Importing this module in browser code throws on purpose, so a secret key can't e
 ```ts
 const session = await verifyToken(token, {
   publishableKey: "pk_test_…",
-  frontendApi: "https://auth.daywalker.dev",
+  frontendApi: "https://users.daywalker.dev",
   authorizedParties: ["https://app.example.com"], // optional
 });
 // → { userId, sessionId, issuedAt, expiresAt, azp? } | null
@@ -26,7 +26,7 @@ Behaviour:
 ## `createBackendClient(options)`
 
 ```ts
-const api = createBackendClient({ secretKey: process.env.DAYWALKER_SECRET_KEY!, apiUrl: "https://auth.daywalker.dev" });
+const api = createBackendClient({ secretKey: process.env.DAYWALKER_SECRET_KEY!, apiUrl: "https://users.daywalker.dev" });
 ```
 
 | Method | Returns |

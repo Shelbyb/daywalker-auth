@@ -85,7 +85,7 @@ A passkey sign-in already needs two things: the device (something you have) and 
 
 ## Using passkeys on your app's own domain
 
-Passkeys belong to one domain, called the **relying party ID**. By default that's the auth service's hostname, e.g. `auth.example.com`, which works with the hosted pages.
+Passkeys belong to one domain, called the **relying party ID**. By default that's the auth service's hostname, e.g. `users.example.com`, which works with the hosted pages.
 
 To use passkeys directly in your app at `app.example.com`, set the auth service's relying party ID to the shared parent domain:
 

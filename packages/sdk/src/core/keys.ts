@@ -3,7 +3,7 @@
 export type Config = {
   /** Public key for your instance, e.g. pk_test_... */
   publishableKey: string;
-  /** Origin of the Daywalker Auth service, e.g. https://auth.daywalker.dev */
+  /** Origin of the Daywalker Auth service, e.g. https://users.daywalker.dev */
   frontendApi: string;
 };
 

@@ -20,7 +20,7 @@ The key is malformed or from a deleted instance. Copy it again, including the `p
 
 ## Signed out after every page reload in production
 
-Browsers block third-party cookies. If your app is on `app.example.com` and the auth service is on a completely different domain, the refresh cookie counts as third-party. Host the service on a subdomain of the same site (e.g. `auth.example.com`).
+Browsers block third-party cookies. If your app is on `app.example.com` and the auth service is on a completely different domain, the refresh cookie counts as third-party. Host the service on a subdomain of the same site (e.g. `users.example.com`).
 
 ## A flash of a blank page when I come back
 

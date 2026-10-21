@@ -16,7 +16,7 @@ Host your terms of service, and ideally a privacy policy, at stable URLs, e.g. `
 Call the backend API with your secret key:
 
 ```bash
-curl -X PUT https://auth.example.com/v1/instance/legal \
+curl -X PUT https://users.example.com/v1/instance/legal \
   -H "Authorization: Bearer $DAYWALKER_SECRET_KEY" \
   -H "content-type: application/json" \
   -d '{

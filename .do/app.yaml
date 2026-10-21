@@ -4,7 +4,7 @@ name: daywalker-auth
 region: nyc
 
 domains:
-  - domain: auth.<yourdomain>
+  - domain: users.daywalker.dev
     type: PRIMARY
 
 databases:
@@ -39,7 +39,7 @@ services:
       failure_threshold: 3
     envs:
       - key: APP_URL
-        value: https://auth.<yourdomain>
+        value: https://users.daywalker.dev
       - key: DATABASE_URL
         scope: RUN_AND_BUILD_TIME
         value: ${db.DATABASE_URL}
@@ -57,7 +57,7 @@ services:
         value: resend
       - key: MAIL_FROM
         scope: RUN_TIME
-        value: Daywalker Auth <no-reply@auth.<yourdomain>>
+        value: Daywalker Auth <no-reply@users.daywalker.dev>
       - key: PASSKEY_RP_ID
         scope: RUN_TIME
         value: <yourdomain> # parent domain; decide before launch, changing it orphans passkeys
@@ -92,7 +92,7 @@ jobs:
         value: ${cache.DATABASE_URL}
       - key: APP_URL
         scope: RUN_TIME
-        value: https://auth.<yourdomain>
+        value: https://users.daywalker.dev
       - key: MASTER_KEY
         scope: RUN_TIME
         type: SECRET

@@ -45,7 +45,7 @@ Locally that's `http://localhost:3000/v1/oauth/callback/google`.
 Call the backend API with your **secret key**:
 
 ```bash
-curl -X PUT https://auth.example.com/v1/instance/oauth/google \
+curl -X PUT https://users.example.com/v1/instance/oauth/google \
   -H "Authorization: Bearer $DAYWALKER_SECRET_KEY" \
   -H "content-type: application/json" \
   -d '{ "clientId": "1234.apps.googleusercontent.com", "clientSecret": "GOCSPX-…" }'
@@ -53,7 +53,7 @@ curl -X PUT https://auth.example.com/v1/instance/oauth/google \
 
 ```json
 { "provider": "google", "enabled": true, "clientId": "1234.apps.googleusercontent.com",
-  "redirectUri": "https://auth.example.com/v1/oauth/callback/google" }
+  "redirectUri": "https://users.example.com/v1/oauth/callback/google" }
 ```
 
 - The client secret is **encrypted** before it's stored, and is never returned by any API.

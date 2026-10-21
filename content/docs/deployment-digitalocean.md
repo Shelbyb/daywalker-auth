@@ -3,7 +3,7 @@ title: Deploy on DigitalOcean
 description: Step-by-step guide to running Daywalker Auth on DigitalOcean App Platform with managed Postgres and Valkey.
 ---
 
-This guide takes you from nothing to a running auth service at `auth.<yourdomain>`. You need a DigitalOcean account, a GitHub repository containing this project, and a domain you control.
+This guide takes you from nothing to a running auth service at `users.daywalker.dev`. You need a DigitalOcean account, a GitHub repository containing this project, and a domain managed in DigitalOcean (the examples use `daywalker.dev`; swap in your own).
 
 ## What you will create
 
@@ -40,14 +40,14 @@ Or use **Create > App**, pick your repo, and choose the Dockerfile. In the app's
 
 | Variable | Value |
 |---|---|
-| `APP_URL` | `https://auth.<yourdomain>` |
+| `APP_URL` | `https://users.daywalker.dev` |
 | `DATABASE_URL` | `${db.DATABASE_URL}` |
 | `DATABASE_CA_CERT` | `${db.CA_CERT}` (verifies the Postgres certificate) |
 | `VALKEY_URL` | `${cache.DATABASE_URL}` (must start with `rediss://`) |
 | `MASTER_KEY` | your generated key, as an **encrypted/secret** variable |
 | `MAIL_TRANSPORT` | `resend` |
 | `RESEND_API_KEY` | secret |
-| `MAIL_FROM` | `Acme <no-reply@auth.<yourdomain>>` |
+| `MAIL_FROM` | `Acme <no-reply@users.daywalker.dev>` |
 | `PASSKEY_RP_ID` | `<yourdomain>` |
 | `TRUST_PROXY_HOPS` | `1` |
 
@@ -59,7 +59,7 @@ The spec defines a `PRE_DEPLOY` job that runs `node migrate.mjs` in the same ima
 
 ## 5. Custom domain
 
-Add `auth.<yourdomain>` under **Settings > Domains**, then create the CNAME record DigitalOcean shows you. HTTPS certificates are issued automatically. Serving auth from a subdomain of your apps keeps its cookies first-party.
+Add `users.daywalker.dev` under **Settings > Domains**, and pick your domain. If the domain's DNS is managed in DigitalOcean, the record is created for you; otherwise add the CNAME it shows you. HTTPS certificates are issued automatically. Serving auth from a subdomain of your apps keeps its cookies first-party.
 
 ## 6. Health checks
 
