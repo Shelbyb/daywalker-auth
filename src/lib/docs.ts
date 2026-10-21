@@ -28,6 +28,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/dashboard", title: "The developer dashboard" },
       { slug: "guides/organizations", title: "Organizations" },
       { slug: "guides/webhooks", title: "Webhooks" },
+      { slug: "guides/rotating-keys", title: "Rotating keys" },
       { slug: "guides/account-page", title: "Account page" },
       { slug: "guides/custom-ui", title: "Build your own sign-in form" },
       { slug: "guides/other-backends", title: "Express, Hono and other servers" },
@@ -58,6 +59,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "self-hosting", title: "Self-hosting" },
       { slug: "deployment-digitalocean", title: "Deploy on DigitalOcean" },
       { slug: "troubleshooting", title: "Troubleshooting" },
+      { slug: "roadmap", title: "Roadmap" },
     ],
   },
   {

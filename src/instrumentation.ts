@@ -5,7 +5,9 @@ export async function register() {
   if (g.__dwWebhooks) return;
   g.__dwWebhooks = true;
   const { processDue, purgeOld } = await import("./lib/webhooks");
+  const { purgeRetiredKeys } = await import("./lib/auth/keys");
   const tick = () => processDue().catch((e) => console.error("[webhooks] worker", (e as Error).message));
   setInterval(tick, 15_000).unref();
   setInterval(() => purgeOld().catch(() => {}), 6 * 3_600_000).unref();
+  setInterval(() => purgeRetiredKeys().catch(() => {}), 6 * 3_600_000).unref();
 }

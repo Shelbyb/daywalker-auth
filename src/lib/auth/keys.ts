@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { generateKeyPair, exportJWK, importJWK, SignJWT, type CryptoKey, type JWK } from "jose";
 import { db, schema } from "../db";
 import { cached, cache } from "../cache";
@@ -37,6 +37,56 @@ export async function getJwks(instanceId: string) {
   });
 }
 
+/**
+ * Rotates the key that signs session tokens: a new key becomes the signer, and the old one is
+ * retired but stays in the JWKS so tokens already issued (and apps that cached the key set)
+ * keep working. Nobody is signed out. Retired keys are removed later by `purgeRetiredKeys`.
+ */
+export async function rotateSigningKey(instanceId: string) {
+  const { publicKey, privateKey } = await generateKeyPair(ALG, { extractable: true });
+  const kid = newId("key");
+  const publicJwk = { ...(await exportJWK(publicKey)), kid, alg: ALG, use: "sig" };
+  const privateJwk = await exportJWK(privateKey);
+  const retired = await db().transaction(async (tx) => {
+    const old = await tx
+      .update(schema.signingKeys)
+      .set({ active: false, retiredAt: new Date() })
+      .where(and(eq(schema.signingKeys.instanceId, instanceId), eq(schema.signingKeys.active, true)))
+      .returning({ id: schema.signingKeys.id });
+    await tx.insert(schema.signingKeys).values({
+      id: kid,
+      instanceId,
+      alg: ALG,
+      publicJwk,
+      privateKeyEnc: encrypt(JSON.stringify(privateJwk), `signing_keys.private:${kid}`),
+    });
+    return old.length;
+  });
+  signers.delete(instanceId); // this process signs with the new key straight away
+  await cache().del(`jwks:${instanceId}`);
+  return { kid, retired };
+}
+
+/** Public details of an instance's signing keys (never the private key). */
+export async function listSigningKeys(instanceId: string) {
+  const rows = await db().select().from(schema.signingKeys).where(eq(schema.signingKeys.instanceId, instanceId)).orderBy(desc(schema.signingKeys.createdAt));
+  return rows.map((k) => ({ id: k.id, alg: k.alg, active: k.active, createdAt: k.createdAt, retiredAt: k.retiredAt }));
+}
+
+/** Tokens live 60 seconds and apps cache the key set for 10 minutes, so a day is generous. */
+const RETIRED_KEY_GRACE_MS = 24 * 3_600_000;
+
+/** Removes keys retired longer ago than the grace period. Never touches an active key. */
+export async function purgeRetiredKeys() {
+  const rows = await db()
+    .delete(schema.signingKeys)
+    .where(and(eq(schema.signingKeys.active, false), lt(schema.signingKeys.retiredAt, new Date(Date.now() - RETIRED_KEY_GRACE_MS))))
+    .returning({ instanceId: schema.signingKeys.instanceId });
+  const ids = [...new Set(rows.map((r) => r.instanceId))];
+  if (ids.length) await cache().del(...ids.map((i) => `jwks:${i}`));
+  return rows.length;
+}
+
 // Decrypted private keys live only in process memory, never in Valkey.
 const signers = new Map<string, { kid: string; key: CryptoKey; at: number }>();
 
@@ -47,6 +97,7 @@ async function getSigner(instanceId: string) {
     .select()
     .from(schema.signingKeys)
     .where(and(eq(schema.signingKeys.instanceId, instanceId), eq(schema.signingKeys.active, true)))
+    .orderBy(desc(schema.signingKeys.createdAt)) // newest active key wins, deterministically
     .limit(1);
   if (!row) throw new Error(`No active signing key for ${instanceId}`);
   const key = (await importJWK(JSON.parse(decrypt(row.privateKeyEnc, `signing_keys.private:${row.id}`)) as JWK, ALG)) as CryptoKey;

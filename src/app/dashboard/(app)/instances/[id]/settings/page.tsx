@@ -1,8 +1,9 @@
 import { requireUser } from "../../../guard";
-import { updateSettingsAction } from "../../../actions";
-import { ActionForm } from "../../../forms";
+import { signingKeysFor } from "@/lib/dashboard";
+import { rotateSigningKeyAction, updateSettingsAction } from "../../../actions";
+import { ActionForm, ConfirmAction } from "../../../forms";
 import { Card, Field, PageHeader, inputCls } from "../../../ui";
-import { details } from "../../../server";
+import { details, fmtDateTime } from "../../../server";
 
 export const metadata = { title: "Settings" };
 
@@ -10,6 +11,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/settings`);
   const inst = await details(userId, id);
+  const keys = await signingKeysFor(userId, id);
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" description="Basic rules for this instance: its name, which websites may use it, and how passwords and sessions behave." />
@@ -31,6 +33,27 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             </Field>
           </div>
         </ActionForm>
+      </Card>
+      <Card>
+        <h2 className="text-lg font-semibold">Signing keys</h2>
+        <p className="mt-1 max-w-xl text-sm text-stone-600">
+          These keys sign your users&apos; session tokens. Rotating switches to a new key without signing anyone out: the old key stays published for a day so tokens already issued keep working.
+          Rotate on a schedule, or right away if you think a key was exposed.
+        </p>
+        <ul className="mt-4 space-y-1 text-sm">
+          {keys.map((k) => (
+            <li key={k.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <code className="font-mono text-xs">{k.id}</code>
+              <span className={k.active ? "text-emerald-700" : "text-stone-500"}>{k.active ? "Signing" : `Retired ${fmtDateTime(k.retiredAt)}`}</span>
+              <span className="text-stone-500">Created {fmtDateTime(k.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4">
+          <ConfirmAction action={rotateSigningKeyAction} label="Rotate signing key" confirmLabel="Yes, rotate" prompt="Start signing with a new key? Nobody is signed out." tone="primary">
+            <input type="hidden" name="instanceId" value={inst.id} />
+          </ConfirmAction>
+        </div>
       </Card>
     </div>
   );

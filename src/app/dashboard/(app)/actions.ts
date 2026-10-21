@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import {
-  banUser, createInstance, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser,
+  banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateSettings,
 } from "@/lib/dashboard";
 import {
@@ -84,6 +84,16 @@ export async function revokeKeyAction(_prev: ActionState, fd: FormData): Promise
     await revokeKey(userId, id, str(fd, "keyId", 200));
     refresh(id);
     return { message: "Key revoked." };
+  });
+}
+
+export async function rotateSigningKeyAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await rotateKeys(userId, id);
+    refresh(id);
+    return { message: "Now signing with a new key. Nobody was signed out." };
   });
 }
 

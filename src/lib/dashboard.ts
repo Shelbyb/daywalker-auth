@@ -13,7 +13,7 @@ import { env } from "./env";
 import { errors } from "./http";
 import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
-import { createSigningKey, getJwks, issuerFor } from "./auth/keys";
+import { createSigningKey, getJwks, issuerFor, listSigningKeys, rotateSigningKey } from "./auth/keys";
 import { getUser, deleteUser, setBanned } from "./auth/users";
 import { PROVIDERS, callbackUrl, setProviderConfig, type ProviderName } from "./auth/oauth";
 import { legalInput, legalOf } from "./auth/legal";
@@ -201,6 +201,19 @@ export async function instanceDetails(userId: string, instanceId: string) {
     userCount: users,
     createdAt: inst.createdAt,
   };
+}
+
+// ---------- Signing keys ----------
+
+export async function signingKeysFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  return listSigningKeys(instanceId);
+}
+
+export async function rotateKeys(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  if ((await rateLimit(`${instanceId}:rotate_key`, 5, 3600)) < 0) throw errors.tooMany();
+  return rotateSigningKey(instanceId);
 }
 
 // ---------- Secret keys ----------

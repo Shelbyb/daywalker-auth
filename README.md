@@ -115,5 +115,17 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 - Put the service behind a proxy that sets a trustworthy `X-Forwarded-For` and set `TRUST_PROXY_HOPS` to the number of proxies (rate limits key on it).
 - Rotate signing keys periodically: create a new key, mark the old one inactive, and keep it in the JWKS until outstanding tokens expire.
 
-## Not built yet
-Magic links and email OTP sign-in, SMS, SAML/enterprise SSO, more social providers, a prebuilt embeddable sign-in component, custom email templates, audit logs, a signing-key rotation endpoint, MASTER_KEY rotation (ciphertexts are versioned `v1.` to allow it), and breached-password checks.
+## Next steps
+
+Planned in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
+
+1. Signing-key rotation
+2. `MASTER_KEY` rotation (ciphertexts are versioned `v1.` to allow it)
+3. Audit logs
+4. Magic links and email codes
+5. Breached-password check
+6. Custom email templates
+7. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect)
+8. Embeddable React components (`<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />`)
+9. Enterprise SSO (SAML)
+10. SMS codes

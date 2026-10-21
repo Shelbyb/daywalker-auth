@@ -15,6 +15,12 @@ const schema = z
     MASTER_KEY: z
       .string()
       .refine((v) => Buffer.from(v, "base64").length === 32, "MASTER_KEY must be 32 random bytes, base64-encoded"),
+    // Optional. Pins the key used for lookup indexes so MASTER_KEY can be rotated. See `npm run keys:print-index-key`.
+    INDEX_KEY: z
+      .string()
+      .refine((v) => Buffer.from(v, "base64").length === 32, "INDEX_KEY must be 32 random bytes, base64-encoded")
+      .optional()
+      .or(z.literal("")),
     APP_URL: z.string().url().default("http://localhost:3000"),
     // "resend" sends real email; "dev" logs to the server console and (outside production) keeps the last code for tests.
     MAIL_TRANSPORT: z.enum(["resend", "dev"]).default("dev"),
