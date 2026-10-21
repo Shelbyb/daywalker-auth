@@ -5,6 +5,7 @@ import { instanceFromSecretKey } from "@/lib/auth/instance";
 import { getUser } from "@/lib/auth/users";
 import { db, schema } from "@/lib/db";
 import { cache } from "@/lib/cache";
+import { emit } from "@/lib/webhooks";
 
 type Ctx = { params: Promise<{ userId: string }> };
 
@@ -29,5 +30,6 @@ export const DELETE = handler(async (req: Request, { params }: Ctx) => {
     .returning({ id: schema.users.id });
   if (!deleted) throw errors.notFound("User not found");
   if (sess.length) await cache().del(...sess.map((s) => `sess:${s.h}`));
+  void emit(inst.id, "user.deleted", { userId });
   return NextResponse.json({ id: userId, deleted: true });
 });

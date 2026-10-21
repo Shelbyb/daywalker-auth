@@ -7,6 +7,7 @@ import { mintSessionToken } from "./keys";
 import { encryptNullable } from "../crypto";
 import { roleIn } from "./orgs";
 import type { Instance } from "../db/schema";
+import { emit } from "../webhooks";
 
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
@@ -32,6 +33,7 @@ export async function createSession(
     expiresAt,
   });
   await db().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, userId));
+  void emit(inst.id, "session.created", { sessionId: id, userId });
   return { id, refreshToken, expiresAt };
 }
 
@@ -109,4 +111,5 @@ export async function revokeSessionById(instanceId: string, sessionId: string) {
     .returning({ h: schema.sessions.refreshTokenHash });
   if (!row) throw errors.notFound("Session not found");
   await cache().del(sessKey(row.h));
+  void emit(instanceId, "session.revoked", { sessionId });
 }

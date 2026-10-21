@@ -90,3 +90,7 @@ Rate limits key on the client IP. App Platform appends the real client address t
 6. `TRUST_PROXY_HOPS` matches the number of proxies in front of the app.
 7. Automated database backups are on.
 8. `PASSKEY_RP_ID` is final.
+
+## Webhook delivery
+
+Webhooks are delivered by a small loop inside the web service itself, so there is nothing extra to deploy. With several instances running, each delivery is claimed by exactly one of them. Set `WEBHOOK_WORKER=0` on an instance to turn the loop off there. Never set `WEBHOOK_ALLOW_PRIVATE` in production: it lets webhooks call internal addresses and only exists for local testing.

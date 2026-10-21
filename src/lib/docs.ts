@@ -26,6 +26,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/passkeys", title: "Passkeys" },
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
       { slug: "guides/organizations", title: "Organizations" },
+      { slug: "guides/webhooks", title: "Webhooks" },
       { slug: "guides/account-page", title: "Account page" },
       { slug: "guides/custom-ui", title: "Build your own sign-in form" },
       { slug: "guides/other-backends", title: "Express, Hono and other servers" },

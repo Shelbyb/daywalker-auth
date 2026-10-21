@@ -9,6 +9,7 @@ import { sendMail, inviteEmail } from "../mail";
 import { getUser } from "./users";
 import { publishableKey } from "./instance";
 import type { Instance } from "../db/schema";
+import { emit } from "../webhooks";
 
 export type OrgRole = "admin" | "member";
 
@@ -72,6 +73,8 @@ export async function createOrg(inst: Instance, userId: string, name: string) {
         await tx.insert(schema.organizations).values({ id, instanceId: inst.id, name, slug, createdBy: userId });
         await tx.insert(schema.memberships).values({ orgId: id, userId, role: "admin" });
       });
+      void emit(inst.id, "organization.created", { organizationId: id, name, slug, createdBy: userId });
+      void emit(inst.id, "organizationMembership.created", { organizationId: id, userId, role: "admin" });
       return { id, name, slug };
     } catch (e) {
       const code = (e as { cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code;
@@ -107,6 +110,7 @@ export async function deleteOrg(instanceId: string, orgId: string, actorId: stri
   const members = await db().select({ u: schema.memberships.userId }).from(schema.memberships).where(eq(schema.memberships.orgId, orgId));
   await db().delete(schema.organizations).where(eq(schema.organizations.id, orgId));
   await Promise.all(members.map((m) => dropRole(orgId, m.u)));
+  void emit(instanceId, "organization.deleted", { organizationId: orgId });
 }
 
 // ---------- Members ----------
@@ -136,6 +140,7 @@ export async function changeRole(instanceId: string, orgId: string, actorId: str
     throw errors.badRequest("last_admin", "An organization needs at least one admin");
   await db().update(schema.memberships).set({ role }).where(and(eq(schema.memberships.orgId, orgId), eq(schema.memberships.userId, targetId)));
   await dropRole(orgId, targetId);
+  void emit(instanceId, "organizationMembership.deleted", { organizationId: orgId, userId: targetId });
 }
 
 /** Admins remove others; anyone may remove themselves (leave). The last admin can't leave. */
@@ -187,6 +192,7 @@ export async function invite(inst: Instance, orgId: string, actorId: string, ema
   const inviter = await getUser(inst.id, actorId);
   const inviterName = [inviter?.firstName, inviter?.lastName].filter(Boolean).join(" ") || inviter?.emailAddresses[0]?.email || "Someone";
   await sendMail({ to: email, ...inviteEmail(inst.name, org.name, inviterName, link, INVITE_TTL_DAYS) });
+  void emit(inst.id, "organizationInvitation.created", { organizationId: orgId, invitationId: id, email, role });
   return { id, email, role, expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000) };
 }
 
@@ -249,6 +255,7 @@ export async function acceptInvitation(instanceId: string, userId: string, token
   if (!used.length) throw invalid();
   await db().insert(schema.memberships).values({ orgId: row.org.id, userId, role: row.inv.role }).onConflictDoNothing();
   await dropRole(row.org.id, userId);
+  void emit(instanceId, "organizationMembership.created", { organizationId: row.org.id, userId, role: row.inv.role });
   return { id: row.org.id, name: row.org.name, slug: row.org.slug, role: (await roleIn(instanceId, row.org.id, userId))! };
 }
 

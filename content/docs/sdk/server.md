@@ -43,3 +43,7 @@ Failed calls throw `BackendError` with `status`, `code` and `message`. Passing a
 ## Organization claims and API
 
 `verifyToken()` also returns `orgId` and `orgRole` (`"admin"` or `"member"`) when the session has an active organization. The backend client adds `organizations.list({ limit, offset })` and `organizations.members(orgId)`. See the [Organizations guide](/docs/guides/organizations).
+
+## Webhooks
+
+`verifyWebhook(rawBody, headers, secret, { toleranceSeconds? })` verifies a webhook request and returns the parsed event, or throws `WebhookVerificationError`. The backend client adds `webhooks.list`, `get`, `create`, `update`, `delete`, `rotateSecret`, `deliveries`, `sendTest` and `retry`. See the [Webhooks guide](/docs/guides/webhooks).

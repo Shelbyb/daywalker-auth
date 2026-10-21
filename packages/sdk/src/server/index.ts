@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, errors as joseErrors } from "jose";
 import { instanceIdFromKey, issuerFor, type Config } from "../core/keys";
 
@@ -49,6 +50,60 @@ export async function verifyToken(token: string | null | undefined, opts: Verify
   }
 }
 
+export type WebhookEvent<T = Record<string, unknown>> = { id: string; type: string; createdAt: string; data: T };
+
+export class WebhookVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebhookVerificationError";
+  }
+}
+
+/**
+ * Verifies a webhook request and returns the parsed event. Pass the RAW request body
+ * (`await req.text()`), not re-serialized JSON: the signature covers the exact bytes.
+ * Throws WebhookVerificationError for a bad signature, a missing header, or a timestamp
+ * outside the tolerance (default 5 minutes), which stops replayed requests.
+ */
+export function verifyWebhook<T = Record<string, unknown>>(
+  rawBody: string,
+  headers: Headers | Record<string, string | string[] | undefined>,
+  secret: string,
+  opts: { toleranceSeconds?: number } = {},
+): WebhookEvent<T> {
+  const get = (name: string) => {
+    const v = headers instanceof Headers ? headers.get(name) : headers[name];
+    return Array.isArray(v) ? v[0] : (v ?? null);
+  };
+  const id = get("webhook-id"), ts = get("webhook-timestamp"), sigHeader = get("webhook-signature");
+  if (!id || !ts || !sigHeader) throw new WebhookVerificationError("Missing webhook headers");
+  const seconds = Number(ts);
+  if (!Number.isInteger(seconds)) throw new WebhookVerificationError("Invalid timestamp");
+  if (Math.abs(Date.now() / 1000 - seconds) > (opts.toleranceSeconds ?? 300)) throw new WebhookVerificationError("Timestamp outside the allowed window");
+
+  const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
+  const expected = createHmac("sha256", key).update(`${id}.${ts}.${rawBody}`).digest();
+  // The header can hold several space-separated signatures (during secret rotation).
+  const ok = sigHeader.split(" ").some((part) => {
+    const [version, sig] = part.split(",");
+    if (version !== "v1" || !sig) return false;
+    const given = Buffer.from(sig, "base64");
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  });
+  if (!ok) throw new WebhookVerificationError("Signature doesn't match");
+  try {
+    return JSON.parse(rawBody) as WebhookEvent<T>;
+  } catch {
+    throw new WebhookVerificationError("Body isn't valid JSON");
+  }
+}
+
+export type WebhookEndpoint = { id: string; url: string; events: string[]; description: string | null; enabled: boolean; createdAt: string };
+export type WebhookDelivery = {
+  id: string; eventId: string; eventType: string; status: "pending" | "succeeded" | "failed"; attempts: number;
+  lastStatusCode: number | null; lastError: string | null; nextAttemptAt: string | null; deliveredAt: string | null; createdAt: string;
+};
+
 export type BackendUser = {
   id: string;
   firstName: string | null;
@@ -74,10 +129,11 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
   if (!/^sk_(test|live)_/.test(opts.secretKey)) throw new Error("createBackendClient needs a secret key (sk_...)");
   const base = new URL(opts.apiUrl).origin;
 
-  async function call<T>(method: string, path: string): Promise<T> {
+  async function call<T>(method: string, path: string, json?: unknown): Promise<T> {
     const res = await fetch(`${base}/v1/${path}`, {
       method,
-      headers: { authorization: `Bearer ${opts.secretKey}` },
+      headers: { authorization: `Bearer ${opts.secretKey}`, ...(json !== undefined ? { "content-type": "application/json" } : {}) },
+      body: json === undefined ? undefined : JSON.stringify(json),
       cache: "no-store",
     });
     const body = await res.json().catch(() => ({}));
@@ -103,6 +159,21 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
           "GET",
           `organizations/${encodeURIComponent(orgId)}/members`,
         ).then((r) => r.data),
+    },
+    webhooks: {
+      list: () => call<{ data: WebhookEndpoint[] }>("GET", "webhooks").then((r) => r.data),
+      get: (id: string) => call<WebhookEndpoint>("GET", `webhooks/${encodeURIComponent(id)}`),
+      /** The returned `secret` is shown only once. Store it as an environment variable. */
+      create: (input: { url: string; events?: string[]; description?: string }) =>
+        call<WebhookEndpoint & { secret: string }>("POST", "webhooks", input),
+      update: (id: string, input: { url?: string; events?: string[]; description?: string | null; enabled?: boolean }) =>
+        call<WebhookEndpoint>("PATCH", `webhooks/${encodeURIComponent(id)}`, input),
+      delete: (id: string) => call<{ id: string; deleted: true }>("DELETE", `webhooks/${encodeURIComponent(id)}`),
+      rotateSecret: (id: string) => call<{ id: string; secret: string }>("POST", `webhooks/${encodeURIComponent(id)}/rotate_secret`, {}),
+      deliveries: (id: string, q: { limit?: number } = {}) =>
+        call<{ data: WebhookDelivery[] }>("GET", `webhooks/${encodeURIComponent(id)}/deliveries?limit=${q.limit ?? 50}`).then((r) => r.data),
+      sendTest: (id: string) => call<{ eventId: string }>("POST", `webhooks/${encodeURIComponent(id)}/test`, {}),
+      retry: (deliveryId: string) => call<{ id: string; status: "pending" }>("POST", `webhooks/deliveries/${encodeURIComponent(deliveryId)}/retry`, {}),
     },
     sessions: {
       revoke: (sessionId: string) => call<{ id: string; status: "revoked" }>("POST", `sessions/${encodeURIComponent(sessionId)}/revoke`),

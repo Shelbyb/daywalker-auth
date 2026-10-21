@@ -296,3 +296,48 @@ export const invitations = pgTable(
   },
   (t) => [uniqueIndex("invitations_token_idx").on(t.tokenHash), index("invitations_org_idx").on(t.orgId)],
 );
+
+/**
+ * A URL we POST signed events to. The URL and signing secret are encrypted at rest (a URL can
+ * embed a token, and we need the secret back to sign payloads).
+ */
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    urlEnc: text("url_enc").notNull(),
+    secretEnc: text("secret_enc").notNull(),
+    events: jsonb("events").$type<string[]>().notNull().default(["*"]),
+    description: text("description"),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("webhook_endpoints_instance_idx").on(t.instanceId)],
+);
+
+export const webhookStatusEnum = pgEnum("webhook_status", ["pending", "succeeded", "failed"]);
+
+/** One event queued for one endpoint, with its retry state. The payload is encrypted (it holds user data). */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    endpointId: text("endpoint_id").notNull().references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    eventId: text("event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    payloadEnc: text("payload_enc").notNull(),
+    status: webhookStatusEnum("status").notNull().default("pending"),
+    attempts: bigint("attempts", { mode: "number" }).notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    lastStatusCode: bigint("last_status_code", { mode: "number" }),
+    lastError: text("last_error"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt),
+    index("webhook_deliveries_endpoint_idx").on(t.endpointId, t.createdAt),
+  ],
+);

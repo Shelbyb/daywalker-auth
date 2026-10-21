@@ -84,3 +84,17 @@ curl https://users.daywalker.dev/v1/users?limit=5 \
 | --- | --- |
 | `GET /v1/organizations?limit=&offset=` | List organizations in your instance |
 | `GET /v1/organizations/{orgId}/members` | Members as `{ userId, role, joinedAt }` |
+
+## Webhooks
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /v1/webhooks` | List endpoints |
+| `POST /v1/webhooks` | Create `{ url, events?, description? }`. Returns the signing `secret` once |
+| `GET` / `PATCH` / `DELETE /v1/webhooks/{id}` | Read, update (`url`, `events`, `description`, `enabled`), delete |
+| `POST /v1/webhooks/{id}/rotate_secret` | New signing secret; the old one stops working |
+| `GET /v1/webhooks/{id}/deliveries?limit=` | Delivery log (status, attempts, errors) |
+| `POST /v1/webhooks/{id}/test` | Send a `webhook.test` event |
+| `POST /v1/webhooks/deliveries/{deliveryId}/retry` | Re-queue a delivery |
+
+See the [Webhooks guide](/docs/guides/webhooks).

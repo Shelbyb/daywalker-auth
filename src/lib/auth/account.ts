@@ -5,6 +5,7 @@ import { cache } from "../cache";
 import { decryptNullable, encryptNullable, hashPassword, verifyPassword } from "../crypto";
 import { errors } from "../http";
 import type { Instance } from "../db/schema";
+import { emit } from "../webhooks";
 
 // ---------- Profile ----------
 
@@ -87,6 +88,7 @@ export async function revokeOwnSession(instanceId: string, userId: string, sessi
     .returning({ h: schema.sessions.refreshTokenHash });
   if (!row) throw errors.notFound("Session not found");
   await cache().del(`sess:${row.h}`);
+  void emit(instanceId, "session.revoked", { sessionId, userId });
 }
 
 export async function revokeOtherSessions(userId: string, keepSessionId: string) {

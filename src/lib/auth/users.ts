@@ -7,6 +7,7 @@ import { errors } from "../http";
 import type { Instance } from "../db/schema";
 import { hasTwoFactor } from "./mfa";
 import { legalOf, acceptanceRow } from "./legal";
+import { emit } from "../webhooks";
 
 const email = z.string().trim().toLowerCase().email().max(254);
 
@@ -57,6 +58,7 @@ export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>)
     if (code === "23505") throw errors.conflict("email_taken", "That email address is already in use");
     throw e;
   }
+  void emit(inst.id, "user.created", { userId, email: input.email });
   return userId;
 }
 

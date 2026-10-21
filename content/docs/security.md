@@ -68,3 +68,7 @@ description: What's protected, how, and what's still your responsibility.
 - **Check authorization** in your own code (scope queries by `userId`).
 - **Run behind a proxy that sets `X-Forwarded-For`** correctly; IP rate limits depend on it.
 - **Keep the allowed-origins list short**, with only domains you control.
+
+## Webhooks
+
+Outgoing webhooks are signed with a per-endpoint secret (HMAC-SHA256, with a timestamp to stop replays). Endpoint URLs, secrets and queued payloads are encrypted at rest. We only call public `https://` addresses: private ranges, loopback and cloud metadata addresses are refused, the address is checked again at connection time, and redirects are not followed. See [Webhooks](/docs/guides/webhooks).
