@@ -38,6 +38,9 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `password_too_short` | 400 | Below the minimum length | Ask for a longer password |
 | `email_taken` | 409 | Email already registered in this instance | Offer sign-in or reset |
 | `invalid_code` | 400 | Verification/reset code wrong, expired, used, or out of guesses | Offer "send a new code" |
+| `email_unverified` | 400 | Social account has no verified email | Verify it with the provider, or use email sign-in |
+| `provider_disabled` | 400 | That social provider isn't enabled | Enable it via the backend API |
+| `oauth_cancelled` / `oauth_failed` | — | Social sign-in cancelled or failed (in the `error` query param) | Let the user try again |
 | `already_verified` | 400 | Email is already verified | Nothing to do |
 | `unauthenticated` | 401 | No valid session or key | Sign in, or check your keys |
 | `forbidden` | 403 | Origin not allowed, or account suspended | Add the origin, or contact support |

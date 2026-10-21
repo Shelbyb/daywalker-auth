@@ -31,6 +31,8 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `authFetch(url, init)` | `fetch` plus `Authorization: Bearer <token>` |
 | `sendVerificationCode()` / `verifyEmail(code)` | [Email verification](/docs/guides/email-verification) |
 | `requestPasswordReset(email)` / `resetPassword({ email, code, password })` | [Password reset](/docs/guides/password-reset) |
+| `signInWithOAuth(provider, redirectUrl?)` | Redirect to Google or GitHub; returns signed in. See [Social sign-in](/docs/guides/social-sign-in). |
+| `getEnvironment()` | `{ name, oauthProviders, passwordMinLength }`, for building your own sign-in UI |
 | `hostedUrl(page, redirectUrl?)` | URL of `"sign-in"`, `"sign-up"` or `"forgot-password"` |
 
 ## Options

@@ -35,6 +35,7 @@ In development, emails aren't sent; they're printed in the server console.
 | `APP_URL` | yes | Public URL of this service. Becomes part of token issuers, so don't change it casually. |
 | `MAIL_TRANSPORT` | prod | `resend` in production, `dev` locally |
 | `RESEND_API_KEY` | prod | API key for sending email through Resend |
+| `OAUTH_TEST_BASE_URL` | tests only | Points Google/GitHub at a mock provider. Refused when `APP_URL` is HTTPS. |
 | `MAIL_FROM` | no | Sender, e.g. `Acme <no-reply@auth.acme.com>` (domain must be verified with Resend) |
 
 ## Production checklist

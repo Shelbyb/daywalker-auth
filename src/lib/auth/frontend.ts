@@ -8,6 +8,20 @@ import { instanceFromPublishableKey } from "./instance";
 import { refreshCookieName } from "./sessions";
 import type { Instance } from "../db/schema";
 
+/** Shared by the frontend API and the OAuth callback. */
+export function setRefreshCookie(res: NextResponse, instanceId: string, token: string, expires: Date) {
+  const secure = env().APP_URL.startsWith("https://");
+  res.cookies.set(refreshCookieName(instanceId), token, {
+    httpOnly: true,
+    secure,
+    // Cross-site apps need SameSite=None (requires HTTPS). Same-site dev uses Lax.
+    sameSite: secure ? "none" : "lax",
+    path: "/v1/client",
+    expires,
+  });
+  return res;
+}
+
 /** Requests must come from this service's own origin or one the instance allows. */
 function allowedOrigin(inst: Instance, origin: string | null) {
   if (!origin) return null;
@@ -37,16 +51,7 @@ export async function frontendContext(req: Request) {
       return NextResponse.json(body, { ...init, headers: { ...cors, ...(init.headers as object) } });
     },
     setRefreshCookie(res: NextResponse, token: string, expires: Date) {
-      const secure = env().APP_URL.startsWith("https://");
-      res.cookies.set(name, token, {
-        httpOnly: true,
-        secure,
-        // Cross-site apps need SameSite=None (requires HTTPS). Same-site dev uses Lax.
-        sameSite: secure ? "none" : "lax",
-        path: "/v1/client",
-        expires,
-      });
-      return res;
+      return setRefreshCookie(res, inst.id, token, expires);
     },
     clearRefreshCookie(res: NextResponse) {
       res.cookies.set(name, "", { path: "/v1/client", maxAge: 0 });

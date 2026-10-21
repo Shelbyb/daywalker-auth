@@ -41,6 +41,7 @@ const {
   verifyEmail,          // (code) => Promise<User>
   requestPasswordReset, // (email) => Promise<void>
   resetPassword,        // ({ email, code, password }) => Promise<void>
+  signInWithOAuth,      // ("google" | "github", redirectUrl?) => void (full-page redirect)
 } = useAuth();
 ```
 
@@ -65,6 +66,7 @@ Returns the underlying [browser client](/docs/sdk/client), for example to build 
 | `<SignedIn>` | Its children, only when loaded and signed in |
 | `<SignedOut>` | Its children, only when loaded and signed out |
 | `<SignInButton mode? redirectUrl? className?>` | A button that opens the hosted sign-in (or `mode="sign-up"`) page and returns to `redirectUrl` (default: current page) |
+| `<OAuthButton provider redirectUrl? className?>` | "Continue with Google/GitHub". See [Social sign-in](/docs/guides/social-sign-in). |
 | `<SignOutButton afterSignOutUrl? className?>` | A button that signs out, then optionally navigates |
 | `<UserButton afterSignOutUrl? className?>` | Initials avatar with name, email and **Sign out** |
 

@@ -26,11 +26,36 @@ const FIELDS: Record<Mode, Field[]> = {
  * `redirect` arrives already validated by the server page (same-origin path or an origin on
  * the instance's allow-list), so this form can't be used as an open redirect.
  */
-export function AuthForm({ mode, pk, redirect }: { mode: Mode; pk: string; redirect?: string }) {
-  const [error, setError] = useState<string | null>(null);
+// Fixed messages for codes the OAuth callback puts in the URL; nothing from the URL is shown verbatim.
+const OAUTH_ERRORS: Record<string, string> = {
+  oauth_cancelled: "Sign-in was cancelled.",
+  oauth_failed: "We couldn't sign you in with that provider. Please try again.",
+  email_unverified: "That account has no verified email address. Verify it with the provider, or sign in with email.",
+  provider_disabled: "That sign-in option isn't available for this app.",
+  forbidden: "This account is suspended.",
+};
+
+const PROVIDER_LABEL = { google: "Google", github: "GitHub" } as const;
+
+export function AuthForm({
+  mode,
+  pk,
+  redirect,
+  providers = [],
+  initialError,
+  signedIn,
+}: {
+  mode: Mode;
+  pk: string;
+  redirect?: string;
+  providers?: ("google" | "github")[];
+  initialError?: string;
+  signedIn?: boolean;
+}) {
+  const [error, setError] = useState<string | null>(initialError ? (OAUTH_ERRORS[initialError] ?? null) : null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ name: string } | null>(null);
+  const [done, setDone] = useState<{ name: string } | null>(signedIn ? { name: "" } : null);
   const [verifying, setVerifying] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -74,13 +99,32 @@ export function AuthForm({ mode, pk, redirect }: { mode: Mode; pk: string; redir
     return (
       <div className="text-center">
         <p className="text-lg font-medium">You&apos;re signed in</p>
-        <p className="mt-1 text-sm text-stone-500">Welcome, {done.name}.</p>
+        {done.name && <p className="mt-1 text-sm text-stone-500">Welcome, {done.name}.</p>}
       </div>
     );
 
   const other = mode === "sign-in" ? "sign-up" : "sign-in";
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
+      {providers.length > 0 && (
+        <>
+          <div className="grid gap-2">
+            {providers.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => hostedClient(pk).signInWithOAuth(p, redirect ?? `${window.location.origin}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`)}
+                className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-stone-50"
+              >
+                Continue with {PROVIDER_LABEL[p]}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-stone-400">
+            <span className="h-px flex-1 bg-stone-200" />or<span className="h-px flex-1 bg-stone-200" />
+          </div>
+        </>
+      )}
       <div className={mode === "sign-up" ? "grid grid-cols-2 gap-3" : ""}>
         {FIELDS[mode].slice(0, mode === "sign-up" ? 2 : 0).map((f) => (
           <Input key={f.name} field={f} error={fieldErrors[f.name]} />

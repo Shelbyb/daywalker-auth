@@ -45,6 +45,15 @@ POST /v1/sessions/{sessionId}/revoke
 
 `200` → `{ "id": "sess_…", "status": "revoked" }`
 
+## Configure a social provider
+
+```http
+PUT /v1/instance/oauth/{google|github}
+{ "clientId": "…", "clientSecret": "…", "enabled": true }
+```
+
+`200` → `{ provider, enabled, clientId, redirectUri }`. The secret is encrypted at rest and never returned. `redirectUri` is the callback URL to register with the provider.
+
 ## Example with curl
 
 ```bash

@@ -36,3 +36,11 @@ If your app sets a strict Content-Security-Policy, that refresh page's inline sc
 ## `verifyToken` throws instead of returning null
 
 It throws when it can't download the public keys. Check that your server can reach `<auth url>/i/<instance>/.well-known/jwks.json`.
+
+## "redirect_uri_mismatch" from Google, or a GitHub callback error
+
+The callback URL registered with the provider must match **exactly**, including scheme, port and path, e.g. `http://localhost:3000/v1/oauth/callback/google`. The `redirectUri` returned when you configure the provider is the value to copy.
+
+## "This sign-in link has expired or was opened in a different browser"
+
+Social sign-in attempts are valid for 10 minutes and must finish in the browser that started them. Start again from the sign-in page.

@@ -149,3 +149,37 @@ export const sessions = pgTable(
 export type Instance = typeof instances.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
+
+export const oauthProviderEnum = pgEnum("oauth_provider", ["google", "github"]);
+
+/** Per-instance OAuth app credentials. The client secret is encrypted (AAD-bound to instance+provider). */
+export const oauthProviders = pgTable(
+  "oauth_providers",
+  {
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    provider: oauthProviderEnum("provider").notNull(),
+    clientId: text("client_id").notNull(),
+    clientSecretEnc: text("client_secret_enc").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("oauth_providers_pk").on(t.instanceId, t.provider)],
+);
+
+/** A user's linked external identity. The provider's user ID is stored only as a blind index. */
+export const oauthAccounts = pgTable(
+  "oauth_accounts",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    provider: oauthProviderEnum("provider").notNull(),
+    providerUserIndex: text("provider_user_index").notNull(),
+    emailEnc: text("email_enc"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("oauth_accounts_identity_idx").on(t.instanceId, t.provider, t.providerUserIndex),
+    index("oauth_accounts_user_idx").on(t.userId),
+  ],
+);

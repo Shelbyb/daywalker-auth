@@ -71,6 +71,22 @@ POST /v1/client/password/reset   { "email": "…", "code": "123456", "password":
 
 `forgot` always returns `200 { sent: true }`. `reset` returns `200 { reset: true }`, revokes all the user's sessions and clears the cookie.
 
+## Instance settings
+
+```http
+GET /v1/client/environment
+```
+
+`200` → `{ name, oauthProviders: ["google", "github"], passwordMinLength }`
+
+## Social sign-in
+
+```http
+GET /v1/client/oauth/{google|github}/start?pk=pk_…&redirect_url=…
+```
+
+Open this as a **full-page navigation**, not `fetch`. It redirects to the provider and sets a short-lived state cookie. The provider returns to `GET /v1/oauth/callback/{provider}`, which signs the user in and redirects to `redirect_url` (if allowed) or to the hosted page. Errors go to `/sign-in?error=<code>`; see [Social sign-in](/docs/guides/social-sign-in#errors-on-the-way-back).
+
 ## Public keys
 
 ```http

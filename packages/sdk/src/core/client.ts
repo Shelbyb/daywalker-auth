@@ -189,6 +189,23 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     channel?.postMessage("signed-out");
   }
 
+  /**
+   * Full-page redirect to Google/GitHub. The user comes back to `redirectUrl` signed in.
+   * `redirectUrl` must be on your instance's allowed origins (or it's ignored).
+   */
+  function signInWithOAuth(provider: "google" | "github", redirectUrl?: string) {
+    const u = new URL(`${base}/v1/client/oauth/${provider}/start`);
+    u.searchParams.set("pk", config.publishableKey);
+    const back = redirectUrl ?? (typeof window !== "undefined" ? window.location.href : undefined);
+    if (back) u.searchParams.set("redirect_url", back);
+    window.location.assign(u.toString());
+  }
+
+  /** Public settings for this instance, e.g. which OAuth providers are enabled. */
+  function getEnvironment() {
+    return request<{ name: string; oauthProviders: ("google" | "github")[]; passwordMinLength: number }>("environment", { method: "GET" });
+  }
+
   /** `fetch` that attaches `Authorization: Bearer <jwt>` for calls to your own backend. */
   async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
     const jwt = await getToken();
@@ -224,6 +241,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     verifyEmail,
     requestPasswordReset,
     resetPassword,
+    signInWithOAuth,
+    getEnvironment,
   };
 }
 

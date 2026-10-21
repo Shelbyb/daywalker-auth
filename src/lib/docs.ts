@@ -21,6 +21,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/call-your-api", title: "Call your own API" },
       { slug: "guides/email-verification", title: "Email verification" },
       { slug: "guides/password-reset", title: "Password reset" },
+      { slug: "guides/social-sign-in", title: "Sign in with Google and GitHub" },
       { slug: "guides/custom-ui", title: "Build your own sign-in form" },
       { slug: "guides/other-backends", title: "Express, Hono and other servers" },
       { slug: "guides/manage-users", title: "Manage users from your server" },

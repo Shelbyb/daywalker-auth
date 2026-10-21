@@ -12,6 +12,8 @@ description: What's protected, how, and what's still your responsibility.
 | Email lookups | Keyed HMAC "blind index", scoped per instance |
 | Refresh tokens, secret keys | SHA-256 hash only. They're 256-bit random values, so this is irreversible. |
 | Verification and reset codes | Keyed HMAC in Valkey, deleted after 10 minutes, on use, or after 5 wrong guesses |
+| OAuth client secrets | AES-256-GCM, bound to instance and provider; never returned by any API |
+| Social account IDs | Keyed HMAC only |
 | JWT signing keys | Private key AES-256-GCM encrypted; decrypted only into server memory |
 
 **The key hierarchy.**
@@ -46,6 +48,8 @@ description: What's protected, how, and what's still your responsibility.
 | Clickjacking | `frame-ancestors 'none'` and `X-Frame-Options: DENY` |
 | Forged or tampered tokens | ES256 signatures checked; `alg` pinned; issuer and expiry checked |
 | Token from another app | Optional `authorizedParties` check on `azp` |
+| Social login CSRF or replay | `state` bound to an HttpOnly cookie and single-use server record, plus PKCE |
+| Pre-registering someone's email | Verified social sign-in removes the password and sessions from never-verified accounts |
 | Code guessing | 6 digits, 5 guesses, 10 minutes, single use |
 | Stolen database dump | Personal data encrypted; passwords hashed; tokens hashed |
 | Leaked logs or cache | Rate-limit keys are HMAC'd; no raw IPs or emails in Valkey |

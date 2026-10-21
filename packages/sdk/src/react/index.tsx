@@ -52,6 +52,7 @@ export function useAuth() {
     verifyEmail: c.verifyEmail,
     requestPasswordReset: c.requestPasswordReset,
     resetPassword: c.resetPassword,
+    signInWithOAuth: c.signInWithOAuth,
   };
 }
 
@@ -80,6 +81,18 @@ export function SignInButton({ children = "Sign in", className, mode = "sign-in"
   return (
     <button type="button" className={className} onClick={() => window.location.assign(c.hostedUrl(mode, redirectUrl ?? window.location.href))}>
       {children}
+    </button>
+  );
+}
+
+const PROVIDER_LABEL = { google: "Google", github: "GitHub" } as const;
+
+/** "Continue with Google/GitHub" button. Unstyled; pass className and children to customise. */
+export function OAuthButton({ provider, redirectUrl, className, children }: ButtonProps & { provider: "google" | "github"; redirectUrl?: string }) {
+  const c = useAuthClient();
+  return (
+    <button type="button" className={className} onClick={() => c.signInWithOAuth(provider, redirectUrl)}>
+      {children ?? `Continue with ${PROVIDER_LABEL[provider]}`}
     </button>
   );
 }
