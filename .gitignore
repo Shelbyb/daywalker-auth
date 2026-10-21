@@ -10,5 +10,8 @@ next-env.d.ts
 !.env.example
 
 # misc
+# local Valkey/Redis snapshots (cache contents never belong in git)
+*.rdb
+*.aof
 .DS_Store
 *.log
