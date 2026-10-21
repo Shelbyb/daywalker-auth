@@ -40,6 +40,8 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `changePassword({ currentPassword, newPassword })` | Signs out all other sessions |
 | `getSecurity()` | `{ hasPassword, twoFactorEnabled, backupCodesRemaining, connectedAccounts }` |
 | `listSessions()` / `revokeSession(id)` / `revokeOtherSessions()` | Manage signed-in devices |
+| `passkeysSupported()` / `signInWithPasskey()` | Detect support; usernameless passkey sign-in. See [Passkeys](/docs/guides/passkeys). |
+| `registerPasskey(name?)` / `listPasskeys()` / `renamePasskey(id, name)` / `deletePasskey(id)` | Manage passkeys |
 | `hostedUrl(page, redirectUrl?)` | URL of `"sign-in"`, `"sign-up"`, `"forgot-password"` or `"account"` |
 
 ## Options

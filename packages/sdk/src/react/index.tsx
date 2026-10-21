@@ -64,6 +64,12 @@ export function useAuth() {
     listSessions: c.listSessions,
     revokeSession: c.revokeSession,
     revokeOtherSessions: c.revokeOtherSessions,
+    passkeysSupported: c.passkeysSupported,
+    registerPasskey: c.registerPasskey,
+    signInWithPasskey: c.signInWithPasskey,
+    listPasskeys: c.listPasskeys,
+    renamePasskey: c.renamePasskey,
+    deletePasskey: c.deletePasskey,
   };
 }
 
@@ -157,4 +163,4 @@ export function UserButton({ className, afterSignOutUrl }: { className?: string;
   );
 }
 
-export { AuthError, type User, type SignInResult } from "../core/client";
+export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo } from "../core/client";

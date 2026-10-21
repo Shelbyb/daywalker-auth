@@ -12,6 +12,7 @@ Every app eventually needs an "account settings" screen. Daywalker Auth hosts on
 | **Profile** | Edit first and last name |
 | **Email address** | See their address and whether it's verified |
 | **Password** | Change it (needs the current password). Other devices are signed out. |
+| **Passkeys** | Add one (needs a recent sign-in), rename or remove it |
 | **Two-step verification** | Turn it on with a QR code, save backup codes, create new codes, or turn it off |
 | **Connected accounts** | See which Google/GitHub accounts can sign in |
 | **Where you're signed in** | See every device with browser, OS, approximate location and last activity; sign any of them out |

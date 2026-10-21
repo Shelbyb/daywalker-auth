@@ -54,6 +54,12 @@ const {
   listSessions,         // () => Promise<SessionInfo[]>
   revokeSession,        // (sessionId) => Promise<void>
   revokeOtherSessions,  // () => Promise<number>
+  passkeysSupported,    // () => boolean
+  signInWithPasskey,    // () => Promise<{ status: "complete", user }>
+  registerPasskey,      // (name?) => Promise<{ id }>  (needs a sign-in from the last 15 min)
+  listPasskeys,         // () => Promise<PasskeyInfo[]>
+  renamePasskey,        // (id, name) => Promise<void>
+  deletePasskey,        // (id) => Promise<void>
 } = useAuth();
 ```
 

@@ -7,6 +7,7 @@ import { ProfileSection } from "./profile";
 import { PasswordSection } from "./password";
 import { TwoFactorSection } from "./two-factor";
 import { SessionsSection } from "./sessions";
+import { PasskeysSection } from "./passkeys";
 import { Card, Badge, Button } from "./ui";
 
 export function AccountView({ pk, back }: { pk: string; back?: string }) {
@@ -62,6 +63,7 @@ export function AccountView({ pk, back }: { pk: string; back?: string }) {
       </Card>
 
       <PasswordSection pk={pk} hasPassword={security.hasPassword} onChanged={refresh} />
+      <PasskeysSection pk={pk} />
       <TwoFactorSection pk={pk} security={security} onChanged={refresh} />
 
       {security.connectedAccounts.length > 0 && (

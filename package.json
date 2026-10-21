@@ -16,12 +16,14 @@
     "test:recovery": "tsx scripts/recovery-e2e.ts",
     "test:oauth": "tsx scripts/oauth-e2e.ts",
     "test:mfa": "tsx scripts/mfa-e2e.ts",
-    "test:all": "tsx scripts/e2e.ts && tsx scripts/recovery-e2e.ts && tsx scripts/oauth-e2e.ts && tsx scripts/mfa-e2e.ts && tsx scripts/account-e2e.ts",
-    "test:account": "tsx scripts/account-e2e.ts"
+    "test:all": "tsx scripts/e2e.ts && tsx scripts/recovery-e2e.ts && tsx scripts/oauth-e2e.ts && tsx scripts/mfa-e2e.ts && tsx scripts/account-e2e.ts && tsx scripts/passkey-e2e.ts",
+    "test:account": "tsx scripts/account-e2e.ts",
+    "test:passkeys": "tsx scripts/passkey-e2e.ts"
   },
   "dependencies": {
     "@daywalker/auth": "*",
     "@node-rs/argon2": "^2.2.2",
+    "@simplewebauthn/server": "^14.0.3",
     "drizzle-orm": "^0.45.4",
     "iovalkey": "^0.4.0",
     "jose": "^6.2.13",
@@ -40,6 +42,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "cbor-x": "^1.6.8",
     "drizzle-kit": "^0.31.11",
     "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",

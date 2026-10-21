@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AuthError } from "@daywalker/auth";
 import { hostedClient } from "./hosted-client";
@@ -59,6 +59,24 @@ export function AuthForm({
   const [done, setDone] = useState<{ name: string } | null>(signedIn ? { name: "" } : null);
   const [verifying, setVerifying] = useState(false);
   const [needsSecondFactor, setNeedsSecondFactor] = useState(false);
+  // Decided after mount: passkey support can only be detected in the browser.
+  const [canUsePasskey, setCanUsePasskey] = useState(false);
+  useEffect(() => setCanUsePasskey(mode === "sign-in" && hostedClient(pk).passkeysSupported()), [mode, pk]);
+
+  async function passkeySignIn() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { user } = await hostedClient(pk).signInWithPasskey();
+      if (redirect) window.location.assign(redirect);
+      else setDone({ name: user.firstName || user.emailAddresses[0]?.email || "" });
+    } catch (err) {
+      // Closing the prompt isn't an error worth shouting about.
+      if (err instanceof AuthError && err.code !== "passkey_cancelled") setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -118,9 +136,19 @@ export function AuthForm({
   const other = mode === "sign-in" ? "sign-up" : "sign-in";
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
-      {providers.length > 0 && (
+      {(providers.length > 0 || canUsePasskey) && (
         <>
           <div className="grid gap-2">
+            {canUsePasskey && (
+              <button
+                type="button"
+                onClick={passkeySignIn}
+                disabled={busy}
+                className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-stone-50 disabled:opacity-60"
+              >
+                Sign in with a passkey
+              </button>
+            )}
             {providers.map((p) => (
               <button
                 key={p}

@@ -5,6 +5,11 @@ export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {
     super(message);
   }
+  /** Same status and message, more specific machine-readable code. */
+  withCode(code: string) {
+    this.code = code;
+    return this;
+  }
 }
 
 export const errors = {

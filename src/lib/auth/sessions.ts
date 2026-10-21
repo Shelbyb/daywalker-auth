@@ -10,7 +10,7 @@ import type { Instance } from "../db/schema";
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
 
-type CachedSession = { id: string; userId: string; status: string; expiresAt: string };
+type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string };
 const sessKey = (refreshHash: string) => `sess:${refreshHash}`;
 
 export async function createSession(
@@ -43,20 +43,29 @@ export async function resolveSession(instanceId: string, refreshToken: string) {
   let s: CachedSession | null = null;
   const hit = await cache().get(sessKey(h));
   if (hit) s = JSON.parse(hit);
-  else {
+  // Entries cached before createdAt was tracked are re-read once from Postgres.
+  if (!s?.createdAt) {
     const [row] = await db()
       .select({
         id: schema.sessions.id,
         userId: schema.sessions.userId,
         status: schema.sessions.status,
         expiresAt: schema.sessions.expiresAt,
+        createdAt: schema.sessions.createdAt,
         banned: schema.users.banned,
       })
       .from(schema.sessions)
       .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
       .where(and(eq(schema.sessions.refreshTokenHash, h), eq(schema.sessions.instanceId, instanceId)));
+    s = null;
     if (row) {
-      s = { id: row.id, userId: row.userId, status: row.banned ? "revoked" : row.status, expiresAt: row.expiresAt.toISOString() };
+      s = {
+        id: row.id,
+        userId: row.userId,
+        status: row.banned ? "revoked" : row.status,
+        expiresAt: row.expiresAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+      };
       await cache().set(sessKey(h), JSON.stringify(s), "EX", 300);
     }
   }

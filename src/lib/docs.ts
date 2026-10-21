@@ -23,6 +23,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/password-reset", title: "Password reset" },
       { slug: "guides/social-sign-in", title: "Sign in with Google and GitHub" },
       { slug: "guides/two-factor", title: "Two-factor authentication" },
+      { slug: "guides/passkeys", title: "Passkeys" },
       { slug: "guides/account-page", title: "Account page" },
       { slug: "guides/custom-ui", title: "Build your own sign-in form" },
       { slug: "guides/other-backends", title: "Express, Hono and other servers" },

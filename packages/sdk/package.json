@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^14.0.0",
     "jose": "^6.2.13"
   },
   "peerDependencies": {
@@ -21,7 +22,11 @@
     "react": ">=19"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": true },
-    "react": { "optional": true }
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   }
 }

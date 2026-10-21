@@ -1,4 +1,5 @@
 import { ACTIVE_COOKIE, SESSION_COOKIE, instanceIdFromKey, normalizeOrigin, type Config } from "./keys";
+import { startRegistration, startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 
 export type EmailAddress = { id: string; email: string; primary: boolean; verified: boolean };
 export type User = {
@@ -28,6 +29,8 @@ export type SecurityInfo = {
   backupCodesRemaining: number;
   connectedAccounts: { provider: "google" | "github"; createdAt: string }[];
 };
+
+export type PasskeyInfo = { id: string; name: string; synced: boolean; lastUsedAt: string | null; createdAt: string };
 
 export class AuthError extends Error {
   constructor(
@@ -284,6 +287,59 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return (await request<{ signedOut: number }>("sessions/revoke_others", { method: "POST" })).signedOut;
   }
 
+  /** True when this browser can create and use passkeys. */
+  function passkeysSupported() {
+    return typeof window !== "undefined" && browserSupportsWebAuthn();
+  }
+
+  /** Browser-side failures (cancelled prompt, no support) become AuthErrors with stable codes. */
+  function webauthnError(e: unknown): never {
+    if (e instanceof AuthError) throw e;
+    const name = (e as { name?: string })?.name;
+    if (name === "NotAllowedError" || name === "AbortError") throw new AuthError(0, "passkey_cancelled", "The passkey prompt was closed or timed out");
+    if (name === "InvalidStateError") throw new AuthError(0, "passkey_exists", "This device already has a passkey for this account");
+    throw new AuthError(0, "passkey_unsupported", "This browser couldn't use a passkey");
+  }
+
+  /**
+   * Adds a passkey for the signed-in user. Requires a recent sign-in (15 minutes);
+   * otherwise rejects with code `reauth_required`.
+   */
+  async function registerPasskey(name?: string) {
+    const optionsJSON = await request<Parameters<typeof startRegistration>[0]["optionsJSON"]>("passkeys/register/options", { method: "POST" });
+    let response;
+    try {
+      response = await startRegistration({ optionsJSON });
+    } catch (e) {
+      webauthnError(e);
+    }
+    return request<{ id: string }>("passkeys/register/verify", { method: "POST", body: JSON.stringify({ response, name }) });
+  }
+
+  /** Sign in with a passkey. No email needed: the user picks their passkey in the browser prompt. */
+  async function signInWithPasskey(): Promise<{ status: "complete"; user: User }> {
+    const optionsJSON = await request<Parameters<typeof startAuthentication>[0]["optionsJSON"]>("passkeys/authenticate/options", { method: "POST" });
+    let response;
+    try {
+      response = await startAuthentication({ optionsJSON });
+    } catch (e) {
+      webauthnError(e);
+    }
+    return finishSignIn(await request<Completed>("passkeys/authenticate/verify", { method: "POST", body: JSON.stringify({ response }) }));
+  }
+
+  async function listPasskeys() {
+    return (await request<{ passkeys: PasskeyInfo[] }>("passkeys", { method: "GET" })).passkeys;
+  }
+
+  async function renamePasskey(id: string, name: string) {
+    await request(`passkeys/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ name }) });
+  }
+
+  async function deletePasskey(id: string) {
+    await request(`passkeys/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
   /** `fetch` that attaches `Authorization: Bearer <jwt>` for calls to your own backend. */
   async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
     const jwt = await getToken();
@@ -332,6 +388,12 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     listSessions,
     revokeSession,
     revokeOtherSessions,
+    passkeysSupported,
+    registerPasskey,
+    signInWithPasskey,
+    listPasskeys,
+    renamePasskey,
+    deletePasskey,
   };
 }
 

@@ -61,6 +61,20 @@ POST  /v1/client/sessions/revoke_others → { signedOut }
 
 A session ID that isn't yours returns `404`, the same as one that doesn't exist, so IDs can't be probed.
 
+## Passkeys
+
+```http
+POST   /v1/client/passkeys/register/options      → PublicKeyCredentialCreationOptions (needs a sign-in < 15 min old)
+POST   /v1/client/passkeys/register/verify        { response, name? } → { id }
+POST   /v1/client/passkeys/authenticate/options   → PublicKeyCredentialRequestOptions (no session needed)
+POST   /v1/client/passkeys/authenticate/verify    { response } → { status: "complete", user, sessionId, jwt }
+GET    /v1/client/passkeys                        → { passkeys: [...] }
+PATCH  /v1/client/passkeys/{id}                   { name }
+DELETE /v1/client/passkeys/{id}
+```
+
+`response` is the JSON-serialised `PublicKeyCredential` from the browser; the SDK produces it for you.
+
 ## Get a fresh token
 
 ```http
@@ -139,3 +153,5 @@ Both are public, cacheable for 5 minutes, and allow any origin.
 | password/reset | 20 / 15 min per IP |
 | sign_in/second_factor | 30 / 15 min per IP, and 5 wrong codes per attempt |
 | mfa/* | 10–20 / 15 min per IP |
+| passkeys/authenticate/* | 60 options, 30 verifications / 5 min per IP |
+| passkeys/register/options | 20 / 15 min per IP |

@@ -7,6 +7,7 @@ import {
   uniqueIndex,
   index,
   pgEnum,
+  bigint,
 } from "drizzle-orm/pg-core";
 
 // Prefixed, sortable-enough IDs are generated in app code (see lib/ids.ts).
@@ -203,4 +204,30 @@ export const backupCodes = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("backup_codes_user_hash_idx").on(t.userId, t.codeHash)],
+);
+
+/**
+ * WebAuthn passkeys. Only the public key is stored: the private key never leaves the
+ * user's device. Credential IDs are public identifiers, not secrets.
+ */
+export const passkeys = pgTable(
+  "passkeys",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    credentialId: text("credential_id").notNull(), // base64url
+    publicKey: text("public_key").notNull(), // base64url COSE key
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
+    transports: jsonb("transports").$type<string[]>().notNull().default([]),
+    deviceType: text("device_type").notNull(), // "singleDevice" | "multiDevice" (synced)
+    backedUp: boolean("backed_up").notNull().default(false),
+    name: text("name").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("passkeys_instance_credential_idx").on(t.instanceId, t.credentialId),
+    index("passkeys_user_idx").on(t.userId),
+  ],
 );

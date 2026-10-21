@@ -14,6 +14,7 @@ description: What's protected, how, and what's still your responsibility.
 | Verification and reset codes | Keyed HMAC in Valkey, deleted after 10 minutes, on use, or after 5 wrong guesses |
 | 2FA secrets | AES-256-GCM per user |
 | Backup codes | Keyed HMAC; marked used atomically |
+| Passkeys | Public keys only; private keys never leave the user's device |
 | OAuth client secrets | AES-256-GCM, bound to instance and provider; never returned by any API |
 | Social account IDs | Keyed HMAC only |
 | JWT signing keys | Private key AES-256-GCM encrypted; decrypted only into server memory |
@@ -54,6 +55,9 @@ description: What's protected, how, and what's still your responsibility.
 | Pre-registering someone's email | Verified social sign-in removes the password and sessions from never-verified accounts |
 | Stolen password | Optional TOTP 2FA, also enforced after social sign-in |
 | Replayed 2FA code | Each accepted 30-second window can only be used once |
+| Phishing | Passkeys only work on your real domain |
+| Adding a backdoor passkey from a hijacked session | Registration needs a session started in the last 15 minutes |
+| Cloned security key | Signature counters must always increase |
 | Code guessing | 6 digits, 5 guesses, 10 minutes, single use |
 | Stolen database dump | Personal data encrypted; passwords hashed; tokens hashed |
 | Leaked logs or cache | Rate-limit keys are HMAC'd; no raw IPs or emails in Valkey |
