@@ -5,6 +5,10 @@ const prod = process.env.NODE_ENV === "production";
 const schema = z
   .object({
     DATABASE_URL: z.string().url(),
+    // PEM of the Postgres CA (DigitalOcean managed databases). Enables verified TLS without relying on sslmode in the URL.
+    DATABASE_CA_CERT: z.string().optional(),
+    // Number of trusted reverse-proxy hops in front of the app (client IP = Nth entry from the right of X-Forwarded-For).
+    TRUST_PROXY_HOPS: z.string().regex(/^\d{0,2}$/).optional(),
     VALKEY_URL: z.string().default("redis://localhost:6379"),
     MASTER_KEY: z
       .string()
@@ -20,8 +24,8 @@ const schema = z
     if (!prod || process.env.ALLOW_INSECURE_TRANSPORT === "1") return;
     if (!e.APP_URL.startsWith("https://"))
       ctx.addIssue({ code: "custom", path: ["APP_URL"], message: "must be https in production" });
-    if (!/[?&]sslmode=(require|verify-ca|verify-full)\b/.test(e.DATABASE_URL))
-      ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "must set sslmode=verify-full (or require) in production" });
+    if (!e.DATABASE_CA_CERT && !/[?&]sslmode=(require|verify-ca|verify-full)\b/.test(e.DATABASE_URL))
+      ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "must set sslmode=require (or verify-full) or provide DATABASE_CA_CERT in production" });
     if (e.MAIL_TRANSPORT !== "resend" || !e.RESEND_API_KEY)
       ctx.addIssue({ code: "custom", path: ["MAIL_TRANSPORT"], message: "must be resend (with RESEND_API_KEY) in production" });
     if (!e.VALKEY_URL.startsWith("rediss://"))

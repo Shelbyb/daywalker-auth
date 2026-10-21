@@ -25,6 +25,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/two-factor", title: "Two-factor authentication" },
       { slug: "guides/passkeys", title: "Passkeys" },
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
+      { slug: "guides/organizations", title: "Organizations" },
       { slug: "guides/account-page", title: "Account page" },
       { slug: "guides/custom-ui", title: "Build your own sign-in form" },
       { slug: "guides/other-backends", title: "Express, Hono and other servers" },
@@ -53,6 +54,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
     pages: [
       { slug: "security", title: "Security model" },
       { slug: "self-hosting", title: "Self-hosting" },
+      { slug: "deployment-digitalocean", title: "Deploy on DigitalOcean" },
       { slug: "troubleshooting", title: "Troubleshooting" },
     ],
   },

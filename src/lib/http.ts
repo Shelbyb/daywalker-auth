@@ -40,6 +40,18 @@ export function handler<A extends unknown[]>(fn: (...args: A) => Promise<Respons
   };
 }
 
+/**
+ * Client IP for rate limiting. In production we sit behind TRUST_PROXY_HOPS proxies (default 1, e.g. DigitalOcean
+ * App Platform). Each proxy appends the address it saw to X-Forwarded-For, so the real client is the Nth entry from
+ * the RIGHT; anything to its left is client-supplied and spoofable, so it is ignored. Outside production the
+ * leftmost entry is used (tests and local dev send their own header).
+ */
 export function clientIp(req: Request) {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+  const xff = req.headers.get("x-forwarded-for");
+  const parts = xff ? xff.split(",").map((p) => p.trim()).filter(Boolean) : [];
+  if (process.env.NODE_ENV !== "production") return parts[0] || req.headers.get("x-real-ip") || "unknown";
+  const raw = process.env.TRUST_PROXY_HOPS;
+  const hops = raw !== undefined && raw !== "" && Number.isInteger(Number(raw)) && Number(raw) >= 0 ? Number(raw) : 1;
+  if (hops === 0 || parts.length === 0) return "unknown"; // no trusted proxy: never believe forwarding headers
+  return parts[Math.max(0, parts.length - hops)] || "unknown";
 }

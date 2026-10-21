@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const prod = process.env.NODE_ENV === "production";
@@ -27,6 +28,9 @@ const securityHeaders = [
 
 const config: NextConfig = {
   poweredByHeader: false,
+  // Self-contained server for Docker / DigitalOcean App Platform (.next/standalone/server.js).
+  output: "standalone",
+  outputFileTracingRoot: path.resolve(import.meta.dirname),
   transpilePackages: ["@daywalker/auth"],
   // Native argon2 bindings must not be bundled.
   serverExternalPackages: ["@node-rs/argon2"],

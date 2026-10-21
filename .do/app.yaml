@@ -1,0 +1,106 @@
+# DigitalOcean App Platform spec. Create with: doctl apps create --spec .do/app.yaml
+# Replace every <placeholder>. SECRET values are set in the dashboard (or `doctl apps update`), never committed.
+name: daywalker-auth
+region: nyc
+
+domains:
+  - domain: auth.<yourdomain>
+    type: PRIMARY
+
+databases:
+  # Dev database: created and owned by the app. For production, set production: true and
+  # cluster_name: <existing managed cluster> so it survives app deletion.
+  - name: db
+    engine: PG
+    version: "16"
+    production: false
+    # cluster_name: <your-postgres-cluster>
+  - name: cache
+    engine: VALKEY
+    version: "8"
+    production: false
+    # cluster_name: <your-valkey-cluster>
+
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    github:
+      repo: Shelbyb/<repo>
+      branch: main
+      deploy_on_push: true
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs # placeholder: size up (e.g. basic-xs / professional-xs) for production
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 15
+      period_seconds: 10
+      timeout_seconds: 3
+      failure_threshold: 3
+    envs:
+      - key: APP_URL
+        value: https://auth.<yourdomain>
+      - key: DATABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${db.DATABASE_URL}
+      - key: DATABASE_CA_CERT
+        scope: RUN_TIME
+        value: ${db.CA_CERT}
+      - key: VALKEY_URL
+        scope: RUN_TIME
+        value: ${cache.DATABASE_URL} # rediss:// (TLS)
+      - key: TRUST_PROXY_HOPS
+        scope: RUN_TIME
+        value: "1"
+      - key: MAIL_TRANSPORT
+        scope: RUN_TIME
+        value: resend
+      - key: MAIL_FROM
+        scope: RUN_TIME
+        value: Daywalker Auth <no-reply@auth.<yourdomain>>
+      - key: PASSKEY_RP_ID
+        scope: RUN_TIME
+        value: <yourdomain> # parent domain; decide before launch, changing it orphans passkeys
+      - key: MASTER_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: "<set-in-dashboard>" # openssl rand -base64 32
+      - key: RESEND_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: "<set-in-dashboard>"
+
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    dockerfile_path: Dockerfile
+    github:
+      repo: Shelbyb/<repo>
+      branch: main
+      deploy_on_push: true
+    instance_size_slug: basic-xxs
+    run_command: node migrate.mjs
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: DATABASE_CA_CERT
+        scope: RUN_TIME
+        value: ${db.CA_CERT}
+      - key: VALKEY_URL
+        scope: RUN_TIME
+        value: ${cache.DATABASE_URL}
+      - key: APP_URL
+        scope: RUN_TIME
+        value: https://auth.<yourdomain>
+      - key: MASTER_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: "<set-in-dashboard>"
+      - key: MAIL_TRANSPORT
+        scope: RUN_TIME
+        value: resend
+      - key: RESEND_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: "<set-in-dashboard>"
