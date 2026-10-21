@@ -9,7 +9,7 @@ import { publishableKey } from "@/lib/auth/instance";
 import { env } from "@/lib/env";
 
 // Only these codes ever reach the URL; the sign-in page maps them to fixed messages.
-const SAFE_ERRORS = new Set(["oauth_cancelled", "oauth_failed", "email_unverified", "provider_disabled", "forbidden"]);
+const SAFE_ERRORS = new Set(["oauth_cancelled", "oauth_failed", "email_unverified", "provider_disabled", "forbidden", "legal_required"]);
 
 /** Provider redirects here with ?code&state. Always ends in a redirect, never a raw error page. */
 export async function GET(req: Request, { params }: { params: Promise<{ provider: string }> }) {
@@ -31,7 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
 
   const pk = publishableKey(pending.inst);
   const back = (code: string) => {
-    const to = new URL(`${base}/sign-in`);
+    const to = new URL(`${base}/${code === "legal_required" ? "sign-up" : "sign-in"}`);
     to.searchParams.set("pk", pk);
     to.searchParams.set("error", SAFE_ERRORS.has(code) ? code : "oauth_failed");
     if (pending.redirect) to.searchParams.set("redirect_url", pending.redirect);
@@ -45,7 +45,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
   if (!code || code.length > 2048) return back("oauth_failed");
 
   try {
-    const userId = await completeOAuth(pending.inst, provider, code, pending.verifier);
+    const userId = await completeOAuth(pending.inst, provider, code, pending.verifier, pending.legalAccepted === true);
     if (await hasTwoFactor(userId)) {
       // Provider sign-in counts as the first factor only; finish on the hosted 2FA page.
       const { token, maxAge } = await createPendingSecondFactor(pending.inst.id, userId);

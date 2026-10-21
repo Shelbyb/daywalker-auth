@@ -6,6 +6,7 @@ import { newId } from "../ids";
 import { errors } from "../http";
 import type { Instance } from "../db/schema";
 import { hasTwoFactor } from "./mfa";
+import { legalOf, acceptanceRow } from "./legal";
 
 const email = z.string().trim().toLowerCase().email().max(254);
 
@@ -14,6 +15,7 @@ export const signUpInput = z.object({
   password: z.string().max(256),
   firstName: z.string().trim().max(100).optional(),
   lastName: z.string().trim().max(100).optional(),
+  legalAccepted: z.boolean().optional(),
 });
 /** Scoped per instance so the same email in two apps doesn't produce linkable index values. */
 const emailIndex = (instanceId: string, email: string) => blindIndex(email, `email:${instanceId}`);
@@ -24,6 +26,9 @@ export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>)
   if (input.password.length < inst.settings.passwordMinLength)
     throw errors.badRequest("password_too_short", `Password must be at least ${inst.settings.passwordMinLength} characters`);
 
+  // Checked before hashing, so a missing tick fails fast.
+  if (legalOf(inst).required && input.legalAccepted !== true)
+    throw errors.badRequest("legal_required", "Please accept the terms to create an account");
   const hash = await hashPassword(input.password);
   const userId = newId("user");
   try {
@@ -45,6 +50,7 @@ export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>)
         isPrimary: true,
       });
       await tx.insert(schema.passwords).values({ userId, hash });
+      if (input.legalAccepted) await tx.insert(schema.legalAcceptances).values(acceptanceRow(inst, userId, "password"));
     });
   } catch (e) {
     const code = (e as { code?: string; cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code;

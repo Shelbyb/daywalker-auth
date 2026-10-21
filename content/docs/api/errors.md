@@ -46,6 +46,7 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `not_enabled` | 400 | 2FA action on an account without 2FA | |
 | `no_password` | 400 | Password change on an account that signs in with Google/GitHub only | Use password reset to set one |
 | `current_session` | 400 | Tried to revoke the current session through the devices list | Use sign out instead |
+| `legal_required` | 400 | Terms must be accepted to create an account | Show the checkbox; pass `legalAccepted: true` |
 | `reauth_required` | 403 | Adding a passkey needs a sign-in from the last 15 minutes | Sign in again, then retry |
 | `passkey_invalid` | 400 | Passkey couldn't be verified (any reason) | Try again or use another sign-in method |
 | `challenge_expired` | 400 | Passkey setup took longer than 5 minutes | Start again |

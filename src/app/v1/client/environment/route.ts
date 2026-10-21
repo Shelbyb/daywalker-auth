@@ -1,6 +1,7 @@
 import { handler } from "@/lib/http";
 import { frontendContext, preflight } from "@/lib/auth/frontend";
 import { enabledProviders } from "@/lib/auth/oauth";
+import { legalOf } from "@/lib/auth/legal";
 
 export const OPTIONS = preflight;
 
@@ -11,5 +12,6 @@ export const GET = handler(async (req: Request) => {
     name: ctx.inst.name,
     oauthProviders: await enabledProviders(ctx.inst.id),
     passwordMinLength: ctx.inst.settings.passwordMinLength,
+    legal: legalOf(ctx.inst),
   });
 });

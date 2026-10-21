@@ -34,7 +34,10 @@ const OAUTH_ERRORS: Record<string, string> = {
   email_unverified: "That account has no verified email address. Verify it with the provider, or sign in with email.",
   provider_disabled: "That sign-in option isn't available for this app.",
   forbidden: "This account is suspended.",
+  legal_required: "Please accept the terms to create an account.",
 };
+
+export type LegalInfo = { required: boolean; termsUrl: string | null; privacyUrl: string | null };
 
 const PROVIDER_LABEL = { google: "Google", github: "GitHub" } as const;
 
@@ -45,6 +48,7 @@ export function AuthForm({
   providers = [],
   initialError,
   signedIn,
+  legal,
 }: {
   mode: Mode;
   pk: string;
@@ -52,6 +56,7 @@ export function AuthForm({
   providers?: ("google" | "github")[];
   initialError?: string;
   signedIn?: boolean;
+  legal?: LegalInfo;
 }) {
   const [error, setError] = useState<string | null>(initialError ? (OAUTH_ERRORS[initialError] ?? null) : null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -59,6 +64,9 @@ export function AuthForm({
   const [done, setDone] = useState<{ name: string } | null>(signedIn ? { name: "" } : null);
   const [verifying, setVerifying] = useState(false);
   const [needsSecondFactor, setNeedsSecondFactor] = useState(false);
+  // Never pre-ticked: consent has to be an active choice.
+  const [accepted, setAccepted] = useState(false);
+  const needsConsent = mode === "sign-up" && !!legal?.required;
   // Decided after mount: passkey support can only be detected in the browser.
   const [canUsePasskey, setCanUsePasskey] = useState(false);
   useEffect(() => setCanUsePasskey(mode === "sign-in" && hostedClient(pk).passkeysSupported()), [mode, pk]);
@@ -95,7 +103,13 @@ export function AuthForm({
         }
         user = result.user;
       } else {
-        user = await client.signUp({ email: body.email, password: body.password, firstName: body.firstName || undefined, lastName: body.lastName || undefined });
+        user = await client.signUp({
+          email: body.email,
+          password: body.password,
+          firstName: body.firstName || undefined,
+          lastName: body.lastName || undefined,
+          legalAccepted: needsConsent ? accepted : undefined,
+        });
       }
       if (mode === "sign-up" && !user.emailAddresses[0]?.verified) {
         // Confirm the address before continuing; the code is sent as the step opens.
@@ -134,8 +148,24 @@ export function AuthForm({
     );
 
   const other = mode === "sign-in" ? "sign-up" : "sign-in";
+  const consentBox = needsConsent && (
+    <label className="flex items-start gap-2 text-sm text-stone-600">
+      <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5 h-4 w-4 accent-ink" />
+      <span>
+        I agree to the{" "}
+        <a href={legal!.termsUrl!} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline underline-offset-2">Terms of Service</a>
+        {legal!.privacyUrl && (
+          <>
+            {" "}and{" "}
+            <a href={legal!.privacyUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline underline-offset-2">Privacy Policy</a>
+          </>
+        )}
+      </span>
+    </label>
+  );
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
+      {consentBox}
       {(providers.length > 0 || canUsePasskey) && (
         <>
           <div className="grid gap-2">
@@ -153,8 +183,14 @@ export function AuthForm({
               <button
                 key={p}
                 type="button"
-                onClick={() => hostedClient(pk).signInWithOAuth(p, redirect ?? `${window.location.origin}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`)}
-                className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-stone-50"
+                disabled={needsConsent && !accepted}
+                title={needsConsent && !accepted ? "Accept the terms first" : undefined}
+                onClick={() =>
+                  hostedClient(pk).signInWithOAuth(p, redirect ?? `${window.location.origin}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`, {
+                    legalAccepted: mode === "sign-up" && accepted,
+                  })
+                }
+                className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Continue with {PROVIDER_LABEL[p]}
               </button>
@@ -187,7 +223,7 @@ export function AuthForm({
         </p>
       )}
       <button
-        disabled={busy}
+        disabled={busy || (needsConsent && !accepted)}
         className="w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white transition hover:bg-dusk disabled:opacity-60"
       >
         {busy ? "Please wait…" : mode === "sign-in" ? "Continue" : "Create account"}

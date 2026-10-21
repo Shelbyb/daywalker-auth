@@ -15,7 +15,7 @@ You rarely call these yourself; the SDK does. They're documented so you can debu
 
 ```http
 POST /v1/client/sign_up
-{ "email": "ada@example.com", "password": "…", "firstName": "Ada", "lastName": "Lovelace" }
+{ "email": "ada@example.com", "password": "…", "firstName": "Ada", "lastName": "Lovelace", "legalAccepted": true }
 ```
 
 `201` → `{ user, sessionId, jwt }` and sets the refresh cookie.
@@ -121,12 +121,12 @@ POST /v1/client/password/reset   { "email": "…", "code": "123456", "password":
 GET /v1/client/environment
 ```
 
-`200` → `{ name, oauthProviders: ["google", "github"], passwordMinLength }`
+`200` → `{ name, oauthProviders: ["google", "github"], passwordMinLength, legal: { required, termsUrl, privacyUrl, version } }`
 
 ## Social sign-in
 
 ```http
-GET /v1/client/oauth/{google|github}/start?pk=pk_…&redirect_url=…
+GET /v1/client/oauth/{google|github}/start?pk=pk_…&redirect_url=…&legal_accepted=1
 ```
 
 Open this as a **full-page navigation**, not `fetch`. It redirects to the provider and sets a short-lived state cookie. The provider returns to `GET /v1/oauth/callback/{provider}`, which signs the user in and redirects to `redirect_url` (if allowed) or to the hosted page. Errors go to `/sign-in?error=<code>`; see [Social sign-in](/docs/guides/social-sign-in#errors-on-the-way-back).

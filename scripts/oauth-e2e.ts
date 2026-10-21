@@ -107,9 +107,9 @@ class Browser {
 }
 
 /** Runs the whole redirect dance. Returns where the user ends up. */
-async function oauth(b: Browser, provider: "google" | "github", profile: MockProfile, opts: { redirect?: string; deny?: boolean } = {}) {
+async function oauth(b: Browser, provider: "google" | "github", profile: MockProfile, opts: { redirect?: string; deny?: boolean; legal?: boolean } = {}) {
   nextProfile = profile;
-  const start = await b.get(`${AUTH}/v1/client/oauth/${provider}/start?pk=${pk}&redirect_url=${encodeURIComponent(opts.redirect ?? `${APP}/dashboard`)}`);
+  const start = await b.get(`${AUTH}/v1/client/oauth/${provider}/start?pk=${pk}&redirect_url=${encodeURIComponent(opts.redirect ?? `${APP}/dashboard`)}${opts.legal ? "&legal_accepted=1" : ""}`);
   const authorize = new URL(start.headers.get("location")!);
   if (opts.deny) authorize.searchParams.set("deny", "1");
   const cb = await b.get(authorize.toString());
@@ -223,6 +223,24 @@ const viaGoogle = await oauth(alice3, "google", { id: `g-${t}`, email: `alice.${
 check("2FA account: social sign-in stops at the second-factor page", viaGoogle.location.startsWith(`${AUTH}/second-factor?`) && !(await whoami(alice3)), viaGoogle.location);
 const fin = await alice3.post("sign_in/second_factor", { code: totpAt(enroll.body.secret, cc + 1) });
 check("…and completes with an authenticator code", fin.status === 200 && (await whoami(alice3)) === aliceId, fin.body);
+
+// ---------- Terms acceptance for new social accounts ----------
+await fetch(`${AUTH}/v1/instance/legal`, {
+  method: "PUT",
+  headers: { authorization: `Bearer ${sk}`, "content-type": "application/json" },
+  body: JSON.stringify({ required: true, termsUrl: "https://example.com/terms", privacyUrl: null, version: "tos-1" }),
+});
+const n1 = new Browser();
+const noConsent = await oauth(n1, "google", { id: `g-new-${t}`, email: `newbie.${t}@example.com`, verified: true });
+check("new social account without consent → sent to sign-up with legal_required", noConsent.location.startsWith(`${AUTH}/sign-up?`) && noConsent.location.includes("error=legal_required") && !(await whoami(n1)), noConsent.location);
+const n2 = new Browser();
+await oauth(n2, "google", { id: `g-new-${t}`, email: `newbie.${t}@example.com`, verified: true }, { legal: true });
+const newId = await whoami(n2);
+const acc = await db().execute(sql`select version, method from legal_acceptances where user_id = ${newId ?? ""}`);
+check("…with consent → created, acceptance recorded (method google)", !!newId && acc[0]?.version === "tos-1" && acc[0]?.method === "google", acc);
+const existing = new Browser();
+await oauth(existing, "github", { id: String(t), email: bEmail, verified: true });
+check("existing user signs in with a provider without re-accepting", (await whoami(existing)) === bobId);
 
 mock.close();
 await closeDb();

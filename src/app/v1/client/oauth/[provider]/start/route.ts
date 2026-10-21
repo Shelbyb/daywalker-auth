@@ -11,7 +11,8 @@ export const GET = handler(async (req: Request, { params }: { params: Promise<{ 
   if (!isProvider(provider)) throw errors.notFound("Unknown provider");
   const inst = await instanceFromPublishableKey(req);
   const redirect = safeRedirect(new URL(req.url).searchParams.get("redirect_url") ?? undefined, inst.allowedOrigins);
-  const { url, state, maxAge } = await startOAuth(inst, provider, redirect);
+  const legalAccepted = new URL(req.url).searchParams.get("legal_accepted") === "1";
+  const { url, state, maxAge } = await startOAuth(inst, provider, redirect, legalAccepted);
 
   const res = NextResponse.redirect(url, 302);
   res.cookies.set(STATE_COOKIE, state, {

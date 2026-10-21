@@ -195,7 +195,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return (await request<{ backupCodes: string[] }>("mfa/backup_codes", { method: "POST", body: JSON.stringify({ code }) })).backupCodes;
   }
 
-  async function signUp(input: { email: string; password: string; firstName?: string; lastName?: string }) {
+  /** `legalAccepted` is required when the instance requires terms acceptance (see getEnvironment().legal). */
+  async function signUp(input: { email: string; password: string; firstName?: string; lastName?: string; legalAccepted?: boolean }) {
     const r = await request<{ user: User; sessionId: string; jwt: string }>("sign_up", { method: "POST", body: JSON.stringify(input) });
     acceptToken(r.jwt);
     setState({ isLoaded: true, user: r.user, sessionId: r.sessionId });
@@ -242,9 +243,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
    * Full-page redirect to Google/GitHub. The user comes back to `redirectUrl` signed in.
    * `redirectUrl` must be on your instance's allowed origins (or it's ignored).
    */
-  function signInWithOAuth(provider: "google" | "github", redirectUrl?: string) {
+  function signInWithOAuth(provider: "google" | "github", redirectUrl?: string, opts: { legalAccepted?: boolean } = {}) {
     const u = new URL(`${base}/v1/client/oauth/${provider}/start`);
     u.searchParams.set("pk", config.publishableKey);
+    // Needed only when this creates a new account on an instance that requires terms.
+    if (opts.legalAccepted) u.searchParams.set("legal_accepted", "1");
     const back = redirectUrl ?? (typeof window !== "undefined" ? window.location.href : undefined);
     if (back) u.searchParams.set("redirect_url", back);
     window.location.assign(u.toString());
@@ -252,7 +255,12 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
 
   /** Public settings for this instance, e.g. which OAuth providers are enabled. */
   function getEnvironment() {
-    return request<{ name: string; oauthProviders: ("google" | "github")[]; passwordMinLength: number }>("environment", { method: "GET" });
+    return request<{
+      name: string;
+      oauthProviders: ("google" | "github")[];
+      passwordMinLength: number;
+      legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };
+    }>("environment", { method: "GET" });
   }
 
   /** Update the signed-in user's name. Pass null to clear a field. */

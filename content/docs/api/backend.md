@@ -62,6 +62,15 @@ PUT /v1/instance/oauth/{google|github}
 
 `200` → `{ provider, enabled, clientId, redirectUri }`. The secret is encrypted at rest and never returned. `redirectUri` is the callback URL to register with the provider.
 
+## Require terms at sign-up
+
+```http
+PUT /v1/instance/legal
+{ "required": true, "termsUrl": "https://…", "privacyUrl": "https://…", "version": "2026-10-21" }
+```
+
+See [Require terms at sign-up](/docs/guides/terms-acceptance).
+
 ## Example with curl
 
 ```bash

@@ -2,6 +2,7 @@ import { AuthForm } from "@/app/components/auth-form";
 import { parsePublishableKey, getInstance } from "@/lib/auth/instance";
 import { safeRedirect } from "@/lib/auth/redirect";
 import { enabledProviders } from "@/lib/auth/oauth";
+import { legalOf } from "@/lib/auth/legal";
 
 export const metadata = { title: "Sign in" };
 
@@ -22,6 +23,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         providers={await enabledProviders(inst.id)}
         initialError={error}
         signedIn={status === "signed_in"}
+        legal={legalOf(inst)}
       />
     </>
   );

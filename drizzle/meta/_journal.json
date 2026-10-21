@@ -29,6 +29,13 @@
       "when": 1792618366420,
       "tag": "0003_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792618782358,
+      "tag": "0004_legal",
+      "breakpoints": true
     }
   ]
 }

@@ -38,6 +38,11 @@ export const instances = pgTable(
       .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
+    // Terms new users must accept. `version` is recorded with each acceptance.
+    legal: jsonb("legal")
+      .$type<{ required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string }>()
+      .notNull()
+      .default({ required: false, termsUrl: null, privacyUrl: null, version: "1" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -230,4 +235,18 @@ export const passkeys = pgTable(
     uniqueIndex("passkeys_instance_credential_idx").on(t.instanceId, t.credentialId),
     index("passkeys_user_idx").on(t.userId),
   ],
+);
+
+/** Proof that a user accepted a given version of the instance's terms, and when. */
+export const legalAcceptances = pgTable(
+  "legal_acceptances",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    version: text("version").notNull(),
+    method: text("method").notNull(), // "password" | "google" | "github"
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("legal_acceptances_user_idx").on(t.userId)],
 );

@@ -8,6 +8,7 @@ import { newId, newToken, sha256 } from "../ids";
 import { errors } from "../http";
 import { getInstance } from "./instance";
 import type { Instance } from "../db/schema";
+import { legalOf, acceptanceRow } from "./legal";
 
 export type ProviderName = "google" | "github";
 export const PROVIDERS: ProviderName[] = ["google", "github"];
@@ -105,7 +106,7 @@ async function providerConfig(instanceId: string, provider: ProviderName) {
 
 // ---------- Flow ----------
 
-type PendingState = { instanceId: string; provider: ProviderName; verifier: string; redirect: string | null };
+type PendingState = { instanceId: string; provider: ProviderName; verifier: string; redirect: string | null; legalAccepted?: boolean };
 const STATE_TTL = 600;
 export const STATE_COOKIE = "__dw_oauth";
 
@@ -114,12 +115,12 @@ export const STATE_COOKIE = "__dw_oauth";
  * HttpOnly cookie: the callback requires both to match, so an attacker can't complete
  * a flow they started in someone else's browser (login CSRF).
  */
-export async function startOAuth(inst: Instance, provider: ProviderName, redirect: string | null) {
+export async function startOAuth(inst: Instance, provider: ProviderName, redirect: string | null, legalAccepted = false) {
   const { clientId } = await providerConfig(inst.id, provider);
   const state = newToken(32);
   const verifier = newToken(48); // PKCE: proves the token request comes from whoever started the flow
   const challenge = createHash("sha256").update(verifier).digest("base64url");
-  const pending: PendingState = { instanceId: inst.id, provider, verifier, redirect };
+  const pending: PendingState = { instanceId: inst.id, provider, verifier, redirect, legalAccepted };
   await cache().set(`oauth:state:${sha256(state)}`, encrypt(JSON.stringify(pending), "oauth_state"), "EX", STATE_TTL);
 
   const e = endpoints(provider);
@@ -150,7 +151,7 @@ export async function takeState(provider: ProviderName, state: string | null, co
 }
 
 /** Step 2. Exchange the code, fetch the profile, find-or-create the user. Returns the user ID. */
-export async function completeOAuth(inst: Instance, provider: ProviderName, code: string, verifier: string) {
+export async function completeOAuth(inst: Instance, provider: ProviderName, code: string, verifier: string, legalAccepted = false) {
   const { clientId, clientSecret } = await providerConfig(inst.id, provider);
   const tokenRes = await fetch(endpoints(provider).token, {
     method: "POST",
@@ -167,7 +168,7 @@ export async function completeOAuth(inst: Instance, provider: ProviderName, code
   const tok = await json<{ access_token?: string; error?: string }>(tokenRes, "Token exchange");
   if (!tok.access_token) throw errors.badRequest("oauth_failed", "The provider didn't return an access token");
   const profile = await fetchProfile(provider, tok.access_token);
-  return linkOrCreate(inst, provider, profile);
+  return linkOrCreate(inst, provider, profile, legalAccepted);
 }
 
 /**
@@ -178,7 +179,7 @@ export async function completeOAuth(inst: Instance, provider: ProviderName, code
  *    address to hijack it later, so its password is removed and its sessions revoked.
  * 3. Otherwise create a new user (provider email must be verified to be attached).
  */
-async function linkOrCreate(inst: Instance, provider: ProviderName, p: Profile): Promise<string> {
+async function linkOrCreate(inst: Instance, provider: ProviderName, p: Profile, legalAccepted: boolean): Promise<string> {
   const identity = blindIndex(p.id, `oauth:${inst.id}:${provider}`);
   const [existing] = await db()
     .select({ userId: schema.oauthAccounts.userId, banned: schema.users.banned })
@@ -216,6 +217,9 @@ async function linkOrCreate(inst: Instance, provider: ProviderName, p: Profile):
         await tx.update(schema.emailAddresses).set({ verifiedAt: new Date() }).where(eq(schema.emailAddresses.id, match.id));
       }
     } else {
+      // Only *new* accounts need to accept; existing users signing in with a provider don't.
+      if (legalOf(inst).required && !legalAccepted)
+        throw errors.badRequest("legal_required", "Please accept the terms to create an account");
       uid = newId("user");
       await tx.insert(schema.users).values({
         id: uid,
@@ -234,6 +238,7 @@ async function linkOrCreate(inst: Instance, provider: ProviderName, p: Profile):
         isPrimary: true,
         verifiedAt: new Date(),
       });
+      if (legalAccepted) await tx.insert(schema.legalAcceptances).values(acceptanceRow(inst, uid, provider));
     }
     const oaId = newId("oa");
     await tx.insert(schema.oauthAccounts).values({
