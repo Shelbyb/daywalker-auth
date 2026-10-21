@@ -22,6 +22,17 @@ export const accounts = pgTable("accounts", {
   createdAt: createdAt(),
 });
 
+/** Which dashboard users (people signed in to the platform instance) can manage an account's instances. */
+export const accountMembers = pgTable(
+  "account_members",
+  {
+    accountId: text("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(), // a user of the platform instance
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("account_members_pk").on(t.accountId, t.userId), index("account_members_user_idx").on(t.userId)],
+);
+
 export const environmentEnum = pgEnum("environment", ["development", "production"]);
 
 /** An application environment. Every end-user record is scoped to one instance. */

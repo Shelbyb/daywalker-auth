@@ -40,6 +40,10 @@ services:
     envs:
       - key: APP_URL
         value: https://users.daywalker.dev
+      # Set after running `npm run bootstrap:platform` once; until then /dashboard returns 404.
+      - key: PLATFORM_PUBLISHABLE_KEY
+        scope: RUN_TIME
+        value: ""
       - key: DATABASE_URL
         scope: RUN_AND_BUILD_TIME
         value: ${db.DATABASE_URL}

@@ -28,10 +28,10 @@ const signedOut: Auth = { isSignedIn: false, userId: null, sessionId: null };
  * Current session in Server Components, Route Handlers and Server Actions.
  * Verifies the JWT itself; never trusts headers set by a proxy.
  */
-export async function auth(): Promise<Auth> {
+export async function auth(opts: { config?: Config & { authorizedParties?: string[] } } = {}): Promise<Auth> {
   const { headers, cookies } = await import("next/headers");
   const [h, c] = await Promise.all([headers(), cookies()]);
-  const claims = await verifyToken(tokenFrom(h, (n) => c.get(n)?.value), config());
+  const claims = await verifyToken(tokenFrom(h, (n) => c.get(n)?.value), opts.config ?? config());
   return claims ? { ...claims, isSignedIn: true } : signedOut;
 }
 
@@ -73,12 +73,12 @@ document.cookie=${js(`${ACTIVE_COOKIE}=; Max-Age=0; ${flags}`)};sessionStorage.r
  * Page requests without a valid session go to the hosted sign-in page and come back after.
  * API requests (paths under /api or JSON requests) get a 401 instead of a redirect.
  */
-export function authProxy(opts: { protect: Matcher[]; signInUrl?: string }) {
+export function authProxy(opts: { protect: Matcher[]; signInUrl?: string; /** Use instead of the NEXT_PUBLIC_DAYWALKER_* env vars */ config?: Config & { authorizedParties?: string[] } }) {
   return async function proxy(req: NextRequest) {
     const path = req.nextUrl.pathname;
     if (!opts.protect.some((m) => matches(path, m))) return NextResponse.next();
 
-    const cfg = config();
+    const cfg = opts.config ?? config();
     const claims = await verifyToken(tokenFrom(req.headers, (n) => req.cookies.get(n)?.value), cfg);
     if (claims) return NextResponse.next();
 

@@ -25,6 +25,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/two-factor", title: "Two-factor authentication" },
       { slug: "guides/passkeys", title: "Passkeys" },
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
+      { slug: "guides/dashboard", title: "The developer dashboard" },
       { slug: "guides/organizations", title: "Organizations" },
       { slug: "guides/webhooks", title: "Webhooks" },
       { slug: "guides/account-page", title: "Account page" },

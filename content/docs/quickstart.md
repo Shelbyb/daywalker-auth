@@ -19,6 +19,8 @@ Every app gets an **instance** with two keys. If you're running Daywalker Auth y
 npm run seed -- http://localhost:3001
 ```
 
+(Prefer clicking? Use the [developer dashboard](/docs/guides/dashboard) instead: create an instance, add `http://localhost:3001` under **Settings > Allowed origins**, and copy the keys from the **Overview** and **API keys** tabs.)
+
 ```text
 Instance:        ins_…
 Publishable key: pk_test_…

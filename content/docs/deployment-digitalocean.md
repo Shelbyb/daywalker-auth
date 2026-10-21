@@ -94,3 +94,13 @@ Rate limits key on the client IP. App Platform appends the real client address t
 ## Webhook delivery
 
 Webhooks are delivered by a small loop inside the web service itself, so there is nothing extra to deploy. With several instances running, each delivery is claimed by exactly one of them. Set `WEBHOOK_WORKER=0` on an instance to turn the loop off there. Never set `WEBHOOK_ALLOW_PRIVATE` in production: it lets webhooks call internal addresses and only exists for local testing.
+
+## The developer dashboard
+
+After the first successful deploy, open a console on the web service (or run it locally against the production database) and create the platform instance:
+
+```bash
+npm run bootstrap:platform
+```
+
+Copy the `PLATFORM_PUBLISHABLE_KEY=pk_live_…` line it prints into the app's environment variables (it isn't secret, but keep it with your other settings) and redeploy. Then `https://users.daywalker.dev/dashboard` works. Run the command only once. See [the dashboard guide](/docs/guides/dashboard).

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { schema } from "../db";
 import { newId } from "../ids";
 import type { Instance } from "../db/schema";
@@ -14,3 +15,13 @@ export function acceptanceRow(inst: Instance, userId: string, method: "password"
 }
 
 export { schema };
+
+const httpsOrLocal = z.string().url().max(2048).refine((u) => /^https:\/\//.test(u) || /^http:\/\/localhost[:/]/.test(u), "must be https");
+
+/** Validated terms settings. Used by the backend API and the dashboard. */
+export const legalInput = z.object({
+  required: z.boolean(),
+  termsUrl: httpsOrLocal.nullable(),
+  privacyUrl: httpsOrLocal.nullable(),
+  version: z.string().trim().min(1).max(40),
+}).refine((b) => !b.required || b.termsUrl, { message: "termsUrl is required when acceptance is required", path: ["termsUrl"] });

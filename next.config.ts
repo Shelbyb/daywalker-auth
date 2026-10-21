@@ -3,21 +3,11 @@ import type { NextConfig } from "next";
 
 const prod = process.env.NODE_ENV === "production";
 
-// Pages ship no third-party scripts. Next needs inline styles/scripts in dev for HMR.
-const csp = [
-  "default-src 'self'",
-  `script-src 'self'${prod ? "" : " 'unsafe-eval' 'unsafe-inline'"}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
-  "connect-src 'self'",
-  "frame-ancestors 'none'", // hosted auth pages must never be framed (clickjacking)
-  "form-action 'self'",
-  "base-uri 'none'",
-  "object-src 'none'",
-].join("; ");
+// Page CSPs are set per request in src/proxy.ts (they need a nonce). JSON API responses never render
+// anything, so they get the tightest possible policy here.
+const apiCsp = "default-src 'none'; frame-ancestors 'none'";
 
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -38,7 +28,8 @@ const config: NextConfig = {
     return [
       { source: "/:path*", headers: securityHeaders },
       // API responses carry tokens and user data: never cache them anywhere.
-      { source: "/v1/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
+      { source: "/v1/:path*", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "Content-Security-Policy", value: apiCsp }] },
+      { source: "/i/:path*", headers: [{ key: "Content-Security-Policy", value: apiCsp }] },
     ];
   },
 };

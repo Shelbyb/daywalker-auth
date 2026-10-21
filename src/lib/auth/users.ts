@@ -8,6 +8,7 @@ import type { Instance } from "../db/schema";
 import { hasTwoFactor } from "./mfa";
 import { legalOf, acceptanceRow } from "./legal";
 import { emit } from "../webhooks";
+import { cache } from "../cache";
 
 const email = z.string().trim().toLowerCase().email().max(254);
 
@@ -99,4 +100,38 @@ export async function getUser(instanceId: string, userId: string, opts: { includ
     lastSignInAt: u.lastSignInAt,
     createdAt: u.createdAt,
   };
+}
+
+const purgeSessions = async (instanceId: string, userId: string) => {
+  const sess = await db()
+    .select({ h: schema.sessions.refreshTokenHash })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.instanceId, instanceId)));
+  if (sess.length) await cache().del(...sess.map((x) => `sess:${x.h}`));
+};
+
+/** Deletes a user (cascades to emails, password, sessions) and drops their cached sessions. */
+export async function deleteUser(instanceId: string, userId: string) {
+  const sess = await db()
+    .select({ h: schema.sessions.refreshTokenHash })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.instanceId, instanceId)));
+  const [deleted] = await db()
+    .delete(schema.users)
+    .where(and(eq(schema.users.id, userId), eq(schema.users.instanceId, instanceId)))
+    .returning({ id: schema.users.id });
+  if (!deleted) throw errors.notFound("User not found");
+  if (sess.length) await cache().del(...sess.map((x) => `sess:${x.h}`));
+  void emit(instanceId, "user.deleted", { userId });
+}
+
+/** Suspend or restore a user. Suspending takes effect on their next token refresh. */
+export async function setBanned(instanceId: string, userId: string, banned: boolean) {
+  const rows = await db()
+    .update(schema.users)
+    .set({ banned })
+    .where(and(eq(schema.users.id, userId), eq(schema.users.instanceId, instanceId)))
+    .returning({ id: schema.users.id });
+  if (!rows.length) throw errors.notFound("User not found");
+  await purgeSessions(instanceId, userId);
 }

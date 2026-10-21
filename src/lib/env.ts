@@ -9,6 +9,8 @@ const schema = z
     DATABASE_CA_CERT: z.string().optional(),
     // Number of trusted reverse-proxy hops in front of the app (client IP = Nth entry from the right of X-Forwarded-For).
     TRUST_PROXY_HOPS: z.string().regex(/^\d{0,2}$/).optional(),
+    // Publishable key of the instance that signs developers in to /dashboard (see scripts/bootstrap-platform.ts). Unset = dashboard disabled.
+    PLATFORM_PUBLISHABLE_KEY: z.string().regex(/^pk_(test|live)_[A-Za-z0-9_-]+$/).optional().or(z.literal("")),
     VALKEY_URL: z.string().default("redis://localhost:6379"),
     MASTER_KEY: z
       .string()
