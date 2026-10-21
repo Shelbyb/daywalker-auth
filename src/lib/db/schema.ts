@@ -140,6 +140,7 @@ export const sessions = pgTable(
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     refreshTokenHash: text("refresh_token_hash").notNull(),
     status: sessionStatusEnum("status").notNull().default("active"),
+    activeOrgId: text("active_org_id"), // carried in the JWT as org_id/org_role
     userAgentEnc: text("user_agent_enc"),
     ipAddressEnc: text("ip_address_enc"),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),
@@ -249,4 +250,49 @@ export const legalAcceptances = pgTable(
     acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("legal_acceptances_user_idx").on(t.userId)],
+);
+
+export const orgRoleEnum = pgEnum("org_role", ["admin", "member"]);
+
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("organizations_instance_slug_idx").on(t.instanceId, t.slug)],
+);
+
+export const memberships = pgTable(
+  "memberships",
+  {
+    orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: orgRoleEnum("role").notNull().default("member"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("memberships_org_user_idx").on(t.orgId, t.userId), index("memberships_user_idx").on(t.userId)],
+);
+
+/** Email invitations. The link token is stored hashed; the email encrypted with a blind index. */
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: id(),
+    orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    emailEnc: text("email_enc").notNull(),
+    emailIndex: text("email_index").notNull(),
+    role: orgRoleEnum("role").notNull().default("member"),
+    tokenHash: text("token_hash").notNull(),
+    invitedBy: text("invited_by"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("invitations_token_idx").on(t.tokenHash), index("invitations_org_idx").on(t.orgId)],
 );

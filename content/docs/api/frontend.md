@@ -155,3 +155,19 @@ Both are public, cacheable for 5 minutes, and allow any origin.
 | mfa/* | 10–20 / 15 min per IP |
 | passkeys/authenticate/* | 60 options, 30 verifications / 5 min per IP |
 | passkeys/register/options | 20 / 15 min per IP |
+
+## Organizations
+
+All need a signed-in session unless noted.
+
+| Endpoint | Description |
+| --- | --- |
+| `GET` / `POST /v1/client/organizations` | List mine / create |
+| `PATCH` / `DELETE /v1/client/organizations/{orgId}` | Rename / delete (admin) |
+| `GET /v1/client/organizations/{orgId}/members` | List members |
+| `PATCH` / `DELETE /v1/client/organizations/{orgId}/members/{userId}` | Change role / remove (`me` to leave) |
+| `GET` / `POST /v1/client/organizations/{orgId}/invitations` | List / invite (admin) |
+| `DELETE /v1/client/organizations/{orgId}/invitations/{id}` | Revoke (admin) |
+| `POST /v1/client/invitations/preview` | Org name and role for a token (works signed out) |
+| `POST /v1/client/invitations/accept` | Join with a token |
+| `POST /v1/client/session/active_org` | Switch active organization; returns a new JWT |

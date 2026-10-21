@@ -39,3 +39,7 @@ const api = createBackendClient({ secretKey: process.env.DAYWALKER_SECRET_KEY!, 
 `BackendUser` is the public `User` plus `privateMetadata` and `banned`.
 
 Failed calls throw `BackendError` with `status`, `code` and `message`. Passing anything other than an `sk_` key throws immediately.
+
+## Organization claims and API
+
+`verifyToken()` also returns `orgId` and `orgRole` (`"admin"` or `"member"`) when the session has an active organization. The backend client adds `organizations.list({ limit, offset })` and `organizations.members(orgId)`. See the [Organizations guide](/docs/guides/organizations).

@@ -5,12 +5,13 @@ import { newId, newToken, sha256 } from "../ids";
 import { errors } from "../http";
 import { mintSessionToken } from "./keys";
 import { encryptNullable } from "../crypto";
+import { roleIn } from "./orgs";
 import type { Instance } from "../db/schema";
 
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
 
-type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string };
+type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string; activeOrgId?: string | null };
 const sessKey = (refreshHash: string) => `sess:${refreshHash}`;
 
 export async function createSession(
@@ -52,6 +53,7 @@ export async function resolveSession(instanceId: string, refreshToken: string) {
         status: schema.sessions.status,
         expiresAt: schema.sessions.expiresAt,
         createdAt: schema.sessions.createdAt,
+        activeOrgId: schema.sessions.activeOrgId,
         banned: schema.users.banned,
       })
       .from(schema.sessions)
@@ -65,6 +67,7 @@ export async function resolveSession(instanceId: string, refreshToken: string) {
         status: row.banned ? "revoked" : row.status,
         expiresAt: row.expiresAt.toISOString(),
         createdAt: row.createdAt.toISOString(),
+        activeOrgId: row.activeOrgId,
       };
       await cache().set(sessKey(h), JSON.stringify(s), "EX", 300);
     }
@@ -81,8 +84,11 @@ export async function issueToken(inst: Instance, refreshToken: string | undefine
   if (!refreshToken) throw errors.unauthorized();
   const s = await resolveSession(inst.id, refreshToken);
   if (!s) throw errors.unauthorized("Session is no longer active");
-  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp }, inst.settings.tokenTtlSeconds);
-  return { jwt, sessionId: s.id, userId: s.userId };
+  // Role is re-checked on every mint, so removal from an org drops the claims within a minute.
+  const orgRole = s.activeOrgId ? await roleIn(inst.id, s.activeOrgId, s.userId) : null;
+  const org = orgRole ? { org_id: s.activeOrgId!, org_role: orgRole } : undefined;
+  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org }, inst.settings.tokenTtlSeconds);
+  return { jwt, sessionId: s.id, userId: s.userId, orgId: org?.org_id ?? null, orgRole: org?.org_role ?? null };
 }
 
 export async function endSession(instanceId: string, refreshToken: string, status: "ended" | "revoked" = "ended") {

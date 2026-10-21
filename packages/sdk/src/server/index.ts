@@ -6,7 +6,7 @@ if (typeof window !== "undefined") {
   throw new Error("@daywalker/auth/server must only be imported on the server");
 }
 
-export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string };
+export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: "admin" | "member" };
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -40,7 +40,9 @@ export async function verifyToken(token: string | null | undefined, opts: Verify
     });
     const azp = typeof payload.azp === "string" ? payload.azp : undefined;
     if (opts.authorizedParties?.length && azp && !opts.authorizedParties.includes(azp)) return null;
-    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp };
+    const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
+    const orgRole = payload.org_role === "admin" || payload.org_role === "member" ? payload.org_role : undefined;
+    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole };
   } catch (e) {
     if (e instanceof joseErrors.JOSEError) return null;
     throw e; // network/JWKS outages surface instead of looking like "signed out"
@@ -89,6 +91,18 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
         call<{ data: BackendUser[] }>("GET", `users?limit=${q.limit ?? 20}&offset=${q.offset ?? 0}`).then((r) => r.data),
       get: (userId: string) => call<BackendUser>("GET", `users/${encodeURIComponent(userId)}`),
       delete: (userId: string) => call<{ id: string; deleted: true }>("DELETE", `users/${encodeURIComponent(userId)}`),
+    },
+    organizations: {
+      list: (q: { limit?: number; offset?: number } = {}) =>
+        call<{ data: { id: string; name: string; slug: string; createdAt: string }[] }>(
+          "GET",
+          `organizations?limit=${q.limit ?? 20}&offset=${q.offset ?? 0}`,
+        ).then((r) => r.data),
+      members: (orgId: string) =>
+        call<{ data: { userId: string; role: "admin" | "member"; joinedAt: string }[] }>(
+          "GET",
+          `organizations/${encodeURIComponent(orgId)}/members`,
+        ).then((r) => r.data),
     },
     sessions: {
       revoke: (sessionId: string) => call<{ id: string; status: "revoked" }>("POST", `sessions/${encodeURIComponent(sessionId)}/revoke`),

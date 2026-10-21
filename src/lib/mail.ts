@@ -22,6 +22,17 @@ export function codeEmail(kind: "verify" | "reset", appName: string, code: strin
   return { subject, text, html };
 }
 
+/** Org invitation. Org and inviter names are user-supplied, so they're escaped in the HTML part. */
+export function inviteEmail(appName: string, orgName: string, inviter: string, link: string, days: number): Omit<Mail, "to"> {
+  const subject = `${inviter} invited you to join ${orgName} on ${appName}`.slice(0, 200);
+  const text = `${inviter} invited you to join ${orgName} on ${appName}.\n\nAccept the invitation:\n${link}\n\nThe link works for ${days} days. If you weren't expecting this, you can ignore this email.`;
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:420px;margin:auto;padding:24px;color:#14121a">
+<p><strong>${escapeHtml(inviter)}</strong> invited you to join <strong>${escapeHtml(orgName)}</strong> on ${escapeHtml(appName)}.</p>
+<p style="margin:24px 0"><a href="${escapeHtml(link)}" style="background:#14121a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Accept invitation</a></p>
+<p style="color:#78716c;font-size:13px">The link works for ${days} days. If you weren't expecting this, you can ignore this email.</p></div>`;
+  return { subject, text, html };
+}
+
 export async function sendMail(mail: Mail) {
   const e = env();
   if (e.MAIL_TRANSPORT === "resend") {

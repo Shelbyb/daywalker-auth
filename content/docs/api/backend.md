@@ -77,3 +77,10 @@ See [Require terms at sign-up](/docs/guides/terms-acceptance).
 curl https://auth.daywalker.dev/v1/users?limit=5 \
   -H "Authorization: Bearer $DAYWALKER_SECRET_KEY"
 ```
+
+## Organizations
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /v1/organizations?limit=&offset=` | List organizations in your instance |
+| `GET /v1/organizations/{orgId}/members` | Members as `{ userId, role, joinedAt }` |

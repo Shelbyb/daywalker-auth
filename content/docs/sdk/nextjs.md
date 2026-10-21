@@ -47,3 +47,7 @@ A [backend client](/docs/sdk/server#createbackendclient-options) configured from
 ```ts
 const user = await backend().users.get(userId);
 ```
+
+## Organizations
+
+`auth()` includes `orgId` and `orgRole` when the user has an active organization. See the [Organizations guide](/docs/guides/organizations).

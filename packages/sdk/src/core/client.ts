@@ -32,6 +32,11 @@ export type SecurityInfo = {
 
 export type PasskeyInfo = { id: string; name: string; synced: boolean; lastUsedAt: string | null; createdAt: string };
 
+export type OrgRole = "admin" | "member";
+export type OrgInfo = { id: string; name: string; slug: string; role: OrgRole; createdAt?: string };
+export type OrgMember = { userId: string; role: OrgRole; email?: string | null; firstName?: string | null; lastName?: string | null; joinedAt: string };
+export type OrgInvitation = { id: string; email: string; role: OrgRole; expiresAt: string; createdAt: string };
+
 export class AuthError extends Error {
   constructor(
     public status: number,
@@ -348,6 +353,69 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     await request(`passkeys/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
+  const orgPath = (id: string, rest = "") => `organizations/${encodeURIComponent(id)}${rest}`;
+  const json = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) });
+
+  /** Organizations you belong to, with your role in each. */
+  async function listOrganizations() {
+    return (await request<{ organizations: OrgInfo[] }>("organizations", { method: "GET" })).organizations;
+  }
+
+  /** Create an organization. You become its admin. */
+  async function createOrganization(name: string) {
+    return (await request<{ organization: OrgInfo }>("organizations", json({ name }))).organization;
+  }
+
+  async function renameOrganization(orgId: string, name: string) {
+    await request(orgPath(orgId), json({ name }, "PATCH"));
+  }
+
+  async function deleteOrganization(orgId: string) {
+    await request(orgPath(orgId), { method: "DELETE" });
+  }
+
+  async function listOrgMembers(orgId: string) {
+    return (await request<{ members: OrgMember[] }>(orgPath(orgId, "/members"), { method: "GET" })).members;
+  }
+
+  async function changeOrgRole(orgId: string, userId: string, role: OrgRole) {
+    await request(orgPath(orgId, `/members/${encodeURIComponent(userId)}`), json({ role }, "PATCH"));
+  }
+
+  /** Remove a member. Pass your own user ID (or "me") to leave. */
+  async function removeOrgMember(orgId: string, userId: string) {
+    await request(orgPath(orgId, `/members/${encodeURIComponent(userId)}`), { method: "DELETE" });
+  }
+
+  async function inviteToOrg(orgId: string, email: string, role: OrgRole = "member") {
+    return (await request<{ invitation: OrgInvitation }>(orgPath(orgId, "/invitations"), json({ email, role }))).invitation;
+  }
+
+  async function listOrgInvitations(orgId: string) {
+    return (await request<{ invitations: OrgInvitation[] }>(orgPath(orgId, "/invitations"), { method: "GET" })).invitations;
+  }
+
+  async function revokeOrgInvitation(orgId: string, invitationId: string) {
+    await request(orgPath(orgId, `/invitations/${encodeURIComponent(invitationId)}`), { method: "DELETE" });
+  }
+
+  /** What an invite link is for (org name and role). Works while signed out. */
+  async function previewInvitation(token: string) {
+    return request<{ orgName: string; role: OrgRole }>("invitations/preview", json({ token }));
+  }
+
+  async function acceptInvitation(token: string) {
+    return (await request<{ organization: OrgInfo }>("invitations/accept", json({ token }))).organization;
+  }
+
+  /** Switch the active organization (null = personal). Refreshes the JWT so its org claims update. */
+  async function setActiveOrganization(orgId: string | null) {
+    const r = await request<{ jwt: string }>("session/active_org", json({ orgId }));
+    token = null; // force the next getToken() to pick up the new claims
+    await getToken({ force: true });
+    return r;
+  }
+
   /** `fetch` that attaches `Authorization: Bearer <jwt>` for calls to your own backend. */
   async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
     const jwt = await getToken();
@@ -402,6 +470,19 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     listPasskeys,
     renamePasskey,
     deletePasskey,
+    listOrganizations,
+    createOrganization,
+    renameOrganization,
+    deleteOrganization,
+    listOrgMembers,
+    changeOrgRole,
+    removeOrgMember,
+    inviteToOrg,
+    listOrgInvitations,
+    revokeOrgInvitation,
+    previewInvitation,
+    acceptInvitation,
+    setActiveOrganization,
   };
 }
 

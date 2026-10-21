@@ -61,3 +61,19 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | "Was signed in" flag | `__dw_active` cookie on your domain | Yes. Contains no secret. |
 
 Nothing is ever written to `localStorage` or `sessionStorage`.
+
+## Organizations
+
+| Method | Notes |
+| --- | --- |
+| `listOrganizations()` | Orgs you belong to, with your role |
+| `createOrganization(name)` | You become admin |
+| `renameOrganization(orgId, name)` / `deleteOrganization(orgId)` | Admins only |
+| `listOrgMembers(orgId)` | Any member |
+| `changeOrgRole(orgId, userId, "admin" \| "member")` | Admins only; the last admin can't be demoted |
+| `removeOrgMember(orgId, userId)` | Admins remove others; pass your own ID (or `"me"`) to leave |
+| `inviteToOrg(orgId, email, role?)` / `listOrgInvitations(orgId)` / `revokeOrgInvitation(orgId, id)` | Admins only |
+| `previewInvitation(token)` / `acceptInvitation(token)` | The hosted `/accept-invite` page uses these |
+| `setActiveOrganization(orgId \| null)` | Refreshes the JWT so `org_id` / `org_role` update |
+
+See the [Organizations guide](/docs/guides/organizations).
