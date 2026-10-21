@@ -183,3 +183,24 @@ export const oauthAccounts = pgTable(
     index("oauth_accounts_user_idx").on(t.userId),
   ],
 );
+
+/** Authenticator-app secret. Encrypted; `verifiedAt` is null until the user confirms a first code. */
+export const mfaTotp = pgTable("mfa_totp", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  secretEnc: text("secret_enc").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/** One-time recovery codes. Only keyed hashes are stored. */
+export const backupCodes = pgTable(
+  "backup_codes",
+  {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("backup_codes_user_hash_idx").on(t.userId, t.codeHash)],
+);

@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword, dummyHash, encrypt, decrypt, encryptNulla
 import { newId } from "../ids";
 import { errors } from "../http";
 import type { Instance } from "../db/schema";
+import { hasTwoFactor } from "./mfa";
 
 const email = z.string().trim().toLowerCase().email().max(254);
 
@@ -85,6 +86,7 @@ export async function getUser(instanceId: string, userId: string, opts: { includ
     imageUrl: u.imageUrl,
     emailAddresses: emails.map((e) => ({ id: e.id, email: decrypt(e.emailEnc, `email_addresses.email:${e.id}`), primary: e.isPrimary, verified: !!e.verified })),
     publicMetadata: u.publicMetadata,
+    twoFactorEnabled: await hasTwoFactor(u.id),
     ...(opts.includePrivate ? { privateMetadata: JSON.parse(decryptNullable(u.privateMetadataEnc, `users.private_metadata:${u.id}`) ?? "{}"), banned: u.banned } : {}),
     lastSignInAt: u.lastSignInAt,
     createdAt: u.createdAt,

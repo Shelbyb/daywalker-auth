@@ -17,6 +17,7 @@ You add a few lines of code to your app; Daywalker Auth does the rest.
 - **Hosted sign-in and sign-up pages.** Send people there and they come back signed in. No forms to build.
 - **Email verification and password reset**, with one-time codes sent by email.
 - **Sign in with Google and GitHub**, with safe account linking.
+- **Two-factor authentication** with authenticator apps and backup codes.
 - **An SDK for Next.js and React** that tells any component or server route who the current user is.
 - **Fast, private session checks.** Your server verifies each request locally in microseconds; it doesn't call us on every request.
 - **A backend API** so your server can look up, update or remove users.

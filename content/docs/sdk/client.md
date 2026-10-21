@@ -24,7 +24,10 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `load()` | Fetches the current session. Call once on startup. |
 | `subscribe(fn)` | Calls `fn` on every state change. Returns an unsubscribe function. |
 | `state` | Current `{ isLoaded, user, sessionId }` |
-| `signIn({ email, password })` | Signs in; resolves with the user |
+| `signIn({ email, password })` | Resolves `{ status: "complete", user }` or `{ status: "needs_second_factor" }` |
+| `completeSecondFactor(code)` | Finishes a 2FA sign-in with an authenticator or backup code |
+| `startTotpSetup()` / `confirmTotpSetup(code)` | Turn on 2FA; confirm returns backup codes |
+| `disableTwoFactor(code)` / `regenerateBackupCodes(code)` | Manage 2FA; both need a current code |
 | `signUp({ email, password, firstName?, lastName? })` | Creates the account and signs in |
 | `signOut()` | Ends the session here and in other tabs |
 | `getToken({ force? })` | A valid session token, or `null` |

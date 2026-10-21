@@ -213,6 +213,17 @@ check("unknown provider → 404", (await fetch(`${AUTH}/v1/client/oauth/myspace/
 check("error page messages are fixed, not reflected", !(await (await fetch(`${AUTH}/sign-in?pk=${pk}&error=%3Cscript%3Ealert(1)%3C%2Fscript%3E`)).text()).includes("<script>alert(1)"));
 check("client secret never sent to the browser", !(await (await fetch(`${AUTH}/sign-in?pk=${pk}`)).text()).includes(CLIENT.secret));
 
+// ---------- Social sign-in + 2FA ----------
+const { totpAt, currentCounter } = await import("../src/lib/auth/totp");
+const enroll = await alice.post("mfa/totp");
+const cc = currentCounter();
+await alice.post("mfa/totp/verify", { code: totpAt(enroll.body.secret, cc) });
+const alice3 = new Browser();
+const viaGoogle = await oauth(alice3, "google", { id: `g-${t}`, email: `alice.${t}@example.com`, verified: true });
+check("2FA account: social sign-in stops at the second-factor page", viaGoogle.location.startsWith(`${AUTH}/second-factor?`) && !(await whoami(alice3)), viaGoogle.location);
+const fin = await alice3.post("sign_in/second_factor", { code: totpAt(enroll.body.secret, cc + 1) });
+check("…and completes with an authenticator code", fin.status === 200 && (await whoami(alice3)) === aliceId, fin.body);
+
 mock.close();
 await closeDb();
 await closeCache();

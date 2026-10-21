@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { clientIp, ApiError } from "@/lib/http";
 import { isProvider, takeState, completeOAuth, STATE_COOKIE } from "@/lib/auth/oauth";
 import { createSession } from "@/lib/auth/sessions";
-import { setRefreshCookie } from "@/lib/auth/frontend";
+import { setRefreshCookie, setTwoFactorCookie } from "@/lib/auth/frontend";
+import { hasTwoFactor, createPendingSecondFactor } from "@/lib/auth/mfa";
 import { publishableKey } from "@/lib/auth/instance";
 import { env } from "@/lib/env";
 
@@ -45,6 +46,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
 
   try {
     const userId = await completeOAuth(pending.inst, provider, code, pending.verifier);
+    if (await hasTwoFactor(userId)) {
+      // Provider sign-in counts as the first factor only; finish on the hosted 2FA page.
+      const { token, maxAge } = await createPendingSecondFactor(pending.inst.id, userId);
+      const to = new URL(`${base}/second-factor`);
+      to.searchParams.set("pk", pk);
+      if (pending.redirect) to.searchParams.set("redirect_url", pending.redirect);
+      const res = NextResponse.redirect(to, 302);
+      res.cookies.set(STATE_COOKIE, "", { path: "/v1/oauth", maxAge: 0 });
+      return setTwoFactorCookie(res, pending.inst.id, token, maxAge);
+    }
     const s = await createSession(pending.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
     const dest = pending.redirect
       ? new URL(pending.redirect, base)

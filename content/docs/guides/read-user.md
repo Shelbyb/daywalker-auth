@@ -37,6 +37,7 @@ The `user` object looks like this:
     { "id": "email_9f…", "email": "ada@example.com", "primary": true, "verified": true }
   ],
   "publicMetadata": {},
+  "twoFactorEnabled": false,
   "lastSignInAt": "2026-10-21T20:15:00.000Z",
   "createdAt": "2026-10-01T12:00:00.000Z"
 }

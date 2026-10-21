@@ -53,6 +53,11 @@ export function useAuth() {
     requestPasswordReset: c.requestPasswordReset,
     resetPassword: c.resetPassword,
     signInWithOAuth: c.signInWithOAuth,
+    completeSecondFactor: c.completeSecondFactor,
+    startTotpSetup: c.startTotpSetup,
+    confirmTotpSetup: c.confirmTotpSetup,
+    disableTwoFactor: c.disableTwoFactor,
+    regenerateBackupCodes: c.regenerateBackupCodes,
   };
 }
 
@@ -142,4 +147,4 @@ export function UserButton({ className, afterSignOutUrl }: { className?: string;
   );
 }
 
-export { AuthError, type User } from "../core/client";
+export { AuthError, type User, type SignInResult } from "../core/client";

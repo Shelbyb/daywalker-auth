@@ -28,8 +28,25 @@ POST /v1/client/sign_in
 { "email": "ada@example.com", "password": "…" }
 ```
 
-`200` → `{ user, sessionId, jwt }` and sets the refresh cookie.
+`200` → `{ status: "complete", user, sessionId, jwt }` and sets the refresh cookie, **or** `{ status: "needs_second_factor" }` with a 5-minute pending cookie (no session yet).
 Errors: `invalid_credentials` (400, same for unknown email and wrong password), `forbidden` (403, banned), `rate_limited` (429).
+
+## Second factor
+
+```http
+POST /v1/client/sign_in/second_factor   { "code": "123456" }   // or a backup code
+```
+
+Needs the pending cookie from `sign_in`. `200` → `{ status: "complete", user, sessionId, jwt }`. Five wrong codes void the attempt (`401`).
+
+## Two-factor setup (signed in)
+
+```http
+POST /v1/client/mfa/totp                  → { secret, uri }
+POST /v1/client/mfa/totp/verify  { code } → { enabled: true, backupCodes: [...] }
+POST /v1/client/mfa/totp/disable { code } → { enabled: false }
+POST /v1/client/mfa/backup_codes { code } → { backupCodes: [...] }
+```
 
 ## Get a fresh token
 
@@ -107,3 +124,5 @@ Both are public, cacheable for 5 minutes, and allow any origin.
 | email/verify | 20 / 15 min per IP |
 | password/forgot | 10 / hour per IP, 5 / hour per email (silently) |
 | password/reset | 20 / 15 min per IP |
+| sign_in/second_factor | 30 / 15 min per IP, and 5 wrong codes per attempt |
+| mfa/* | 10–20 / 15 min per IP |

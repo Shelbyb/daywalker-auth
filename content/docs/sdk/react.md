@@ -34,7 +34,9 @@ const {
   sessionId,     // string | null
   getToken,      // () => Promise<string | null>
   authFetch,     // fetch with Authorization header
-  signIn,        // ({ email, password }) => Promise<User>
+  signIn,        // ({ email, password }) => Promise<SignInResult>
+                 //   { status: "complete", user } | { status: "needs_second_factor" }
+  completeSecondFactor, // (code) => Promise<{ status: "complete", user }>
   signUp,        // ({ email, password, firstName?, lastName? }) => Promise<User>
   signOut,       // () => Promise<void>
   sendVerificationCode, // () => Promise<void>
@@ -42,6 +44,10 @@ const {
   requestPasswordReset, // (email) => Promise<void>
   resetPassword,        // ({ email, code, password }) => Promise<void>
   signInWithOAuth,      // ("google" | "github", redirectUrl?) => void (full-page redirect)
+  startTotpSetup,       // () => Promise<{ secret, uri }>
+  confirmTotpSetup,     // (code) => Promise<string[]> backup codes
+  disableTwoFactor,     // (code) => Promise<void>
+  regenerateBackupCodes,// (code) => Promise<string[]>
 } = useAuth();
 ```
 

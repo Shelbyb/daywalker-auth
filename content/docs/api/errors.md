@@ -41,6 +41,9 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `email_unverified` | 400 | Social account has no verified email | Verify it with the provider, or use email sign-in |
 | `provider_disabled` | 400 | That social provider isn't enabled | Enable it via the backend API |
 | `oauth_cancelled` / `oauth_failed` | — | Social sign-in cancelled or failed (in the `error` query param) | Let the user try again |
+| `already_enabled` | 409 | 2FA is already on | Nothing to do, or disable it first |
+| `no_pending_enrollment` | 400 | Confirmed 2FA without starting setup | Call `startTotpSetup()` first |
+| `not_enabled` | 400 | 2FA action on an account without 2FA | |
 | `already_verified` | 400 | Email is already verified | Nothing to do |
 | `unauthenticated` | 401 | No valid session or key | Sign in, or check your keys |
 | `forbidden` | 403 | Origin not allowed, or account suspended | Add the origin, or contact support |

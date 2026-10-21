@@ -6,7 +6,15 @@ import { rateLimit } from "../cache";
 import { blindIndex } from "../crypto";
 import { instanceFromPublishableKey } from "./instance";
 import { refreshCookieName } from "./sessions";
+import { twoFactorCookieName } from "./mfa";
 import type { Instance } from "../db/schema";
+
+/** Pending second-factor cookie: same scope and flags as the refresh cookie, 5-minute life. */
+export function setTwoFactorCookie(res: NextResponse, instanceId: string, token: string, maxAge: number) {
+  const secure = env().APP_URL.startsWith("https://");
+  res.cookies.set(twoFactorCookieName(instanceId), token, { httpOnly: true, secure, sameSite: secure ? "none" : "lax", path: "/v1/client", maxAge });
+  return res;
+}
 
 /** Shared by the frontend API and the OAuth callback. */
 export function setRefreshCookie(res: NextResponse, instanceId: string, token: string, expires: Date) {
@@ -47,6 +55,11 @@ export async function frontendContext(req: Request) {
     inst,
     origin: allowed ?? undefined,
     refreshToken: jar.get(name)?.value,
+    twoFactorToken: jar.get(twoFactorCookieName(inst.id))?.value,
+    clearTwoFactorCookie(res: NextResponse) {
+      res.cookies.set(twoFactorCookieName(inst.id), "", { path: "/v1/client", maxAge: 0 });
+      return res;
+    },
     json(body: unknown, init: ResponseInit = {}) {
       return NextResponse.json(body, { ...init, headers: { ...cors, ...(init.headers as object) } });
     },

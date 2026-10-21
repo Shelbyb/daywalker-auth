@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AuthError } from "@daywalker/auth";
 import { hostedClient } from "./hosted-client";
 import { VerifyEmailStep } from "./verify-email";
+import { SecondFactorStep } from "./second-factor";
 
 type Mode = "sign-in" | "sign-up";
 type Field = { name: string; label: string; type: string; autoComplete: string; required?: boolean };
@@ -57,6 +58,7 @@ export function AuthForm({
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ name: string } | null>(signedIn ? { name: "" } : null);
   const [verifying, setVerifying] = useState(false);
+  const [needsSecondFactor, setNeedsSecondFactor] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -66,10 +68,17 @@ export function AuthForm({
     const body = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
     const client = hostedClient(pk);
     try {
-      const user =
-        mode === "sign-in"
-          ? await client.signIn({ email: body.email, password: body.password })
-          : await client.signUp({ email: body.email, password: body.password, firstName: body.firstName || undefined, lastName: body.lastName || undefined });
+      let user;
+      if (mode === "sign-in") {
+        const result = await client.signIn({ email: body.email, password: body.password });
+        if (result.status === "needs_second_factor") {
+          setNeedsSecondFactor(true);
+          return;
+        }
+        user = result.user;
+      } else {
+        user = await client.signUp({ email: body.email, password: body.password, firstName: body.firstName || undefined, lastName: body.lastName || undefined });
+      }
       if (mode === "sign-up" && !user.emailAddresses[0]?.verified) {
         // Confirm the address before continuing; the code is sent as the step opens.
         setVerifying(true);
@@ -86,6 +95,9 @@ export function AuthForm({
       setBusy(false);
     }
   }
+
+  if (needsSecondFactor)
+    return <SecondFactorStep pk={pk} onDone={(name) => (redirect ? window.location.assign(redirect) : setDone({ name }))} />;
 
   if (verifying)
     return (

@@ -33,7 +33,11 @@ export function SignInForm() {
     setError("");
     const f = new FormData(e.currentTarget);
     try {
-      await signIn({ email: f.get("email") as string, password: f.get("password") as string });
+      const result = await signIn({ email: f.get("email") as string, password: f.get("password") as string });
+      if (result.status === "needs_second_factor") {
+        router.push("/sign-in/code"); // see the two-factor guide
+        return;
+      }
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof AuthError ? err.message : "Network error, try again");
@@ -58,6 +62,7 @@ Some things to get right:
 - **`autoComplete` attributes** let password managers fill and save credentials.
 - **Show `err.message` as-is.** It's written for end users. On a wrong password it deliberately doesn't say whether the email exists.
 - **Disable the button while busy** to avoid double submissions.
+- **Handle `needs_second_factor`.** Accounts with 2FA need a second step; see [Two-factor authentication](/docs/guides/two-factor#handling-2fa-in-your-own-sign-in-form).
 
 ## Sign-up form
 

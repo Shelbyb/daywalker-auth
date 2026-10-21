@@ -8,6 +8,7 @@ export type User = {
   imageUrl: string | null;
   emailAddresses: EmailAddress[];
   publicMetadata: Record<string, unknown>;
+  twoFactorEnabled: boolean;
   lastSignInAt: string | null;
   createdAt: string;
 };
@@ -16,6 +17,9 @@ export type AuthState = {
   user: User | null;
   sessionId: string | null;
 };
+
+/** `needs_second_factor`: password/provider was right; call `completeSecondFactor(code)` next. */
+export type SignInResult = { status: "complete"; user: User } | { status: "needs_second_factor" };
 
 export class AuthError extends Error {
   constructor(
@@ -138,12 +142,46 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return state;
   }
 
-  async function signIn(input: { email: string; password: string }) {
-    const r = await request<{ user: User; sessionId: string; jwt: string }>("sign_in", { method: "POST", body: JSON.stringify(input) });
+  type Completed = { status: "complete"; user: User; sessionId: string; jwt: string };
+
+  function finishSignIn(r: Completed): { status: "complete"; user: User } {
     acceptToken(r.jwt);
     setState({ isLoaded: true, user: r.user, sessionId: r.sessionId });
     channel?.postMessage("signed-in");
-    return r.user;
+    return { status: "complete", user: r.user };
+  }
+
+  async function signIn(input: { email: string; password: string }): Promise<SignInResult> {
+    const r = await request<Completed | { status: "needs_second_factor" }>("sign_in", { method: "POST", body: JSON.stringify(input) });
+    return r.status === "needs_second_factor" ? r : finishSignIn(r);
+  }
+
+  /** Second step of sign-in for accounts with 2FA: a 6-digit authenticator code or a backup code. */
+  async function completeSecondFactor(code: string) {
+    return finishSignIn(await request<Completed>("sign_in/second_factor", { method: "POST", body: JSON.stringify({ code }) }));
+  }
+
+  /** 2FA setup, step 1: returns `uri` (render it as a QR code) and `secret` (for manual entry). */
+  function startTotpSetup() {
+    return request<{ secret: string; uri: string }>("mfa/totp", { method: "POST" });
+  }
+
+  /** 2FA setup, step 2: confirm with a code from the app. Returns backup codes; show them once. */
+  async function confirmTotpSetup(code: string) {
+    const r = await request<{ backupCodes: string[] }>("mfa/totp/verify", { method: "POST", body: JSON.stringify({ code }) });
+    if (state.user) setState({ user: { ...state.user, twoFactorEnabled: true } });
+    return r.backupCodes;
+  }
+
+  /** Turn 2FA off. Needs a current authenticator or backup code. */
+  async function disableTwoFactor(code: string) {
+    await request("mfa/totp/disable", { method: "POST", body: JSON.stringify({ code }) });
+    if (state.user) setState({ user: { ...state.user, twoFactorEnabled: false } });
+  }
+
+  /** Replace all backup codes. Needs a current code. */
+  async function regenerateBackupCodes(code: string) {
+    return (await request<{ backupCodes: string[] }>("mfa/backup_codes", { method: "POST", body: JSON.stringify({ code }) })).backupCodes;
   }
 
   async function signUp(input: { email: string; password: string; firstName?: string; lastName?: string }) {
@@ -215,7 +253,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** URL of the hosted sign-in / sign-up page that returns to `redirectUrl` afterwards. */
-  function hostedUrl(page: "sign-in" | "sign-up" | "forgot-password", redirectUrl?: string) {
+  function hostedUrl(page: "sign-in" | "sign-up" | "forgot-password" | "account", redirectUrl?: string) {
     const u = new URL(`${base}/${page}`);
     u.searchParams.set("pk", config.publishableKey);
     if (redirectUrl) u.searchParams.set("redirect_url", redirectUrl);
@@ -243,6 +281,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     resetPassword,
     signInWithOAuth,
     getEnvironment,
+    completeSecondFactor,
+    startTotpSetup,
+    confirmTotpSetup,
+    disableTwoFactor,
+    regenerateBackupCodes,
   };
 }
 

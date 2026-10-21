@@ -3,7 +3,7 @@ import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 /** Prefixed random ID, e.g. user_k3j9..., 22 chars of entropy (~113 bits). */
-export function newId(prefix: "acct" | "ins" | "key" | "sk" | "user" | "email" | "sess" | "oa") {
+export function newId(prefix: "acct" | "ins" | "key" | "sk" | "user" | "email" | "sess" | "oa" | "bc") {
   const bytes = randomBytes(22);
   let out = "";
   for (const b of bytes) out += ALPHABET[b % 36];

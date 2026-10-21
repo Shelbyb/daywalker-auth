@@ -37,6 +37,14 @@ DELETE /v1/users/{userId}
 
 `200` → `{ "id": "user_…", "deleted": true }`. Also deletes emails, password and sessions.
 
+## Remove a user's two-factor authentication
+
+```http
+DELETE /v1/users/{userId}/mfa
+```
+
+For users locked out of both their authenticator and backup codes. **Verify their identity first.** `200` → `{ id, twoFactorEnabled: false }`
+
 ## Revoke a session
 
 ```http
