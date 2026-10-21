@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: auth
+          POSTGRES_PASSWORD: auth
+          POSTGRES_DB: auth
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U auth" --health-interval 5s --health-timeout 5s --health-retries 10
+      valkey:
+        image: valkey/valkey:8
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://auth:auth@localhost:5432/auth
+      VALKEY_URL: redis://localhost:6379
+      APP_URL: http://localhost:3000
+      MAIL_TRANSPORT: dev
+      # Test-only switches: allow http, and let the webhook tests call localhost.
+      ALLOW_INSECURE_TRANSPORT: "1"
+      WEBHOOK_ALLOW_PRIVATE: "1"
+      OAUTH_TEST_BASE_URL: http://localhost:3999
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate a throwaway MASTER_KEY
+        run: echo "MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      - run: npx tsc --noEmit
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run db:migrate
+      - run: npm run build
+      - name: Start the service
+        run: |
+          nohup npx next start -p 3000 > service.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:3000/healthz && break; sleep 2; done
+      - name: Service test suites
+        run: |
+          for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e; do
+            echo "::group::$t"; npx tsx scripts/$t.ts; echo "::endgroup::"
+          done
+      - name: SDK suite (example app)
+        run: |
+          npm run seed -- http://localhost:3001 | tee seed.out
+          {
+            echo "NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY=$(grep -o 'pk_test_[A-Za-z0-9_-]*' seed.out)"
+            echo "NEXT_PUBLIC_DAYWALKER_AUTH_URL=http://localhost:3000"
+            echo "DAYWALKER_SECRET_KEY=$(grep -o 'sk_test_[A-Za-z0-9_-]*' seed.out)"
+            echo "DAYWALKER_AUTHORIZED_PARTIES=http://localhost:3001"
+          } > examples/nextjs/.env.local
+          (cd examples/nextjs && npx next build && nohup npx next start -p 3001 > ../../example.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf localhost:3001 >/dev/null && break; sleep 2; done
+          set -a; . examples/nextjs/.env.local; set +a
+          npx tsx scripts/sdk-e2e.ts
+      - if: failure()
+        run: tail -n 80 service.log example.log 2>/dev/null || true

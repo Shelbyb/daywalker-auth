@@ -97,6 +97,13 @@ const session = await verifyToken(req.headers.authorization?.slice(7), {
 if (!session) return res.status(401).end();
 ```
 
+## Organizations, webhooks and the dashboard
+
+- **Organizations:** `auth()` and `verifyToken()` return `orgId` and `orgRole` when the user has an active organization. In the browser, `createOrganization`, `inviteToOrg`, `setActiveOrganization` and friends are on the client. See `/docs/guides/organizations`.
+- **Webhooks:** `verifyWebhook(rawBody, headers, secret)` from `@daywalker/auth/server` checks the signature and rejects replays; `createBackendClient(...).webhooks` manages endpoints. See `/docs/guides/webhooks`.
+- **Dashboard:** create instances and copy keys at `/dashboard` on your service. See `/docs/guides/dashboard`.
+- **Several instances in one app:** `auth({ config })` and `authProxy({ config })` accept an explicit config instead of the `NEXT_PUBLIC_DAYWALKER_*` env vars.
+
 ## How it stays secure
 
 - **Refresh token:** HttpOnly cookie on the auth service; no JavaScript, including yours, can read it.

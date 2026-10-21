@@ -1,14 +1,29 @@
 # Daywalker Auth
 
-Multi-tenant authentication service: email/password sign-in, sessions, short-lived ES256 JWTs, and a backend API. Next.js 16 + Tailwind 4, PostgreSQL (Drizzle), Valkey.
+Multi-tenant authentication service for apps: email/password, social sign-in, passkeys, two-factor, organizations, webhooks and a developer dashboard. Next.js 16 + Tailwind 4, PostgreSQL (Drizzle), Valkey. Runs at `users.daywalker.dev`.
+
+**Full documentation lives in the app at `/docs`** (also in [`content/docs`](content/docs)). Start with the quickstart.
 
 ```
-src/               the auth service (APIs + hosted sign-in/sign-up pages)
-packages/sdk/      @daywalker/auth — SDK for apps (browser, React, server, Next.js)  → see its README
+src/               the service: APIs, hosted pages (sign-in, account, accept-invite), /dashboard, /docs
+packages/sdk/      @daywalker/auth: SDK for apps (browser, React, server, Next.js). See its README
 examples/nextjs/   a Next.js app protected with the SDK
+content/docs/      the documentation (Markdown)
+scripts/           seed, migrate, bootstrap-platform and the end-to-end test suites
 ```
 
-**Integrating an app? Start with the [SDK README](packages/sdk/README.md).** The raw HTTP APIs below are what the SDK calls.
+## What's included
+
+| Area | Highlights |
+|---|---|
+| Sign-in | Email + password (argon2id), email verification, password reset, Google and GitHub, passkeys (WebAuthn), TOTP two-factor with backup codes |
+| Sessions | HttpOnly refresh cookie + 60-second ES256 JWTs verified locally against per-instance JWKS; revoke and ban take effect within a minute |
+| Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
+| Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |
+| Webhooks | HMAC-signed (Standard Webhooks format), retries with backoff, delivery log, SSRF protection |
+| Terms | Optional required terms acceptance at sign-up, recorded per user and version |
+| Dashboard | `/dashboard`: instances, keys, allowed origins, social providers, terms, users, webhooks |
+| SDK | Browser client, React hooks, server `verifyToken`/`verifyWebhook`/backend client, Next.js `auth()` and `authProxy` |
 
 ## Run locally
 
@@ -17,11 +32,13 @@ cp .env.example .env            # then set MASTER_KEY (command in the file)
 docker compose up -d            # Postgres 16 + Valkey 8
 npm install
 npm run db:migrate
-npm run seed -- http://localhost:5173   # optional: origins of your app allowed to call the frontend API
+npm run seed -- http://localhost:3001   # origins of your app allowed to call the frontend API
 npm run dev
 ```
 
 Seeding prints a publishable key (public) and a secret key (shown once). Hosted pages: `/sign-in?pk=<publishable key>` and `/sign-up?pk=...`.
+
+To use the dashboard locally, run `npm run bootstrap:platform` once and put the printed `PLATFORM_PUBLISHABLE_KEY` in `.env`, then open `/dashboard`.
 
 Run the example app against it:
 
@@ -30,17 +47,30 @@ npm run seed -- http://localhost:3001     # copy the keys into examples/nextjs/.
 cd examples/nextjs && npm run dev         # http://localhost:3001
 ```
 
-Tests (servers running): `npm run test:e2e` (28 service checks: auth flows, encryption at rest, CSRF, revocation, rate limits, headers) and `npm run test:sdk` (19 SDK checks: token verification incl. forged/`alg:none`/foreign-app tokens, route protection, refresh, open-redirect defenses).
+## Tests
+
+Build and start the service (`npm run build`, then `next start` with `ALLOW_INSECURE_TRANSPORT=1 WEBHOOK_ALLOW_PRIVATE=1 OAUTH_TEST_BASE_URL=http://localhost:3999`) and run:
+
+```bash
+npm run test:all     # service, recovery, OAuth, two-factor, account, passkeys, terms, organizations, webhooks, dashboard
+npm run test:sdk     # needs examples/nextjs running on :3001 with its keys in the environment
+```
+
+About 330 checks in total, covering auth flows, encryption at rest, CSRF, revocation, rate limits, tenant isolation, SSRF rules and security headers. CI runs the same suites (see `.github/workflows/ci.yml`).
+
+## Deploying
+
+See [`content/docs/deployment-digitalocean.md`](content/docs/deployment-digitalocean.md): a `Dockerfile` and `.do/app.yaml` for DigitalOcean App Platform with managed Postgres and Valkey, a pre-deploy migration job, and `/healthz`.
 
 ## APIs
 
 | Surface | Auth | Routes |
 |---|---|---|
-| Frontend API (browsers) | `x-publishable-key` + refresh cookie | `POST /v1/client/sign_up`, `POST /v1/client/sign_in`, `POST /v1/client/session/token`, `GET`/`DELETE /v1/client/session` |
-| Backend API (your servers) | `Authorization: Bearer sk_...` | `GET /v1/users`, `GET`/`DELETE /v1/users/:id`, `POST /v1/sessions/:id/revoke` |
+| Frontend API (browsers) | `x-publishable-key` + refresh cookie | `/v1/client/*`: sign-up, sign-in, session, email, password, mfa, passkeys, organizations, invitations |
+| Backend API (your servers) | `Authorization: Bearer sk_...` | `/v1/users`, `/v1/sessions`, `/v1/organizations`, `/v1/webhooks`, `/v1/instance/*` |
 | Token verification | public | `/i/:instanceId/.well-known/jwks.json`, `/.well-known/openid-configuration` |
 
-Your app verifies session JWTs locally against the JWKS (issuer `APP_URL/i/<instanceId>`); no network call per request.
+Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies session JWTs locally against the JWKS (issuer `APP_URL/i/<instanceId>`); there's no network call per request.
 
 ## Security model
 
@@ -65,7 +95,9 @@ Your app verifies session JWTs locally against the JWKS (issuer `APP_URL/i/<inst
 - Sign-in has per-IP and per-account rate limits. Valkey keys are HMAC'd, so raw IPs and emails never land in the cache.
 - Sign-in runs an argon2 verify even for unknown emails and returns one generic error, so it doesn't reveal which accounts exist.
 - Redirects after sign-in are validated server-side: relative paths, or origins on the instance's allow-list. Anything else is dropped, so the hosted pages can't be used as an open redirect.
-- Pages send a strict CSP with `frame-ancestors 'none'` and HSTS in production; API responses are `no-store`.
+- Hosted pages and the dashboard send a per-request nonce CSP with `frame-ancestors 'none'`; API responses get `default-src 'none'`, are `no-store`, and HSTS is on in production.
+- Webhook URLs must be public HTTPS addresses (private ranges and metadata addresses are refused and re-checked at connect time); endpoint URLs, secrets and payloads are encrypted at rest.
+- The dashboard re-checks account ownership on every action and shows secrets once.
 
 **Transport**
 - In production, startup refuses non-HTTPS `APP_URL`, Postgres without `sslmode=require|verify-full`, and Valkey without `rediss://`.
@@ -80,8 +112,8 @@ Your app verifies session JWTs locally against the JWKS (issuer `APP_URL/i/<inst
 ## Production checklist
 - Generate `MASTER_KEY` in a secrets manager (KMS / Secrets Manager); never commit it. Losing it makes PII unrecoverable.
 - Enable Valkey AUTH/ACLs and TLS; restrict Postgres to the app's network.
-- Put the service behind a proxy that sets a trustworthy `X-Forwarded-For` (rate limits key on it).
+- Put the service behind a proxy that sets a trustworthy `X-Forwarded-For` and set `TRUST_PROXY_HOPS` to the number of proxies (rate limits key on it).
 - Rotate signing keys periodically: create a new key, mark the old one inactive, and keep it in the JWKS until outstanding tokens expire.
 
 ## Not built yet
-Email verification and OTP/magic links, password reset, OAuth, passkeys, TOTP MFA, organizations, webhooks, dashboard, prebuilt embeddable sign-in component, CSP nonce for the SDK refresh page, signing-key rotation endpoint, MASTER_KEY rotation (ciphertexts are versioned `v1.` to allow it), and breached-password checks.
+Magic links and email OTP sign-in, SMS, SAML/enterprise SSO, more social providers, a prebuilt embeddable sign-in component, custom email templates, audit logs, a signing-key rotation endpoint, MASTER_KEY rotation (ciphertexts are versioned `v1.` to allow it), and breached-password checks.
