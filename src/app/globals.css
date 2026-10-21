@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #14121a;
+  --color-dusk: #2a2536;
+  --color-dawn: #f2a541;
+  --color-ember: #e0603b;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  @apply bg-stone-50 text-ink antialiased;
+}
+
+/* ---------- Docs prose ---------- */
+.docs-prose { @apply text-[15px] leading-7 text-stone-700; }
+.docs-prose > * + * { @apply mt-5; }
+.docs-prose h2 { @apply mt-12 border-t border-stone-100 pt-8 text-2xl font-semibold tracking-tight text-ink; }
+.docs-prose h3 { @apply mt-8 text-lg font-semibold text-ink; }
+.docs-prose .anchor { @apply no-underline text-inherit; }
+.docs-prose a:not(.anchor) { @apply font-medium text-ink underline decoration-dawn decoration-2 underline-offset-4 hover:decoration-ember; }
+.docs-prose ul { @apply list-disc space-y-1.5 pl-6; }
+.docs-prose ol { @apply list-decimal space-y-1.5 pl-6; }
+.docs-prose strong { @apply font-semibold text-ink; }
+.docs-prose :not(pre) > code { @apply rounded bg-stone-100 px-1.5 py-0.5 font-mono text-[13px] text-ink; }
+.docs-prose table { @apply w-full border-collapse text-sm; }
+.docs-prose th { @apply border-b border-stone-200 py-2 pr-4 text-left font-semibold text-ink; }
+.docs-prose td { @apply border-b border-stone-100 py-2 pr-4 align-top; }
+.docs-prose .code-block { @apply relative overflow-hidden rounded-xl border border-stone-200; }
+.docs-prose .code-block pre { @apply overflow-x-auto p-4 text-[13px] leading-6; }
+.docs-prose .code-lang { @apply absolute right-3 top-2 font-mono text-[11px] uppercase text-stone-400; }
+.docs-prose .callout { @apply rounded-xl border-l-4 px-4 py-3; }
+.docs-prose .callout > * + * { @apply mt-2; }
+.docs-prose .callout-note { @apply border-stone-400 bg-stone-50; }
+.docs-prose .callout-tip { @apply border-emerald-500 bg-emerald-50; }
+.docs-prose .callout-warning { @apply border-ember bg-ember/5; }

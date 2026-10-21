@@ -1,0 +1,27 @@
+{
+  "name": "@daywalker/auth",
+  "version": "0.1.0",
+  "description": "SDK for Daywalker Auth: browser client, React components, server verification and Next.js helpers",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/core/index.ts",
+    "./react": "./src/react/index.tsx",
+    "./server": "./src/server/index.ts",
+    "./nextjs": "./src/nextjs/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "jose": "^6.2.13"
+  },
+  "peerDependencies": {
+    "next": ">=15",
+    "react": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "next": { "optional": true },
+    "react": { "optional": true }
+  }
+}

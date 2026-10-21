@@ -1,0 +1,140 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { AuthError } from "@daywalker/auth";
+import { hostedClient } from "./hosted-client";
+import { VerifyEmailStep } from "./verify-email";
+
+type Mode = "sign-in" | "sign-up";
+type Field = { name: string; label: string; type: string; autoComplete: string; required?: boolean };
+
+const FIELDS: Record<Mode, Field[]> = {
+  "sign-in": [
+    { name: "email", label: "Email", type: "email", autoComplete: "email", required: true },
+    { name: "password", label: "Password", type: "password", autoComplete: "current-password", required: true },
+  ],
+  "sign-up": [
+    { name: "firstName", label: "First name", type: "text", autoComplete: "given-name" },
+    { name: "lastName", label: "Last name", type: "text", autoComplete: "family-name" },
+    { name: "email", label: "Email", type: "email", autoComplete: "email", required: true },
+    { name: "password", label: "Password", type: "password", autoComplete: "new-password", required: true },
+  ],
+};
+
+/**
+ * `redirect` arrives already validated by the server page (same-origin path or an origin on
+ * the instance's allow-list), so this form can't be used as an open redirect.
+ */
+export function AuthForm({ mode, pk, redirect }: { mode: Mode; pk: string; redirect?: string }) {
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<{ name: string } | null>(null);
+  const [verifying, setVerifying] = useState(false);
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setFieldErrors({});
+    const body = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
+    const client = hostedClient(pk);
+    try {
+      const user =
+        mode === "sign-in"
+          ? await client.signIn({ email: body.email, password: body.password })
+          : await client.signUp({ email: body.email, password: body.password, firstName: body.firstName || undefined, lastName: body.lastName || undefined });
+      if (mode === "sign-up" && !user.emailAddresses[0]?.verified) {
+        // Confirm the address before continuing; the code is sent as the step opens.
+        setVerifying(true);
+        return;
+      }
+      if (redirect) window.location.assign(redirect);
+      else setDone({ name: user.firstName || user.emailAddresses[0]?.email || "" });
+    } catch (err) {
+      if (err instanceof AuthError) {
+        setError(err.message);
+        setFieldErrors(Object.fromEntries(err.fields.map((f) => [f.path, f.message])));
+      } else setError("Network error. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (verifying)
+    return (
+      <VerifyEmailStep
+        pk={pk}
+        onVerified={(name) => (redirect ? window.location.assign(redirect) : setDone({ name }))}
+      />
+    );
+
+  if (done)
+    return (
+      <div className="text-center">
+        <p className="text-lg font-medium">You&apos;re signed in</p>
+        <p className="mt-1 text-sm text-stone-500">Welcome, {done.name}.</p>
+      </div>
+    );
+
+  const other = mode === "sign-in" ? "sign-up" : "sign-in";
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <div className={mode === "sign-up" ? "grid grid-cols-2 gap-3" : ""}>
+        {FIELDS[mode].slice(0, mode === "sign-up" ? 2 : 0).map((f) => (
+          <Input key={f.name} field={f} error={fieldErrors[f.name]} />
+        ))}
+      </div>
+      {FIELDS[mode].slice(mode === "sign-up" ? 2 : 0).map((f) => (
+        <Input key={f.name} field={f} error={fieldErrors[f.name]} />
+      ))}
+      {mode === "sign-in" && (
+        <Link
+          href={`/forgot-password?pk=${encodeURIComponent(pk)}${redirect ? `&redirect_url=${encodeURIComponent(redirect)}` : ""}`}
+          className="block text-right text-xs text-stone-500 hover:text-ink"
+        >
+          Forgot password?
+        </Link>
+      )}
+      {error && (
+        <p role="alert" className="rounded-lg bg-ember/10 px-3 py-2 text-sm text-ember">
+          {error}
+        </p>
+      )}
+      <button
+        disabled={busy}
+        className="w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white transition hover:bg-dusk disabled:opacity-60"
+      >
+        {busy ? "Please wait…" : mode === "sign-in" ? "Continue" : "Create account"}
+      </button>
+      <p className="text-center text-sm text-stone-500">
+        {mode === "sign-in" ? "No account yet? " : "Already have an account? "}
+        <Link
+          href={`/${other}?pk=${encodeURIComponent(pk)}${redirect ? `&redirect_url=${encodeURIComponent(redirect)}` : ""}`}
+          className="font-medium text-ink underline-offset-4 hover:underline"
+        >
+          {mode === "sign-in" ? "Sign up" : "Sign in"}
+        </Link>
+      </p>
+    </form>
+  );
+}
+
+function Input({ field, error }: { field: Field; error?: string }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-stone-700">{field.label}</span>
+      <input
+        name={field.name}
+        type={field.type}
+        autoComplete={field.autoComplete}
+        required={field.required}
+        maxLength={field.type === "password" ? 256 : 254}
+        aria-invalid={!!error}
+        className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-dawn focus:ring-2 focus:ring-dawn/30 aria-[invalid=true]:border-ember"
+      />
+      {error && <span className="mt-1 block text-xs text-ember">{error}</span>}
+    </label>
+  );
+}

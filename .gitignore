@@ -1,0 +1,14 @@
+# dependencies & builds
+node_modules
+.next
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets: never commit real env files (the .env.example files are safe)
+.env
+.env.*
+!.env.example
+
+# misc
+.DS_Store
+*.log

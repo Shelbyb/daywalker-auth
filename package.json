@@ -1,0 +1,47 @@
+{
+  "name": "daywalker-auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/sdk",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seed.ts",
+    "test:e2e": "tsx scripts/e2e.ts",
+    "test:sdk": "tsx scripts/sdk-e2e.ts",
+    "test:recovery": "tsx scripts/recovery-e2e.ts"
+  },
+  "dependencies": {
+    "@daywalker/auth": "*",
+    "@node-rs/argon2": "^2.2.2",
+    "drizzle-orm": "^0.45.4",
+    "iovalkey": "^0.4.0",
+    "jose": "^6.2.13",
+    "marked": "^18.1.1",
+    "next": "^16.4.2",
+    "postgres": "^3.4.9",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "shiki": "^4.5.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "^0.31.11",
+    "postcss": "^8.5.31",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  },
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ]
+}
