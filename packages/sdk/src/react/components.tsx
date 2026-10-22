@@ -136,12 +136,17 @@ function SecondFactor({ a, onUser }: { a?: Appearance; onUser: (u: User) => void
   const [backup, setBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sms, setSms] = useState<string | null>(null);
+  const [texted, setTexted] = useState(false);
+  useEffect(() => {
+    c.getSecondFactorOptions().then((o) => setSms(o.sms)).catch(() => {});
+  }, [c]);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      onUser((await c.completeSecondFactor(String(new FormData(e.currentTarget).get("code") ?? ""))).user);
+      onUser((await c.completeSecondFactor(String(new FormData(e.currentTarget).get("code") ?? ""), !backup && texted ? "sms" : undefined)).user);
     } catch (err) {
       setError(message(err));
     } finally {
@@ -150,10 +155,15 @@ function SecondFactor({ a, onUser }: { a?: Appearance; onUser: (u: User) => void
   }
   return (
     <form onSubmit={submit} className={cx(a, "form", "dw-form")} noValidate>
-      <p className={cx(a, "subtitle", "dw-subtitle")}>{backup ? "Enter one of your backup codes." : "Enter the 6-digit code from your authenticator app."}</p>
+      <p className={cx(a, "subtitle", "dw-subtitle")}>{backup ? "Enter one of your backup codes." : texted ? `Enter the code we texted to ${sms}.` : "Enter the 6-digit code from your authenticator app."}</p>
       <Field a={a} key={backup ? "b" : "t"} label={backup ? "Backup code" : "Authentication code"} name="code" autoComplete="one-time-code" inputMode={backup ? undefined : "numeric"} maxLength={backup ? 11 : 6} required autoFocus />
       {error && <Alert a={a}>{error}</Alert>}
       <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Verify"}</button>
+      {sms && !backup && (
+        <button type="button" className={cx(a, "link", "dw-link")} onClick={() => c.sendSecondFactorSms().then(() => setTexted(true)).catch((e) => setError(message(e)))}>
+          {texted ? "Send another code" : `Text a code to ${sms}`}
+        </button>
+      )}
       <button type="button" className={cx(a, "link", "dw-link")} onClick={() => setBackup((b) => !b)}>
         {backup ? "Use your authenticator app" : "Use a backup code"}
       </button>

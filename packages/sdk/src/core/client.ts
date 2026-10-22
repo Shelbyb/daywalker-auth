@@ -28,6 +28,12 @@ export type SessionInfo = { id: string; current: boolean; device: string; ipHint
 export type SecurityInfo = {
   hasPassword: boolean;
   twoFactorEnabled: boolean;
+  /** An authenticator app is set up. */
+  totpEnabled: boolean;
+  /** The two-factor phone, masked ("+1 ••• ••• 0100"), or null. */
+  smsPhone: string | null;
+  /** This app allows SMS two-factor. */
+  smsAvailable: boolean;
   backupCodesRemaining: number;
   connectedAccounts: { provider: OAuthProvider; createdAt: string }[];
 };
@@ -214,13 +220,45 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** Second step of sign-in for accounts with 2FA: a 6-digit authenticator code or a backup code. */
-  async function completeSecondFactor(code: string) {
-    return finishSignIn(await request<Completed>("sign_in/second_factor", { method: "POST", body: JSON.stringify({ code }) }));
+  async function completeSecondFactor(code: string, method?: "totp" | "sms") {
+    return finishSignIn(await request<Completed>("sign_in/second_factor", { method: "POST", body: JSON.stringify({ code, method }) }));
+  }
+
+  /** During sign-in: which second factors the account has. `sms` is the masked phone or null. */
+  function getSecondFactorOptions() {
+    return request<{ totp: boolean; sms: string | null; backupCodes: boolean }>("sign_in/second_factor/options", { method: "POST" });
+  }
+
+  /** During sign-in: text a code to the account's phone, then call completeSecondFactor(code, "sms"). */
+  function sendSecondFactorSms() {
+    return request<{ phone: string }>("sign_in/second_factor/sms", { method: "POST" });
+  }
+
+  /** Add a phone for SMS two-factor (international format). Pass a current code if two-factor is already on. */
+  function startSmsSetup(phone: string, currentCode?: string) {
+    return request<{ phone: string }>("mfa/sms", { method: "POST", body: JSON.stringify({ phone, code: currentCode }) });
+  }
+
+  /** Confirm the phone with the texted code. Returns new backup codes when this turns two-factor on (else []). */
+  async function confirmSmsSetup(code: string) {
+    const r = await request<{ backupCodes: string[] }>("mfa/sms/verify", { method: "POST", body: JSON.stringify({ code }) });
+    if (state.user) setState({ user: { ...state.user, twoFactorEnabled: true } });
+    return r.backupCodes;
+  }
+
+  /** Text a code to the signed-in user's phone, e.g. to confirm removing it. */
+  function sendSmsCode() {
+    return request<{ phone: string }>("mfa/sms/send", { method: "POST" });
+  }
+
+  /** Remove the two-factor phone. Needs a current code (authenticator, texted or backup). */
+  async function removeSmsPhone(code: string) {
+    await request("mfa/sms/remove", { method: "POST", body: JSON.stringify({ code }) });
   }
 
   /** 2FA setup, step 1: returns `uri` (render it as a QR code) and `secret` (for manual entry). */
-  function startTotpSetup() {
-    return request<{ secret: string; uri: string }>("mfa/totp", { method: "POST" });
+  function startTotpSetup(currentCode?: string) {
+    return request<{ secret: string; uri: string }>("mfa/totp", { method: "POST", body: JSON.stringify({ code: currentCode }) });
   }
 
   /** 2FA setup, step 2: confirm with a code from the app. Returns backup codes; show them once. */
@@ -310,6 +348,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       emailCodeSignIn: boolean;
       /** At least one SAML SSO connection is enabled. */
       ssoEnabled: boolean;
+      /** Users can add a phone for SMS two-factor. */
+      smsSecondFactor: boolean;
       legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };
     }>("environment", { method: "GET" });
   }
@@ -505,6 +545,12 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     signInWithOAuth,
     getEnvironment,
     completeSecondFactor,
+    getSecondFactorOptions,
+    sendSecondFactorSms,
+    startSmsSetup,
+    confirmSmsSetup,
+    sendSmsCode,
+    removeSmsPhone,
     startTotpSetup,
     confirmTotpSetup,
     disableTwoFactor,

@@ -29,6 +29,7 @@ export const ENCRYPTED_FIELDS: EncryptedField[] = [
   { table: "oauth_providers", column: "client_secret_enc", key: ["instance_id", "provider"], context: (r) => `oauth_providers.client_secret:${r.instance_id}:${r.provider}` },
   byId("oauth_accounts", "email_enc", "email"),
   { table: "mfa_totp", column: "secret_enc", key: ["user_id"], context: (r) => `mfa_totp.secret:${r.user_id}` },
+  { table: "mfa_sms", column: "phone_enc", key: ["user_id"], context: (r) => `mfa_sms.phone:${r.user_id}` },
   byId("invitations", "email_enc", "email"),
   byId("signing_keys", "private_key_enc", "private"),
   byId("webhook_endpoints", "url_enc", "url"),

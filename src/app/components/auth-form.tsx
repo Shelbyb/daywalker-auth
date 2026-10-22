@@ -147,10 +147,10 @@ export function AuthForm({
       />
     );
 
-  if (needsSecondFactor)
+  if (needsSecondFactor && !done)
     return <SecondFactorStep pk={pk} onDone={(name) => (redirect ? window.location.assign(redirect) : setDone({ name }))} />;
 
-  if (verifying)
+  if (verifying && !done)
     return (
       <VerifyEmailStep
         pk={pk}

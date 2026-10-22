@@ -38,6 +38,11 @@ jobs:
       OAUTH_TEST_BASE_URL: http://localhost:3999
       # Local mock for the breached-password API (started by breach-e2e; other suites fail open when it is down).
       PWNED_PASSWORDS_TEST_URL: http://localhost:3997
+      # Mock Twilio Verify (started by sms-e2e); test-format credentials only.
+      TWILIO_TEST_BASE_URL: http://localhost:3995
+      TWILIO_ACCOUNT_SID: AC00000000000000000000000000000000
+      TWILIO_AUTH_TOKEN: test-auth-token-0123456789
+      TWILIO_VERIFY_SERVICE_SID: VA00000000000000000000000000000000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,7 +62,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf localhost:3000/healthz && break; sleep 2; done
       - name: Service test suites
         run: |
-          for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e keyrotation-e2e masterkey-e2e audit-e2e emailcode-e2e breach-e2e templates-e2e providers-e2e saml-e2e; do
+          for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e keyrotation-e2e masterkey-e2e audit-e2e emailcode-e2e breach-e2e templates-e2e providers-e2e saml-e2e sms-e2e; do
             echo "::group::$t"; npx tsx scripts/$t.ts; echo "::endgroup::"
           done
       - name: SDK suite (example app)

@@ -5,9 +5,9 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
 
 ## Current state
 
-- `main` is green: 19 end-to-end suites pass (plus the components browser walkthrough) (`npm run test:all` with the service on :3000; see README "Tests").
+- `main` is green: 20 end-to-end suites pass (plus the components browser walkthrough) (`npm run test:all` with the service on :3000; see README "Tests").
 - Done in this round: signing-key rotation, `MASTER_KEY` rotation, audit logs, email codes and magic links,
-  breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML).
+  breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), SMS two-factor.
 
 ## Just finished: more social providers (roadmap #7)
 
@@ -39,19 +39,21 @@ check, domain-ownership rule for emails, JIT org membership. Dashboard **SSO** t
 issuer, replay, IdP-initiated, cross-connection, login CSRF, foreign domain). Needs `openssl` on the runner.
 Possible follow-ups: optional "SSO required" enforcement per domain (block password sign-in), SCIM provisioning.
 
-## Next: SMS codes (roadmap #10)
+## Just finished: SMS two-factor (roadmap #10)
 
-Decided by Shelby: **Twilio**, as an **opt-in second factor only** (no SMS sign-in).
+Twilio Verify (`src/lib/sms.ts`), opt-in second factor only, per-instance "Allow SMS two-factor" switch
+(needs `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`). `mfa_sms` table (phone encrypted).
+Adding any second factor to an account that already has one requires a current code (anti-persistence).
+`scripts/sms-e2e.ts` (32 checks, mock Twilio on :3995). Also fixed a hosted sign-in bug: after 2FA with no
+redirect URL the form stayed on the 2FA step.
 
-Plan:
-- Twilio Verify API (Twilio generates, sends and checks the codes, with its fraud guard and rate limits), configured
-  once per deployment with `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`; off unless set.
-- Per-instance switch "Allow SMS two-factor" (default off).
-- `mfa_sms` table: user, phone (encrypted, E.164, blind index), verified_at. Enrol: send code → confirm. Use at
-  sign-in as an alternative to the authenticator app; backup codes still work. Changing or removing the number
-  needs a current second factor.
-- Strict limits: per user, per phone number and per IP; country allow-list option; audit events.
-- Tests: mock Twilio Verify on a local port (`TWILIO_TEST_BASE_URL`, refused on HTTPS deployments).
+## All roadmap items are done. Possible follow-ups (not started; ask Shelby)
+
+- "SSO required" per domain (block password sign-in for SSO domains); SCIM user provisioning.
+- Use the drop-in components for the hosted pages too (one UI to maintain).
+- WebAuthn as a second factor (security keys) in addition to passkey sign-in.
+- Per-country SMS allow-list in the dashboard (Twilio Verify geo permissions cover this today).
+- Run the Docker image and the CI workflow for real; verify DigitalOcean binding names.
 
 ## Open items for Shelby (not blocking)
 
@@ -61,14 +63,15 @@ Plan:
 - CI workflow hasn't run on GitHub yet.
 - Commits show "Unverified" on GitHub because they aren't signed; set up SSH/GPG signing to get "Verified".
 - Old SHAs from the earlier history rewrite may linger on GitHub (only GitHub support can purge them).
-- Delete the leftover branches `wip/social-providers`, `wip/components` and `wip/saml` on GitHub (same commit as main; this session isn't allowed to delete branches).
+- Delete the leftover branches `wip/social-providers`, `wip/components`, `wip/saml` and `wip/sms` on GitHub (same commit as main; this session isn't allowed to delete branches).
 
 ## How to resume locally
 
 ```bash
 npm ci && npm run db:migrate && npm run build
 # service: WEBHOOK_ALLOW_PRIVATE=1 ALLOW_INSECURE_TRANSPORT=1 OAUTH_TEST_BASE_URL=http://localhost:3999 \
-#   PWNED_PASSWORDS_TEST_URL=http://localhost:3997 node .next/standalone/server.js  (or next start)
+#   PWNED_PASSWORDS_TEST_URL=http://localhost:3997 TWILIO_TEST_BASE_URL=http://localhost:3995 \
+#   TWILIO_ACCOUNT_SID=AC000… TWILIO_AUTH_TOKEN=… TWILIO_VERIFY_SERVICE_SID=VA000… (see ci.yml) node .next/standalone/server.js  (or next start)
 npm run test:all
 ```
 

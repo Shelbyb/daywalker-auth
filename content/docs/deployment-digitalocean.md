@@ -47,6 +47,7 @@ Or use **Create > App**, pick your repo, and choose the Dockerfile. In the app's
 | `MASTER_KEY` | your generated key, as an **encrypted/secret** variable |
 | `MAIL_TRANSPORT` | `resend` |
 | `RESEND_API_KEY` | secret |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` | optional, secrets; only for SMS two-factor |
 | `MAIL_FROM` | `Acme <no-reply@users.daywalker.dev>` |
 | `PASSKEY_RP_ID` | `<yourdomain>` |
 | `TRUST_PROXY_HOPS` | `1` |

@@ -34,6 +34,17 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             </Field>
           </div>
           <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="smsSecondFactor" defaultChecked={inst.settings.smsSecondFactor === true} disabled={!inst.smsConfigured} className="mt-0.5 size-4 accent-ink" />
+            <span>
+              <span className="font-medium">Allow SMS two-factor</span>
+              <span className="block text-stone-600">
+                {inst.smsConfigured
+                  ? "Let people add a phone and receive sign-in codes by text, as an alternative to an authenticator app."
+                  : "Needs Twilio Verify credentials on the server (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID)."}
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="breachedPasswordCheck" defaultChecked={inst.settings.breachedPasswordCheck !== false} className="mt-0.5 size-4 accent-ink" />
             <span>
               <span className="font-medium">Block breached passwords</span>

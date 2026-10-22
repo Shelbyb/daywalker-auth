@@ -112,6 +112,7 @@ export async function updateSettingsAction(_prev: ActionState, fd: FormData): Pr
       sessionLifetimeDays: Number(str(fd, "sessionLifetimeDays", 10)),
       emailCodeSignIn: fd.get("emailCodeSignIn") === "on",
       breachedPasswordCheck: fd.get("breachedPasswordCheck") === "on",
+      smsSecondFactor: fd.get("smsSecondFactor") === "on",
     });
     refresh(id);
     return { message: "Settings saved." };

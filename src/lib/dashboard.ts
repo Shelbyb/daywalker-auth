@@ -14,6 +14,7 @@ import { errors } from "./http";
 import { listAudit, record, type AuditQuery } from "./audit";
 import { SAMPLE_VARS, accentInput, composeEmail, isTemplateKind, listTemplates, resetTemplate, saveTemplate } from "./email-templates";
 import { sendMail } from "./mail";
+import { smsConfigured } from "./sms";
 import { createConnection, deleteConnection, listConnections, updateConnection } from "./auth/saml";
 import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
@@ -162,7 +163,7 @@ function origins(list: string[]) {
 export async function updateSettings(
   userId: string,
   instanceId: string,
-  input: { name: string; allowedOrigins: string[]; passwordMinLength: number; sessionLifetimeDays: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean },
+  input: { name: string; allowedOrigins: string[]; passwordMinLength: number; sessionLifetimeDays: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; smsSecondFactor?: boolean },
 ) {
   const inst = await ownedInstance(userId, instanceId);
   const s = z
@@ -177,12 +178,12 @@ export async function updateSettings(
     .set({
       name: s.name,
       allowedOrigins: origins(input.allowedOrigins),
-      settings: { ...inst.settings, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true, breachedPasswordCheck: input.breachedPasswordCheck !== false },
+      settings: { ...inst.settings, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true, breachedPasswordCheck: input.breachedPasswordCheck !== false, smsSecondFactor: input.smsSecondFactor === true },
       updatedAt: new Date(),
     })
     .where(eq(schema.instances.id, instanceId));
   await invalidateInstance(instanceId);
-  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { name: s.name, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true, breachedPasswordCheck: input.breachedPasswordCheck !== false } });
+  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { name: s.name, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true, breachedPasswordCheck: input.breachedPasswordCheck !== false, smsSecondFactor: input.smsSecondFactor === true } });
 }
 
 export async function updateLegal(userId: string, instanceId: string, input: unknown) {
@@ -204,6 +205,7 @@ export async function instanceDetails(userId: string, instanceId: string) {
     frontendApi: env().APP_URL,
     allowedOrigins: inst.allowedOrigins,
     settings: inst.settings,
+    smsConfigured: smsConfigured(),
     legal: legalOf(inst),
     userCount: users,
     createdAt: inst.createdAt,

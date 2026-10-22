@@ -16,7 +16,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 
 | Area | Highlights |
 |---|---|
-| Sign-in | Email + password (argon2id, breached passwords blocked via k-anonymity), email verification, password reset, passwordless email codes and magic links, Google, GitHub, Microsoft, Apple, Discord, GitLab and any OpenID Connect provider, passkeys (WebAuthn), TOTP two-factor with backup codes |
+| Sign-in | Email + password (argon2id, breached passwords blocked via k-anonymity), email verification, password reset, passwordless email codes and magic links, Google, GitHub, Microsoft, Apple, Discord, GitLab and any OpenID Connect provider, passkeys (WebAuthn), TOTP and SMS (Twilio) two-factor with backup codes |
 | Sessions | HttpOnly refresh cookie + 60-second ES256 JWTs verified locally against per-instance JWKS; revoke and ban take effect within a minute |
 | Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
 | Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |
@@ -122,6 +122,4 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 
 Working notes and current status: [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, and enterprise SSO (SAML). Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
-
-1. SMS codes (needs an SMS provider choice)
+Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), and SMS two-factor (Twilio). Every roadmap item is built; see [`content/docs/roadmap.md`](content/docs/roadmap.md) and possible follow-ups in `NEXT_STEPS.md`.

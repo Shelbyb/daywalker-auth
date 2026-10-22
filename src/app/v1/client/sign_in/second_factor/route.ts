@@ -11,8 +11,8 @@ export const OPTIONS = preflight;
 export const POST = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   await ctx.limit("second_factor", 30, 900);
-  const { code } = z.object({ code: z.string().trim().min(6).max(20) }).parse(await req.json());
-  const userId = await completePendingSecondFactor(ctx.inst.id, ctx.twoFactorToken, code);
+  const { code, method } = z.object({ code: z.string().trim().min(6).max(20), method: z.enum(["totp", "sms"]).optional() }).parse(await req.json());
+  const userId = await completePendingSecondFactor(ctx.inst.id, ctx.twoFactorToken, code, method);
   const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
   const { jwt } = await issueToken(ctx.inst, s.refreshToken, ctx.origin);
   const res = ctx.clearTwoFactorCookie(ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt }));

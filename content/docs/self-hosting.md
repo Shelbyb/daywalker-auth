@@ -35,6 +35,7 @@ In development, emails aren't sent; they're printed in the server console.
 | `APP_URL` | yes | Public URL of this service. Becomes part of token issuers, so don't change it casually. |
 | `MAIL_TRANSPORT` | prod | `resend` in production, `dev` locally |
 | `RESEND_API_KEY` | prod | API key for sending email through Resend |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` | no | Twilio Verify, for [SMS two-factor](/docs/guides/two-factor#text-message-codes-sms). Set all three or none. |
 | `PASSKEY_RP_ID` | no | Domain passkeys are bound to. Default: the hostname of `APP_URL`. Set to a parent domain (e.g. `example.com`) to use passkeys on app subdomains. Decide before launch. |
 | `OAUTH_TEST_BASE_URL` | tests only | Points Google/GitHub at a mock provider. Refused when `APP_URL` is HTTPS. |
 | `MAIL_FROM` | no | Sender, e.g. `Acme <no-reply@auth.acme.com>` (domain must be verified with Resend) |

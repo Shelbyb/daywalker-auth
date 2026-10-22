@@ -25,6 +25,10 @@ const schema = z
     // "resend" sends real email; "dev" logs to the server console and (outside production) keeps the last code for tests.
     MAIL_TRANSPORT: z.enum(["resend", "dev"]).default("dev"),
     RESEND_API_KEY: z.string().optional(),
+    /** Twilio Verify, for SMS two-factor. SMS stays off unless all three are set. */
+    TWILIO_ACCOUNT_SID: z.string().regex(/^AC[0-9a-fA-F]{32}$/, "TWILIO_ACCOUNT_SID looks like AC followed by 32 hex characters").optional().or(z.literal("")),
+    TWILIO_AUTH_TOKEN: z.string().min(16).optional().or(z.literal("")),
+    TWILIO_VERIFY_SERVICE_SID: z.string().regex(/^VA[0-9a-fA-F]{32}$/, "TWILIO_VERIFY_SERVICE_SID looks like VA followed by 32 hex characters").optional().or(z.literal("")),
     MAIL_FROM: z.string().default("Daywalker Auth <no-reply@users.daywalker.dev>"),
   })
   // In production every hop is encrypted: HTTPS for clients, TLS to Postgres and Valkey.

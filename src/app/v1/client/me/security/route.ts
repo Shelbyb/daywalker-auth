@@ -2,7 +2,7 @@ import { handler } from "@/lib/http";
 import { frontendContext, preflight } from "@/lib/auth/frontend";
 import { requireSession } from "@/lib/auth/require-session";
 import { hasPassword, linkedProviders } from "@/lib/auth/account";
-import { hasTwoFactor, remainingBackupCodes } from "@/lib/auth/mfa";
+import { hasTwoFactor, remainingBackupCodes, smsAllowed, twoFactorMethods } from "@/lib/auth/mfa";
 
 export const OPTIONS = preflight;
 
@@ -11,9 +11,14 @@ export const GET = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   const twoFactorEnabled = await hasTwoFactor(s.userId);
+  const m = await twoFactorMethods(s.userId);
   return ctx.json({
     hasPassword: await hasPassword(s.userId),
     twoFactorEnabled,
+    totpEnabled: m.totp,
+    /** Masked number, e.g. "+1 ••• ••• 0100", or null. */
+    smsPhone: m.sms,
+    smsAvailable: smsAllowed(ctx.inst),
     backupCodesRemaining: twoFactorEnabled ? await remainingBackupCodes(s.userId) : 0,
     connectedAccounts: await linkedProviders(s.userId),
   });

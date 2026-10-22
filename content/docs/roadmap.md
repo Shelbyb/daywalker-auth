@@ -18,8 +18,8 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
 | 7 | **More social providers** | Microsoft, Apple, Discord, GitLab and any OpenID Connect provider | Done |
 | 8 | **Embeddable components** | Drop-in `<SignIn />`, `<SignUp />`, `<UserButton />` and `<OrganizationSwitcher />` for React | Done |
 | 9 | **Enterprise SSO (SAML)** | Let an organization's members sign in with their company identity provider | Done |
-| 10 | **SMS codes** | Text-message sign-in and two-factor, once an SMS provider is chosen | Planned |
+| 10 | **SMS codes** | Text-message codes as an opt-in second factor, through Twilio Verify | Done |
 
 ## Already done
 
-Email and password, email verification, password reset, social sign-in (Google, GitHub, Microsoft, Apple, Discord, GitLab, OpenID Connect), passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key and `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), and DigitalOcean deployment. See the [guides](/docs/quickstart).
+Email and password, email verification, password reset, social sign-in (Google, GitHub, Microsoft, Apple, Discord, GitLab, OpenID Connect), passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key and `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), SMS two-factor, and DigitalOcean deployment. See the [guides](/docs/quickstart).

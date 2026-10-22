@@ -47,7 +47,7 @@ export const instances = pgTable(
     // Origins allowed to call the frontend API with credentials (CORS).
     allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
     settings: jsonb("settings")
-      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string }>()
+      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string; smsSecondFactor?: boolean }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.
@@ -209,6 +209,15 @@ export const oauthAccounts = pgTable(
 export const mfaTotp = pgTable("mfa_totp", {
   userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   secretEnc: text("secret_enc").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/** A phone number used for SMS two-factor. Encrypted; the blind index only feeds per-number rate limits. */
+export const mfaSms = pgTable("mfa_sms", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  phoneEnc: text("phone_enc").notNull(),
+  phoneIndex: text("phone_index").notNull(),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdAt: createdAt(),
 });

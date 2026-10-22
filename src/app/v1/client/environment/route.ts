@@ -4,6 +4,7 @@ import { enabledProviders } from "@/lib/auth/oauth";
 import { legalOf } from "@/lib/auth/legal";
 import { emailCodeEnabled } from "@/lib/auth/email-sign-in";
 import { hasSso } from "@/lib/auth/saml";
+import { smsAllowed } from "@/lib/auth/mfa";
 
 export const OPTIONS = preflight;
 
@@ -17,5 +18,6 @@ export const GET = handler(async (req: Request) => {
     legal: legalOf(ctx.inst),
     emailCodeSignIn: emailCodeEnabled(ctx.inst),
     ssoEnabled: await hasSso(ctx.inst.id),
+    smsSecondFactor: smsAllowed(ctx.inst),
   });
 });

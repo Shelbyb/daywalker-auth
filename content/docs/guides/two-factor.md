@@ -136,6 +136,39 @@ await disableTwoFactor(code);              // code: authenticator or backup
 const fresh = await regenerateBackupCodes(code); // old backup codes stop working
 ```
 
+## Text-message codes (SMS)
+
+Users can also get their second-factor code by text message, instead of (or as well as) an authenticator app. It's **off by default**, because SMS is the weakest option: a determined attacker can hijack a phone number with a SIM swap. Offer it for people who won't install an app.
+
+**Turn it on**
+
+1. Create a [Twilio Verify](https://www.twilio.com/docs/verify) service. Twilio generates, sends and checks the codes, and handles fraud protection.
+2. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SERVICE_SID` on the server.
+3. In the dashboard, open **Settings** and tick **Allow SMS two-factor**.
+
+Users then see **Use text messages** on the account page. At sign-in they get a **Text a code to •••• 0100** option.
+
+**With the SDK**
+
+```ts
+// Account settings: add a phone (international format)
+await auth.startSmsSetup("+1 415 555 0100");          // add `currentCode` if 2FA is already on
+const backupCodes = await auth.confirmSmsSetup(code);  // new codes when this turns 2FA on, else []
+
+// Sign-in, after signIn() returned needs_second_factor
+const { sms } = await auth.getSecondFactorOptions();   // "•••• 0100" or null
+await auth.sendSecondFactorSms();
+await auth.completeSecondFactor(code, "sms");
+```
+
+**Safeguards**
+
+- Adding a phone or an authenticator app to an account that already has two-factor needs a **current code**. Someone with a stolen session can't quietly add their own phone and keep access.
+- Removing the phone or turning two-factor off also needs a current code: from the app, a text, or a backup code.
+- Texts are limited per user, per phone number and per IP, so nobody can run up your Twilio bill.
+- Phone numbers are encrypted at rest and only ever shown masked. No SMS code is stored here; Twilio checks them, and each works once.
+- If you later turn the setting off, people who already use SMS can still sign in with it. Nobody gets locked out.
+
 ## When a user is locked out
 
 If someone loses their phone **and** their backup codes, an admin can remove 2FA with the backend API:
@@ -158,7 +191,7 @@ if (!user.twoFactorEnabled) redirect("/settings/security?require=2fa");
 
 ## Security details
 
-- **Secrets** are encrypted per user (AES-256-GCM).
+- **Secrets and phone numbers** are encrypted per user (AES-256-GCM).
 - **Backup codes** are stored only as keyed hashes. Each is about 49 bits of randomness, uses no look-alike characters (0/o, 1/l/i), and is marked used atomically, so two simultaneous requests can't both spend the same code.
 - **Codes can't be replayed.** Once a 6-digit code is accepted, that 30-second window is spent, so a code someone watched you type is useless.
 - **Clock drift** of one step (±30 seconds) is tolerated.
