@@ -119,9 +119,11 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 
 ## Next steps
 
+Working notes and current status: [`NEXT_STEPS.md`](NEXT_STEPS.md).
+
 Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, and custom email templates. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
 
-1. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect)
+1. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect) — in progress
 2. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
 3. Enterprise SSO (SAML)
 4. SMS codes

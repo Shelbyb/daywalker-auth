@@ -15,7 +15,7 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
 | 4 | **Magic links and email codes** | Passwordless sign-in: click a link or type a code from your email | Done |
 | 5 | **Breached-password check** | Reject passwords found in known data breaches (privacy-preserving k-anonymity lookup) | Done |
 | 6 | **Custom email templates** | Edit the wording and branding of verification, reset and invitation emails per instance | Done |
-| 7 | **More social providers** | Microsoft, Apple, Discord, GitLab and any OpenID Connect provider | Planned |
+| 7 | **More social providers** | Microsoft, Apple, Discord, GitLab and any OpenID Connect provider | In progress |
 | 8 | **Embeddable components** | Drop-in `<SignIn />`, `<SignUp />`, `<UserButton />` and `<OrganizationSwitcher />` for React | Planned |
 | 9 | **Enterprise SSO (SAML)** | Let an organization's members sign in with their company identity provider | Planned |
 | 10 | **SMS codes** | Text-message sign-in and two-factor, once an SMS provider is chosen | Planned |
