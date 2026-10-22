@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { record } from "../audit";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { cache, rateLimit } from "../cache";
@@ -87,4 +88,5 @@ export async function resetPassword(inst: Instance, input: z.infer<typeof resetI
       .returning({ h: schema.sessions.refreshTokenHash });
   });
   if (revoked.length) await cache().del(...revoked.map((r) => `sess:${r.h}`));
+  void record(inst.id, "user.password_reset", { actor: { type: "user", id: row.userId }, target: row.userId, data: { sessionsRevoked: revoked.length } });
 }

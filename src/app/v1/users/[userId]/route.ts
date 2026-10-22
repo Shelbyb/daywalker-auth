@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { record } from "@/lib/audit";
 import { handler, errors } from "@/lib/http";
 import { instanceFromSecretKey } from "@/lib/auth/instance";
 import { getUser, deleteUser } from "@/lib/auth/users";
@@ -17,5 +18,6 @@ export const DELETE = handler(async (req: Request, { params }: Ctx) => {
   const inst = await instanceFromSecretKey(req);
   const { userId } = await params;
   await deleteUser(inst.id, userId);
+  void record(inst.id, "user.deleted", { actor: { type: "api" }, target: userId });
   return NextResponse.json({ id: userId, deleted: true });
 });

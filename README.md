@@ -21,6 +21,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 | Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
 | Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |
 | Webhooks | HMAC-signed (Standard Webhooks format), retries with backoff, delivery log, SSRF protection |
+| Audit logs | Sign-ins, failed attempts, security, key and settings changes; encrypted details; 90-day retention; dashboard and API |
 | Terms | Optional required terms acceptance at sign-up, recorded per user and version |
 | Dashboard | `/dashboard`: instances, keys, allowed origins, social providers, terms, users, webhooks |
 | SDK | Browser client, React hooks, server `verifyToken`/`verifyWebhook`/backend client, Next.js `auth()` and `authProxy` |
@@ -117,13 +118,12 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 
 ## Next steps
 
-Done: signing-key rotation and `MASTER_KEY` rotation. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
+Done: signing-key rotation, `MASTER_KEY` rotation and audit logs. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
 
-1. Audit logs
-2. Magic links and email codes
-3. Breached-password check
-4. Custom email templates
-5. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect)
-6. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
-7. Enterprise SSO (SAML)
-8. SMS codes
+1. Magic links and email codes
+2. Breached-password check
+3. Custom email templates
+4. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect)
+5. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
+6. Enterprise SSO (SAML)
+7. SMS codes

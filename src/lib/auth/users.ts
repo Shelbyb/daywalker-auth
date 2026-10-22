@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { record } from "../audit";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { hashPassword, verifyPassword, dummyHash, encrypt, decrypt, encryptNullable, decryptNullable, blindIndex } from "../crypto";
@@ -60,6 +61,7 @@ export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>)
     throw e;
   }
   void emit(inst.id, "user.created", { userId, email: input.email });
+  void record(inst.id, "user.signed_up", { actor: { type: "user", id: userId }, target: userId, data: { method: "password" } });
   return userId;
 }
 
@@ -73,8 +75,15 @@ export async function signIn(inst: Instance, input: z.infer<typeof signInInput>)
 
   // Always run a verify so timing doesn't reveal whether the email exists.
   const ok = await verifyPassword(row?.hash ?? (await dummyHash()), input.password);
-  if (!row || !row.hash || !ok) throw errors.badRequest("invalid_credentials", "Email or password is incorrect");
-  if (row.banned) throw errors.forbidden("This account is suspended");
+  if (!row || !row.hash || !ok) {
+    // Only failures against a real account are logged; unknown emails would just fill the log.
+    if (row) void record(inst.id, "user.sign_in_failed", { target: row.userId, data: { reason: "wrong_password" } });
+    throw errors.badRequest("invalid_credentials", "Email or password is incorrect");
+  }
+  if (row.banned) {
+    void record(inst.id, "user.sign_in_blocked", { target: row.userId, data: { reason: "suspended" } });
+    throw errors.forbidden("This account is suspended");
+  }
   return row.userId;
 }
 

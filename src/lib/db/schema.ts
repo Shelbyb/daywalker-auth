@@ -352,3 +352,28 @@ export const webhookDeliveries = pgTable(
     index("webhook_deliveries_endpoint_idx").on(t.endpointId, t.createdAt),
   ],
 );
+
+/**
+ * An append-only record of what happened in an instance: sign-ins, security changes, settings and
+ * key changes. `type`, actor and target are plaintext so they can be filtered; anything that could
+ * identify a person (emails, names) goes in `data_enc`.
+ */
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    /** "user" (an end user), "developer" (dashboard), "api" (secret key) or "system". */
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id"),
+    targetId: text("target_id"),
+    dataEnc: text("data_enc"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("audit_events_instance_idx").on(t.instanceId, t.createdAt),
+    index("audit_events_type_idx").on(t.instanceId, t.type, t.createdAt),
+    index("audit_events_target_idx").on(t.instanceId, t.targetId, t.createdAt),
+  ],
+);

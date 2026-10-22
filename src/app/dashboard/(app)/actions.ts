@@ -190,7 +190,7 @@ export async function createWebhookAction(_prev: ActionState, fd: FormData): Pro
     await ownedInstance(userId, id);
     const events = flag(fd, "allEvents") ? ["*"] : fd.getAll("events").filter((e): e is string => typeof e === "string" && SELECTABLE.includes(e));
     if (!events.length) throw new ApiError(400, "invalid_request", "Pick at least one event, or tick All events.");
-    const r = await createEndpoint(id, { url: str(fd, "url", 2100).trim(), events, description: str(fd, "description", 200).trim() || null });
+    const r = await createEndpoint(id, { url: str(fd, "url", 2100).trim(), events, description: str(fd, "description", 200).trim() || null }, { type: "developer", id: userId });
     refresh(id);
     return { message: "Endpoint created.", secret: r.secret };
   });
@@ -202,7 +202,7 @@ export async function toggleWebhookAction(_prev: ActionState, fd: FormData): Pro
     const id = str(fd, "instanceId", 200);
     await ownedInstance(userId, id);
     const enabled = flag(fd, "enabled");
-    await updateEndpoint(id, str(fd, "endpointId", 200), { enabled });
+    await updateEndpoint(id, str(fd, "endpointId", 200), { enabled }, { type: "developer", id: userId });
     refresh(id);
     return { message: enabled ? "Endpoint enabled." : "Endpoint disabled." };
   });
@@ -213,7 +213,7 @@ export async function rotateWebhookSecretAction(_prev: ActionState, fd: FormData
     const { userId } = await requireDashboardUser();
     const id = str(fd, "instanceId", 200);
     await ownedInstance(userId, id);
-    const r = await rotateSecret(id, str(fd, "endpointId", 200));
+    const r = await rotateSecret(id, str(fd, "endpointId", 200), { type: "developer", id: userId });
     refresh(id);
     return { message: "Secret rotated. The old one no longer works.", secret: r.secret };
   });
@@ -235,7 +235,7 @@ export async function deleteWebhookAction(_prev: ActionState, fd: FormData): Pro
     const { userId } = await requireDashboardUser();
     const id = str(fd, "instanceId", 200);
     await ownedInstance(userId, id);
-    await deleteEndpoint(id, str(fd, "endpointId", 200));
+    await deleteEndpoint(id, str(fd, "endpointId", 200), { type: "developer", id: userId });
     refresh(id);
     return { message: "Endpoint deleted." };
   });

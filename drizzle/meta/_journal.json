@@ -57,6 +57,13 @@
       "when": 1792619846208,
       "tag": "0007_dashboard",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792676960787,
+      "tag": "0008_audit_logs",
+      "breakpoints": true
     }
   ]
 }

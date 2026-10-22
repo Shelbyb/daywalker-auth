@@ -98,6 +98,15 @@ export function verifyWebhook<T = Record<string, unknown>>(
   }
 }
 
+export type AuditEvent = {
+  id: string;
+  type: string;
+  actor: { type: "user" | "developer" | "api" | "system"; id: string | null };
+  target: string | null;
+  data: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 export type WebhookEndpoint = { id: string; url: string; events: string[]; description: string | null; enabled: boolean; createdAt: string };
 export type WebhookDelivery = {
   id: string; eventId: string; eventType: string; status: "pending" | "succeeded" | "failed"; attempts: number;
@@ -159,6 +168,14 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
           "GET",
           `organizations/${encodeURIComponent(orgId)}/members`,
         ).then((r) => r.data),
+    },
+    auditEvents: {
+      /** Newest first. Pass `before: page.nextCursor` for the next page. */
+      list: (q: { type?: string; target?: string; before?: string; limit?: number } = {}) => {
+        const p = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== "") p.set(k, String(v));
+        return call<{ data: AuditEvent[]; nextCursor: string | null }>("GET", `audit_events${p.size ? `?${p}` : ""}`);
+      },
     },
     webhooks: {
       list: () => call<{ data: WebhookEndpoint[] }>("GET", "webhooks").then((r) => r.data),

@@ -68,5 +68,7 @@ if (mode === "populate") {
   checks.everyFieldDecrypts = allDecrypt;
   out({ checks, counts });
 }
+// Audit and webhook writes happen off the request path; let them land before closing the pool.
+await new Promise((r) => setTimeout(r, 1000));
 await closeDb();
 await closeCache();

@@ -34,4 +34,5 @@ export const ENCRYPTED_FIELDS: EncryptedField[] = [
   byId("webhook_endpoints", "url_enc", "url"),
   byId("webhook_endpoints", "secret_enc", "secret"),
   byId("webhook_deliveries", "payload_enc", "payload"),
+  byId("audit_events", "data_enc", "data"),
 ];

@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import { record, recordForUser } from "../audit";
 import { and, eq, isNull, isNotNull } from "drizzle-orm";
 import { db, schema } from "../db";
 import { cache } from "../cache";
@@ -44,6 +45,7 @@ export async function confirmTotpEnrollment(userId: string, code: string) {
   if (!(await consumeTotp(userId, decrypt(row.secretEnc, secretCtx(userId)), code)))
     throw errors.badRequest("invalid_code", "That code is incorrect. Check your device's clock and try again");
   await db().update(schema.mfaTotp).set({ verifiedAt: new Date() }).where(eq(schema.mfaTotp.userId, userId));
+  void recordForUser(userId, "user.two_factor_enabled");
   return regenerateBackupCodes(userId);
 }
 
@@ -52,6 +54,7 @@ export async function disableTwoFactor(userId: string, code: string) {
   if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
   await db().delete(schema.mfaTotp).where(eq(schema.mfaTotp.userId, userId));
   await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
+  void recordForUser(userId, "user.two_factor_disabled");
 }
 
 export async function rotateBackupCodes(userId: string, code: string) {
@@ -64,6 +67,7 @@ export async function rotateBackupCodes(userId: string, code: string) {
 export async function adminResetTwoFactor(userId: string) {
   await db().delete(schema.mfaTotp).where(eq(schema.mfaTotp.userId, userId));
   await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
+  void recordForUser(userId, "user.two_factor_reset", { actor: { type: "api" } });
 }
 
 // ---------- Backup codes ----------
@@ -154,7 +158,10 @@ export async function completePendingSecondFactor(instanceId: string, token: str
   }
   const pending = JSON.parse(decrypt(raw, "2fa_pending")) as { instanceId: string; userId: string };
   if (pending.instanceId !== instanceId) throw errors.unauthorized();
-  if (!(await verifySecondFactor(pending.userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
+  if (!(await verifySecondFactor(pending.userId, code))) {
+    void record(instanceId, "user.two_factor_failed", { target: pending.userId, data: { attempt: attempts } });
+    throw errors.badRequest("invalid_code", "That code is incorrect");
+  }
   await cache().del(key);
   return pending.userId;
 }

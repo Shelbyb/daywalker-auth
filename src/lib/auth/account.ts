@@ -1,4 +1,5 @@
 import { and, desc, eq, ne } from "drizzle-orm";
+import { record, recordForUser } from "../audit";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { cache } from "../cache";
@@ -19,6 +20,7 @@ export async function updateProfile(userId: string, input: z.infer<typeof profil
   if (input.firstName !== undefined) set.firstNameEnc = encryptNullable(input.firstName || null, `users.first_name:${userId}`);
   if (input.lastName !== undefined) set.lastNameEnc = encryptNullable(input.lastName || null, `users.last_name:${userId}`);
   await db().update(schema.users).set(set).where(eq(schema.users.id, userId));
+  void recordForUser(userId, "user.profile_updated");
 }
 
 // ---------- Password ----------
@@ -37,6 +39,7 @@ export async function changePassword(inst: Instance, userId: string, currentSess
   if (!(await verifyPassword(row.hash, input.currentPassword)))
     throw errors.badRequest("invalid_credentials", "Your current password is incorrect");
   await db().update(schema.passwords).set({ hash: await hashPassword(input.newPassword), updatedAt: new Date() }).where(eq(schema.passwords.userId, userId));
+  void record(inst.id, "user.password_changed", { actor: { type: "user", id: userId }, target: userId });
   return revokeOtherSessions(userId, currentSessionId);
 }
 

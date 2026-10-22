@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { record, recordForUser } from "../audit";
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -107,6 +108,7 @@ export async function verifyRegistration(inst: Instance, userId: string, session
     if (code === "23505") throw errors.conflict("passkey_exists", "This passkey is already registered");
     throw e;
   }
+  void record(inst.id, "user.passkey_added", { actor: { type: "user", id: userId }, target: userId, data: { passkeyId: id } });
   return id;
 }
 
@@ -198,4 +200,5 @@ export async function deletePasskey(userId: string, id: string) {
     .where(and(eq(schema.passkeys.id, id), eq(schema.passkeys.userId, userId)))
     .returning({ id: schema.passkeys.id });
   if (!rows.length) throw errors.notFound("Passkey not found");
+  void recordForUser(userId, "user.passkey_removed", { data: { passkeyId: id } });
 }

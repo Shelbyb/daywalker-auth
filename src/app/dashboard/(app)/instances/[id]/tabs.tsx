@@ -11,6 +11,7 @@ const TABS = [
   ["/terms", "Terms"],
   ["/users", "Users"],
   ["/webhooks", "Webhooks"],
+  ["/audit", "Audit log"],
 ] as const;
 
 export function Tabs({ base }: { base: string }) {

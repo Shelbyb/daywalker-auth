@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { record } from "../audit";
 import { db, schema } from "../db";
 import { cache } from "../cache";
 import { newId, newToken, sha256 } from "../ids";
@@ -34,6 +35,7 @@ export async function createSession(
   });
   await db().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, userId));
   void emit(inst.id, "session.created", { sessionId: id, userId });
+  void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null } });
   return { id, refreshToken, expiresAt };
 }
 
@@ -95,11 +97,13 @@ export async function issueToken(inst: Instance, refreshToken: string | undefine
 
 export async function endSession(instanceId: string, refreshToken: string, status: "ended" | "revoked" = "ended") {
   const h = sha256(refreshToken);
-  await db()
+  const [row] = await db()
     .update(schema.sessions)
     .set({ status })
-    .where(and(eq(schema.sessions.refreshTokenHash, h), eq(schema.sessions.instanceId, instanceId)));
+    .where(and(eq(schema.sessions.refreshTokenHash, h), eq(schema.sessions.instanceId, instanceId)))
+    .returning({ id: schema.sessions.id, userId: schema.sessions.userId });
   await cache().del(sessKey(h));
+  if (row && status === "ended") void record(instanceId, "user.signed_out", { actor: { type: "user", id: row.userId }, target: row.userId, data: { sessionId: row.id } });
 }
 
 /** Backend API: revoke by session ID (e.g. "sign out everywhere"). */

@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { record, type Actor } from "./audit";
 import { lookup as dnsLookup } from "node:dns";
 import { promises as dns } from "node:dns";
 import https from "node:https";
@@ -123,7 +124,9 @@ function checkEvents(events: string[]) {
   return events.includes("*") ? ["*"] : [...new Set(events)];
 }
 
-export async function createEndpoint(instanceId: string, input: { url: string; events?: string[]; description?: string | null }) {
+const API: Actor = { type: "api" };
+
+export async function createEndpoint(instanceId: string, input: { url: string; events?: string[]; description?: string | null }, actor: Actor = API) {
   await assertSafeUrl(input.url);
   const existing = await db().select({ id: schema.webhookEndpoints.id }).from(schema.webhookEndpoints).where(eq(schema.webhookEndpoints.instanceId, instanceId));
   if (existing.length >= MAX_ENDPOINTS) throw errors.badRequest("too_many_endpoints", `You can have up to ${MAX_ENDPOINTS} webhook endpoints`);
@@ -140,6 +143,7 @@ export async function createEndpoint(instanceId: string, input: { url: string; e
       description: input.description?.slice(0, 200) ?? null,
     })
     .returning();
+  void record(instanceId, "webhook.created", { actor, target: row.id, data: { events: row.events } });
   return { ...view(row), secret }; // the only time the secret is shown (besides rotation)
 }
 
@@ -165,6 +169,7 @@ export async function updateEndpoint(
   instanceId: string,
   id: string,
   input: { url?: string; events?: string[]; description?: string | null; enabled?: boolean },
+  actor: Actor = API,
 ) {
   await load(instanceId, id);
   const set: Partial<typeof schema.webhookEndpoints.$inferInsert> = {};
@@ -177,18 +182,21 @@ export async function updateEndpoint(
   if (input.enabled !== undefined) set.enabled = input.enabled;
   if (!Object.keys(set).length) return getEndpoint(instanceId, id);
   const [row] = await db().update(schema.webhookEndpoints).set(set).where(eq(schema.webhookEndpoints.id, id)).returning();
+  void record(instanceId, "webhook.updated", { actor, target: id, data: { changed: Object.keys(input).filter((k) => input[k as keyof typeof input] !== undefined) } });
   return view(row);
 }
 
-export async function deleteEndpoint(instanceId: string, id: string) {
+export async function deleteEndpoint(instanceId: string, id: string, actor: Actor = API) {
   await load(instanceId, id);
   await db().delete(schema.webhookEndpoints).where(eq(schema.webhookEndpoints.id, id));
+  void record(instanceId, "webhook.deleted", { actor, target: id });
 }
 
-export async function rotateSecret(instanceId: string, id: string) {
+export async function rotateSecret(instanceId: string, id: string, actor: Actor = API) {
   await load(instanceId, id);
   const secret = newSecret();
   await db().update(schema.webhookEndpoints).set({ secretEnc: encrypt(secret, ctx("webhook_endpoints", "secret", id)) }).where(eq(schema.webhookEndpoints.id, id));
+  void record(instanceId, "webhook.secret_rotated", { actor, target: id });
   return { id, secret };
 }
 

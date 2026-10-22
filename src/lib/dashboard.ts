@@ -11,6 +11,7 @@ import { db, schema } from "./db";
 import { cache, rateLimit } from "./cache";
 import { env } from "./env";
 import { errors } from "./http";
+import { listAudit, record, type AuditQuery } from "./audit";
 import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
 import { createSigningKey, getJwks, issuerFor, listSigningKeys, rotateSigningKey } from "./auth/keys";
@@ -177,6 +178,7 @@ export async function updateSettings(
     })
     .where(eq(schema.instances.id, instanceId));
   await invalidateInstance(instanceId);
+  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { name: s.name, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays } });
 }
 
 export async function updateLegal(userId: string, instanceId: string, input: unknown) {
@@ -184,6 +186,7 @@ export async function updateLegal(userId: string, instanceId: string, input: unk
   const legal = legalInput.parse(input);
   await db().update(schema.instances).set({ legal, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
   await invalidateInstance(instanceId);
+  void record(instanceId, "instance.terms_updated", { actor: { type: "developer", id: userId } });
 }
 
 export async function instanceDetails(userId: string, instanceId: string) {
@@ -213,7 +216,9 @@ export async function signingKeysFor(userId: string, instanceId: string) {
 export async function rotateKeys(userId: string, instanceId: string) {
   await ownedInstance(userId, instanceId);
   if ((await rateLimit(`${instanceId}:rotate_key`, 5, 3600)) < 0) throw errors.tooMany();
-  return rotateSigningKey(instanceId);
+  const r = await rotateSigningKey(instanceId);
+  void record(instanceId, "signing_key.rotated", { actor: { type: "developer", id: userId } });
+  return r;
 }
 
 // ---------- Secret keys ----------
@@ -236,7 +241,9 @@ export async function createKey(userId: string, instanceId: string, name: string
   const label = sanitizeName.parse(name);
   const [{ n }] = await db().select({ n: count() }).from(schema.apiKeys).where(and(eq(schema.apiKeys.instanceId, instanceId), isNull(schema.apiKeys.revokedAt)));
   if (n >= MAX_KEYS) throw errors.badRequest("too_many_keys", `Up to ${MAX_KEYS} active keys. Revoke one first`);
-  return insertKey(inst, label);
+  const secret = await insertKey(inst, label);
+  void record(instanceId, "api_key.created", { actor: { type: "developer", id: userId }, data: { name: label, prefix: secret.slice(0, 12) } });
+  return secret;
 }
 
 export async function revokeKey(userId: string, instanceId: string, keyId: string) {
@@ -248,6 +255,7 @@ export async function revokeKey(userId: string, instanceId: string, keyId: strin
     .returning({ h: schema.apiKeys.keyHash });
   if (!row) throw errors.notFound("Key not found");
   await cache().del(`sk:${row.h}`); // takes effect immediately, not after the 60s cache
+  void record(instanceId, "api_key.revoked", { actor: { type: "developer", id: userId }, target: keyId });
 }
 
 // ---------- Social providers ----------
@@ -269,6 +277,7 @@ export async function saveProvider(userId: string, instanceId: string, provider:
     .object({ clientId: z.string().trim().min(1).max(256), clientSecret: z.string().min(1).max(512), enabled: z.boolean() })
     .parse(input);
   await setProviderConfig(instanceId, provider as ProviderName, cfg);
+  void record(instanceId, "social_provider.saved", { actor: { type: "developer", id: userId }, target: provider, data: { enabled: cfg.enabled } });
 }
 
 export async function setProviderEnabled(userId: string, instanceId: string, provider: string, enabled: boolean) {
@@ -279,6 +288,7 @@ export async function setProviderEnabled(userId: string, instanceId: string, pro
     .set({ enabled, updatedAt: new Date() })
     .where(and(eq(schema.oauthProviders.instanceId, instanceId), eq(schema.oauthProviders.provider, provider as ProviderName)));
   await cache().del(`oauth:enabled:${instanceId}`);
+  void record(instanceId, enabled ? "social_provider.enabled" : "social_provider.disabled", { actor: { type: "developer", id: userId }, target: provider });
 }
 
 // ---------- Users ----------
@@ -309,9 +319,18 @@ export async function listUsers(userId: string, instanceId: string, q: { limit?:
 export async function banUser(userId: string, instanceId: string, targetId: string, banned: boolean) {
   await ownedInstance(userId, instanceId);
   await setBanned(instanceId, targetId, banned);
+  void record(instanceId, banned ? "user.banned" : "user.unbanned", { actor: { type: "developer", id: userId }, target: targetId });
 }
 
 export async function removeUser(userId: string, instanceId: string, targetId: string) {
   await ownedInstance(userId, instanceId);
   await deleteUser(instanceId, targetId);
+  void record(instanceId, "user.deleted", { actor: { type: "developer", id: userId }, target: targetId });
+}
+
+// ---------- Audit log ----------
+
+export async function auditFor(userId: string, instanceId: string, q: AuditQuery) {
+  await ownedInstance(userId, instanceId);
+  return listAudit(instanceId, q);
 }
