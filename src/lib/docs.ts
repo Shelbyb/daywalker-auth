@@ -21,7 +21,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/call-your-api", title: "Call your own API" },
       { slug: "guides/email-verification", title: "Email verification" },
       { slug: "guides/password-reset", title: "Password reset" },
-      { slug: "guides/social-sign-in", title: "Sign in with Google and GitHub" },
+      { slug: "guides/social-sign-in", title: "Social sign-in" },
       { slug: "guides/two-factor", title: "Two-factor authentication" },
       { slug: "guides/passkeys", title: "Passkeys" },
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },

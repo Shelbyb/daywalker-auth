@@ -16,7 +16,7 @@ You add a few lines of code to your app; Daywalker Auth does the rest.
 
 - **Hosted sign-in and sign-up pages.** Send people there and they come back signed in. No forms to build.
 - **Email verification and password reset**, with one-time codes sent by email.
-- **Sign in with Google and GitHub**, with safe account linking.
+- **Social sign-in** with Google, GitHub, Microsoft, Apple, Discord, GitLab or any OpenID Connect provider, with safe account linking.
 - **Two-factor authentication** with authenticator apps and backup codes.
 - **Passkeys**: passwordless sign-in with Face ID, fingerprints or a device PIN.
 - **A hosted account page** where users manage their profile, password, 2FA and signed-in devices.

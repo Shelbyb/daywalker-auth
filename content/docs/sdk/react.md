@@ -43,7 +43,7 @@ const {
   verifyEmail,          // (code) => Promise<User>
   requestPasswordReset, // (email) => Promise<void>
   resetPassword,        // ({ email, code, password }) => Promise<void>
-  signInWithOAuth,      // ("google" | "github", redirectUrl?) => void (full-page redirect)
+  signInWithOAuth,      // (OAuthProvider, redirectUrl?) => void (full-page redirect)
   startTotpSetup,       // () => Promise<{ secret, uri }>
   confirmTotpSetup,     // (code) => Promise<string[]> backup codes
   disableTwoFactor,     // (code) => Promise<void>

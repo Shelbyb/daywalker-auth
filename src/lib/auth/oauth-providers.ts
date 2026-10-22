@@ -122,9 +122,10 @@ export async function exchangeCode(tokenUrl: string, form: Record<string, string
 }
 
 const jwksCache = new Map<string, { at: number; set: ReturnType<typeof createLocalJWKSet> }>();
-async function jwks(url: string) {
+const JWKS_TTL = 10 * 60_000, JWKS_MIN_REFRESH = 30_000;
+async function jwks(url: string, fresh = false) {
   const hit = jwksCache.get(url);
-  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.set;
+  if (hit && Date.now() - hit.at < (fresh ? JWKS_MIN_REFRESH : JWKS_TTL)) return hit.set;
   const set = createLocalJWKSet(await getJson(url, {}, "Key set"));
   jwksCache.set(url, { at: Date.now(), set });
   return set;
@@ -133,7 +134,18 @@ async function jwks(url: string) {
 /** Signature, audience, expiry and nonce, then the issuer (exact, or checked by the caller). */
 async function verifyIdToken(idToken: string | undefined, jwksUrl: string, audience: string, nonce: string, issuer?: string) {
   if (!idToken) throw errors.badRequest("oauth_failed", "The provider didn't return an ID token");
-  const { payload } = await jwtVerify(idToken, await jwks(jwksUrl), { audience, ...(issuer ? { issuer } : {}), clockTolerance: 60 });
+  const opts = { audience, ...(issuer ? { issuer } : {}), clockTolerance: 60 };
+  let result;
+  try {
+    result = await jwtVerify(idToken, await jwks(jwksUrl), opts);
+  } catch (e) {
+    // Providers rotate keys: on an unknown key or bad signature, refetch the key set once
+    // (at most every 30 seconds per provider, so bad tokens can't trigger a refetch storm).
+    const code = (e as { code?: string }).code;
+    if (code !== "ERR_JWKS_NO_MATCHING_KEY" && code !== "ERR_JWS_SIGNATURE_VERIFICATION_FAILED") throw e;
+    result = await jwtVerify(idToken, await jwks(jwksUrl, true), opts);
+  }
+  const { payload } = result;
   if (payload.nonce !== nonce) throw errors.badRequest("oauth_failed", "The sign-in response didn't match this request");
   return payload as JWTPayload & Record<string, unknown>;
 }

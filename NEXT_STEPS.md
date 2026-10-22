@@ -5,48 +5,35 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
 
 ## Current state
 
-- `main` is green: 17 end-to-end suites pass (`npm run test:all` with the service on :3000; see README "Tests").
+- `main` is green: 18 end-to-end suites pass (`npm run test:all` with the service on :3000; see README "Tests").
 - Done in this round: signing-key rotation, `MASTER_KEY` rotation, audit logs, email codes and magic links,
-  breached-password check, custom email templates.
+  breached-password check, custom email templates, more social providers.
 
-## In progress: more social providers (roadmap #7)
+## Just finished: more social providers (roadmap #7)
 
-Goal: Microsoft, Apple, Discord, GitLab and a generic OpenID Connect provider, alongside Google and GitHub.
+Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect, tested by
+`scripts/providers-e2e.ts` (33 checks, mock IdP on :3999 signing real ID tokens). Key points for later work:
 
-Status: code written on branch `wip/social-providers` (type-checks; not yet tested). Next: extend the OAuth mock
-and tests, browser check, docs, then merge into `main`.
+- `src/lib/net-guard.ts` is the shared SSRF guard (`checkPublicUrl`, `guardedFetch`); use it for any URL a
+  developer supplies (SAML metadata URLs next).
+- `src/lib/auth/oauth-providers.ts` holds the provider registry; adding a provider = one entry in `DEFS`,
+  `LABELS`, the enum (migration) and `parseSettings`.
+- Microsoft emails are trusted only for personal accounts or `xms_edov: true` (nOAuth). Apple uses form POST +
+  `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
+- Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
-Done so far:
-- `src/lib/net-guard.ts`: SSRF guard shared by webhooks and OAuth (`checkPublicUrl`, `guardedFetch`).
-- `src/lib/auth/oauth-providers.ts`: registry for all 7 providers, ID-token verification (jose), Apple client-secret
-  JWT, OIDC discovery with issuer pinning, per-provider settings validation (`parseSettings`).
-- `oauth.ts` uses the registry; nonce added to state; callback handles Apple's form POST; Apple state cookie is
-  `SameSite=None` on HTTPS. Migration `drizzle/0010_more_providers.sql` (enum values + `settings` column).
-- Dashboard social tab fields per provider; backend API accepts `settings`; hosted buttons use labels;
-  environment endpoint adds `oauthProviderLabels`; SDK `OAuthProvider` type widened.
+## Next: embeddable React components (roadmap #8)
 
-Plan:
-
-1. Refactor `src/lib/auth/oauth.ts` into a provider registry (endpoints, scopes, profile mapping per provider).
-2. Add `settings` (jsonb) to `oauth_providers` for per-provider extras: generic OIDC `issuer`, GitLab self-hosted
-   base URL, Microsoft `tenant`, Apple `teamId` and `keyId`. Extend the `oauth_provider` enum (migration).
-3. Verify ID tokens (jose + provider JWKS, issuer, audience, nonce) for Apple, Microsoft and generic OIDC.
-4. Security rules that must hold:
-   - Microsoft: only trust `email` as verified for personal accounts (consumer tenant) or when `xms_edov` is true
-     (the "nOAuth" issue: work-account emails are editable by tenant admins).
-   - Apple: client secret is a short-lived ES256 JWT made from the developer's `.p8` key (stored encrypted);
-     Apple posts the callback (`response_mode=form_post`), so the callback needs a POST handler and the state
-     cookie needs `SameSite=None; Secure` for Apple on HTTPS. The name arrives only on first sign-in.
-   - Generic OIDC and self-hosted GitLab: discovery URL and every endpoint must be https and resolve to a public
-     IP (reuse the SSRF guard from `src/lib/webhooks.ts`); pin the issuer.
-5. Dashboard social tab and backend API accept the new fields; hosted sign-in shows the new buttons.
-6. Extend `scripts/oauth-e2e.ts` mock (port 3999) for each provider; docs guide; README; roadmap; commit.
+Plan: `<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />` in `@daywalker/auth/react`,
+built on the existing client methods (password, email code, passkeys, OAuth buttons from
+`getEnvironment().oauthProviderLabels`, 2FA step). Unstyled-by-default with a small optional stylesheet and
+`appearance` overrides; no `dangerouslySetInnerHTML`; work under a strict CSP (no inline styles needed).
+Test with a Playwright page in `examples/nextjs`.
 
 ## After that (in order)
 
-7. Embeddable React components: `<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`.
-8. Enterprise SSO (SAML).
-9. SMS codes (needs a provider decision from Shelby, e.g. Twilio or Vonage).
+9. Enterprise SSO (SAML).
+10. SMS codes (needs a provider decision from Shelby, e.g. Twilio or Vonage).
 
 ## Open items for Shelby (not blocking)
 

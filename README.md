@@ -16,7 +16,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 
 | Area | Highlights |
 |---|---|
-| Sign-in | Email + password (argon2id, breached passwords blocked via k-anonymity), email verification, password reset, passwordless email codes and magic links, Google and GitHub, passkeys (WebAuthn), TOTP two-factor with backup codes |
+| Sign-in | Email + password (argon2id, breached passwords blocked via k-anonymity), email verification, password reset, passwordless email codes and magic links, Google, GitHub, Microsoft, Apple, Discord, GitLab and any OpenID Connect provider, passkeys (WebAuthn), TOTP two-factor with backup codes |
 | Sessions | HttpOnly refresh cookie + 60-second ES256 JWTs verified locally against per-instance JWKS; revoke and ban take effect within a minute |
 | Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
 | Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |
@@ -121,9 +121,8 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 
 Working notes and current status: [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, and custom email templates. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
+Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, and more social providers. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
 
-1. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect) — in progress
-2. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
-3. Enterprise SSO (SAML)
-4. SMS codes
+1. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
+2. Enterprise SSO (SAML)
+3. SMS codes

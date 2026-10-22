@@ -34,7 +34,7 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `authFetch(url, init)` | `fetch` plus `Authorization: Bearer <token>` |
 | `sendVerificationCode()` / `verifyEmail(code)` | [Email verification](/docs/guides/email-verification) |
 | `requestPasswordReset(email)` / `resetPassword({ email, code, password })` | [Password reset](/docs/guides/password-reset) |
-| `signInWithOAuth(provider, redirectUrl?)` | Redirect to Google or GitHub; returns signed in. See [Social sign-in](/docs/guides/social-sign-in). |
+| `signInWithOAuth(provider, redirectUrl?)` | Redirect to a social provider (`google`, `github`, `microsoft`, `apple`, `discord`, `gitlab`, `oidc`); returns signed in. See [Social sign-in](/docs/guides/social-sign-in). |
 | `getEnvironment()` | `{ name, oauthProviders, passwordMinLength }`, for building your own sign-in UI |
 | `updateProfile({ firstName?, lastName? })` | Edit the user's name (`null` clears a field) |
 | `changePassword({ currentPassword, newPassword })` | Signs out all other sessions |
