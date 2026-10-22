@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { createAuthClient, type AuthClient, type AuthState, type User } from "../core/client";
+import { createAuthClient, type AuthClient, type AuthState, type OAuthProvider, type User } from "../core/client";
 
 const Ctx = createContext<AuthClient | null>(null);
 
@@ -102,10 +102,12 @@ export function SignInButton({ children = "Sign in", className, mode = "sign-in"
   );
 }
 
-const PROVIDER_LABEL = { google: "Google", github: "GitHub" } as const;
+const PROVIDER_LABEL: Record<OAuthProvider, string> = {
+  google: "Google", github: "GitHub", microsoft: "Microsoft", apple: "Apple", discord: "Discord", gitlab: "GitLab", oidc: "single sign-on",
+};
 
-/** "Continue with Google/GitHub" button. Unstyled; pass className and children to customise. */
-export function OAuthButton({ provider, redirectUrl, className, children }: ButtonProps & { provider: "google" | "github"; redirectUrl?: string }) {
+/** "Continue with Google" (or any enabled provider) button. Unstyled; pass className and children to customise. */
+export function OAuthButton({ provider, redirectUrl, className, children }: ButtonProps & { provider: OAuthProvider; redirectUrl?: string }) {
   const c = useAuthClient();
   return (
     <button type="button" className={className} onClick={() => c.signInWithOAuth(provider, redirectUrl)}>

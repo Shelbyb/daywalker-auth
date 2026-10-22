@@ -140,8 +140,9 @@ export async function saveProviderAction(_prev: ActionState, fd: FormData): Prom
     const id = str(fd, "instanceId", 200);
     await saveProvider(userId, id, str(fd, "provider", 50), {
       clientId: str(fd, "clientId", 1000),
-      clientSecret: str(fd, "clientSecret", 2000),
+      clientSecret: str(fd, "clientSecret", 4096),
       enabled: flag(fd, "enabled"),
+      settings: { issuer: str(fd, "issuer", 500), tenant: str(fd, "tenant", 100), teamId: str(fd, "teamId", 20), keyId: str(fd, "keyId", 20), displayName: str(fd, "displayName", 60) },
     });
     refresh(id);
     return { message: "Saved. The client secret is encrypted and won't be shown again." };

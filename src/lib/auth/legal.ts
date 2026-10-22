@@ -10,7 +10,7 @@ const DEFAULT: Legal = { required: false, termsUrl: null, privacyUrl: null, vers
 export const legalOf = (inst: Instance): Legal => ({ ...DEFAULT, ...(inst.legal ?? {}) });
 
 /** Insert row for an acceptance; call inside the transaction that creates the user. */
-export function acceptanceRow(inst: Instance, userId: string, method: "password" | "google" | "github") {
+export function acceptanceRow(inst: Instance, userId: string, method: string) {
   return { id: newId("la"), instanceId: inst.id, userId, version: legalOf(inst).version, method };
 }
 

@@ -11,10 +11,28 @@ import { env } from "@/lib/env";
 // Only these codes ever reach the URL; the sign-in page maps them to fixed messages.
 const SAFE_ERRORS = new Set(["oauth_cancelled", "oauth_failed", "email_unverified", "provider_disabled", "forbidden", "legal_required"]);
 
-/** Provider redirects here with ?code&state. Always ends in a redirect, never a raw error page. */
-export async function GET(req: Request, { params }: { params: Promise<{ provider: string }> }) {
-  const { provider } = await params;
-  const url = new URL(req.url);
+/** Most providers redirect here with ?code&state. */
+export async function GET(req: Request, ctx: { params: Promise<{ provider: string }> }) {
+  return handle(req, (await ctx.params).provider, new URL(req.url).searchParams);
+}
+
+/** Apple posts the same fields as a form (response_mode=form_post). Only Apple may use POST. */
+export async function POST(req: Request, ctx: { params: Promise<{ provider: string }> }) {
+  const { provider } = await ctx.params;
+  if (provider !== "apple") return new NextResponse("Method not allowed", { status: 405 });
+  const len = Number(req.headers.get("content-length") ?? 0);
+  if (len > 16_384) return new NextResponse("Too large", { status: 413 });
+  const form = await req.formData().catch(() => null);
+  const params = new URLSearchParams();
+  for (const k of ["code", "state", "error", "user"]) {
+    const v = form?.get(k);
+    if (typeof v === "string") params.set(k, v.slice(0, 4096));
+  }
+  return handle(req, provider, params);
+}
+
+/** Always ends in a redirect, never a raw error page. */
+async function handle(req: Request, provider: string, q: URLSearchParams) {
   const jar = await cookies();
   const base = env().APP_URL;
 
@@ -25,7 +43,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
   };
   if (!isProvider(provider)) return fail(404, "Unknown provider");
 
-  const pending = await takeState(provider, url.searchParams.get("state"), jar.get(STATE_COOKIE)?.value);
+  const pending = await takeState(provider, q.get("state"), jar.get(STATE_COOKIE)?.value);
   // No valid state: expired, replayed, or started in a different browser. Never sign anyone in.
   if (!pending) return fail(400, "This sign-in link has expired or was opened in a different browser. Please try again.");
 
@@ -40,12 +58,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
     return res;
   };
 
-  if (url.searchParams.get("error")) return back("oauth_cancelled"); // user clicked "Cancel" at the provider
-  const code = url.searchParams.get("code");
+  if (q.get("error")) return back("oauth_cancelled"); // user clicked "Cancel" at the provider
+  const code = q.get("code");
   if (!code || code.length > 2048) return back("oauth_failed");
 
   try {
-    const userId = await completeOAuth(pending.inst, provider, code, pending.verifier, pending.legalAccepted === true);
+    const userId = await completeOAuth(pending.inst, provider, code, pending, q.get("user"));
     if (await hasTwoFactor(userId)) {
       // Provider sign-in counts as the first factor only; finish on the hosted 2FA page.
       const { token, maxAge } = await createPendingSecondFactor(pending.inst.id, userId);

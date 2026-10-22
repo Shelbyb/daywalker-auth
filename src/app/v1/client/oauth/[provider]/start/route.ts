@@ -12,13 +12,16 @@ export const GET = handler(async (req: Request, { params }: { params: Promise<{ 
   const inst = await instanceFromPublishableKey(req);
   const redirect = safeRedirect(new URL(req.url).searchParams.get("redirect_url") ?? undefined, inst.allowedOrigins);
   const legalAccepted = new URL(req.url).searchParams.get("legal_accepted") === "1";
-  const { url, state, maxAge } = await startOAuth(inst, provider, redirect, legalAccepted);
+  const { url, state, maxAge, formPost } = await startOAuth(inst, provider, redirect, legalAccepted);
+  const secure = env().APP_URL.startsWith("https://");
 
   const res = NextResponse.redirect(url, 302);
   res.cookies.set(STATE_COOKIE, state, {
     httpOnly: true,
-    secure: env().APP_URL.startsWith("https://"),
-    sameSite: "lax", // must survive the top-level redirect back from the provider
+    secure,
+    // Must come back with the provider's redirect. Apple returns with a cross-site POST, which
+    // only carries SameSite=None cookies; the state check still blocks login CSRF.
+    sameSite: formPost && secure ? "none" : "lax",
     path: "/v1/oauth",
     maxAge,
   });

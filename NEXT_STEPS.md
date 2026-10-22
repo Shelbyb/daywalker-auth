@@ -13,6 +13,18 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
 
 Goal: Microsoft, Apple, Discord, GitLab and a generic OpenID Connect provider, alongside Google and GitHub.
 
+Status: code written on branch `wip/social-providers` (type-checks; not yet tested). Next: extend the OAuth mock
+and tests, browser check, docs, then merge into `main`.
+
+Done so far:
+- `src/lib/net-guard.ts`: SSRF guard shared by webhooks and OAuth (`checkPublicUrl`, `guardedFetch`).
+- `src/lib/auth/oauth-providers.ts`: registry for all 7 providers, ID-token verification (jose), Apple client-secret
+  JWT, OIDC discovery with issuer pinning, per-provider settings validation (`parseSettings`).
+- `oauth.ts` uses the registry; nonce added to state; callback handles Apple's form POST; Apple state cookie is
+  `SameSite=None` on HTTPS. Migration `drizzle/0010_more_providers.sql` (enum values + `settings` column).
+- Dashboard social tab fields per provider; backend API accepts `settings`; hosted buttons use labels;
+  environment endpoint adds `oauthProviderLabels`; SDK `OAuthProvider` type widened.
+
 Plan:
 
 1. Refactor `src/lib/auth/oauth.ts` into a provider registry (endpoints, scopes, profile mapping per provider).

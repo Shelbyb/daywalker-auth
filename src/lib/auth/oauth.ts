@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { DEFS, exchangeCode, labelFor, type Profile, type ProviderName, type ProviderSettings } from "./oauth-providers";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { cache } from "../cache";
@@ -10,87 +11,39 @@ import { getInstance } from "./instance";
 import type { Instance } from "../db/schema";
 import { legalOf, acceptanceRow } from "./legal";
 
-export type ProviderName = "google" | "github";
-export const PROVIDERS: ProviderName[] = ["google", "github"];
-export const isProvider = (p: string): p is ProviderName => (PROVIDERS as string[]).includes(p);
-
-type Profile = {
-  id: string;
-  email: string | null;
-  emailVerified: boolean;
-  firstName: string | null;
-  lastName: string | null;
-  imageUrl: string | null;
-};
-
-type Endpoints = { authorize: string; token: string; scope: string };
-
-/**
- * Tests can point providers at a local mock, but only on a plain-HTTP dev deployment,
- * so a misconfigured production server can never be redirected to a fake provider.
- */
-function testBase() {
-  const base = process.env.OAUTH_TEST_BASE_URL;
-  if (!base) return null;
-  if (env().APP_URL.startsWith("https://")) throw new Error("OAUTH_TEST_BASE_URL is not allowed on an HTTPS deployment");
-  return base.replace(/\/$/, "");
-}
-
-function endpoints(p: ProviderName): Endpoints & { api: string } {
-  const t = testBase();
-  if (t) return { authorize: `${t}/${p}/authorize`, token: `${t}/${p}/token`, api: `${t}/${p}/api`, scope: p === "google" ? "openid email profile" : "read:user user:email" };
-  return p === "google"
-    ? { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token", api: "https://openidconnect.googleapis.com", scope: "openid email profile" }
-    : { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token", api: "https://api.github.com", scope: "read:user user:email" };
-}
+export { PROVIDERS, isProvider, labelFor, type ProviderName, type ProviderSettings } from "./oauth-providers";
 
 export const callbackUrl = (p: ProviderName) => `${env().APP_URL}/v1/oauth/callback/${p}`;
-
-async function json<T>(res: Response, what: string): Promise<T> {
-  if (!res.ok) throw new Error(`${what} failed: ${res.status}`);
-  return (await res.json()) as T;
-}
-
-async function fetchProfile(p: ProviderName, accessToken: string): Promise<Profile> {
-  const { api } = endpoints(p);
-  const headers = { authorization: `Bearer ${accessToken}`, accept: "application/json", "user-agent": "daywalker-auth" };
-  if (p === "google") {
-    const u = await json<{ sub: string; email?: string; email_verified?: boolean; given_name?: string; family_name?: string; picture?: string }>(
-      await fetch(`${api}/v1/userinfo`, { headers }),
-      "Google userinfo",
-    );
-    return { id: u.sub, email: u.email?.toLowerCase() ?? null, emailVerified: u.email_verified === true, firstName: u.given_name ?? null, lastName: u.family_name ?? null, imageUrl: u.picture ?? null };
-  }
-  const u = await json<{ id: number; name?: string | null; avatar_url?: string }>(await fetch(`${api}/user`, { headers }), "GitHub user");
-  // The profile email may be unset or unverified; only trust the verified primary from /user/emails.
-  const emails = await json<{ email: string; primary: boolean; verified: boolean }[]>(await fetch(`${api}/user/emails`, { headers }), "GitHub emails");
-  const primary = emails.find((e) => e.primary && e.verified);
-  const [first, ...rest] = (u.name ?? "").trim().split(/\s+/).filter(Boolean);
-  return { id: String(u.id), email: primary?.email.toLowerCase() ?? null, emailVerified: !!primary, firstName: first ?? null, lastName: rest.join(" ") || null, imageUrl: u.avatar_url ?? null };
-}
+/** Providers that return a signed ID token we verify (and so get a nonce). */
+const USES_NONCE: ProviderName[] = ["microsoft", "apple", "oidc"];
 
 // ---------- Provider configuration (backend API) ----------
 
-export async function setProviderConfig(instanceId: string, provider: ProviderName, cfg: { clientId: string; clientSecret: string; enabled: boolean }) {
+export async function setProviderConfig(
+  instanceId: string,
+  provider: ProviderName,
+  cfg: { clientId: string; clientSecret: string; enabled: boolean; settings?: ProviderSettings },
+) {
   const clientSecretEnc = encrypt(cfg.clientSecret, `oauth_providers.client_secret:${instanceId}:${provider}`);
   await db()
     .insert(schema.oauthProviders)
-    .values({ instanceId, provider, clientId: cfg.clientId, clientSecretEnc, enabled: cfg.enabled })
+    .values({ instanceId, provider, clientId: cfg.clientId, clientSecretEnc, enabled: cfg.enabled, settings: cfg.settings ?? {} })
     .onConflictDoUpdate({
       target: [schema.oauthProviders.instanceId, schema.oauthProviders.provider],
-      set: { clientId: cfg.clientId, clientSecretEnc, enabled: cfg.enabled, updatedAt: new Date() },
+      set: { clientId: cfg.clientId, clientSecretEnc, enabled: cfg.enabled, settings: cfg.settings ?? {}, updatedAt: new Date() },
     });
   await cache().del(`oauth:enabled:${instanceId}`);
 }
 
-export async function enabledProviders(instanceId: string): Promise<ProviderName[]> {
+/** Enabled providers with their button labels (a custom OIDC provider has its own name). */
+export async function enabledProviders(instanceId: string): Promise<{ id: ProviderName; label: string }[]> {
   const hit = await cache().get(`oauth:enabled:${instanceId}`);
   if (hit) return JSON.parse(hit);
   const rows = await db()
-    .select({ provider: schema.oauthProviders.provider })
+    .select({ provider: schema.oauthProviders.provider, settings: schema.oauthProviders.settings })
     .from(schema.oauthProviders)
     .where(and(eq(schema.oauthProviders.instanceId, instanceId), eq(schema.oauthProviders.enabled, true)));
-  const list = rows.map((r) => r.provider);
+  const list = rows.map((r) => ({ id: r.provider, label: labelFor(r.provider, r.settings) }));
   await cache().set(`oauth:enabled:${instanceId}`, JSON.stringify(list), "EX", 300);
   return list;
 }
@@ -101,12 +54,12 @@ async function providerConfig(instanceId: string, provider: ProviderName) {
     .from(schema.oauthProviders)
     .where(and(eq(schema.oauthProviders.instanceId, instanceId), eq(schema.oauthProviders.provider, provider), eq(schema.oauthProviders.enabled, true)));
   if (!row) throw errors.badRequest("provider_disabled", `Sign-in with ${provider} isn't enabled for this app`);
-  return { clientId: row.clientId, clientSecret: decrypt(row.clientSecretEnc, `oauth_providers.client_secret:${instanceId}:${provider}`) };
+  return { clientId: row.clientId, clientSecret: decrypt(row.clientSecretEnc, `oauth_providers.client_secret:${instanceId}:${provider}`), settings: row.settings ?? {} };
 }
 
 // ---------- Flow ----------
 
-type PendingState = { instanceId: string; provider: ProviderName; verifier: string; redirect: string | null; legalAccepted?: boolean };
+type PendingState = { instanceId: string; provider: ProviderName; verifier: string; nonce: string; redirect: string | null; legalAccepted?: boolean };
 const STATE_TTL = 600;
 export const STATE_COOKIE = "__dw_oauth";
 
@@ -116,27 +69,33 @@ export const STATE_COOKIE = "__dw_oauth";
  * a flow they started in someone else's browser (login CSRF).
  */
 export async function startOAuth(inst: Instance, provider: ProviderName, redirect: string | null, legalAccepted = false) {
-  const { clientId } = await providerConfig(inst.id, provider);
+  const cfg = await providerConfig(inst.id, provider);
+  const def = DEFS[provider];
   const state = newToken(32);
   const verifier = newToken(48); // PKCE: proves the token request comes from whoever started the flow
+  const nonce = newToken(24); // binds the signed ID token to this request
   const challenge = createHash("sha256").update(verifier).digest("base64url");
-  const pending: PendingState = { instanceId: inst.id, provider, verifier, redirect, legalAccepted };
+  const pending: PendingState = { instanceId: inst.id, provider, verifier, nonce, redirect, legalAccepted };
   await cache().set(`oauth:state:${sha256(state)}`, encrypt(JSON.stringify(pending), "oauth_state"), "EX", STATE_TTL);
 
-  const e = endpoints(provider);
+  const e = await def.endpoints(cfg);
+  if (!e.authorize.startsWith("https://") && !testOrInsecure()) throw errors.badRequest("provider_disabled", "This provider is misconfigured");
   const url = new URL(e.authorize);
   url.search = new URLSearchParams({
-    client_id: clientId,
+    client_id: cfg.clientId,
     redirect_uri: callbackUrl(provider),
     response_type: "code",
     scope: e.scope,
     state,
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-    ...(provider === "google" ? { prompt: "select_account" } : { allow_signup: "true" }),
+    // Apple doesn't support PKCE; its flow is bound by state, nonce and the signed ID token.
+    ...(provider === "apple" ? {} : { code_challenge: challenge, code_challenge_method: "S256" }),
+    ...(USES_NONCE.includes(provider) ? { nonce } : {}),
+    ...(e.extra ?? {}),
   }).toString();
-  return { url: url.toString(), state, maxAge: STATE_TTL };
+  return { url: url.toString(), state, maxAge: STATE_TTL, formPost: def.formPost === true };
 }
+
+const testOrInsecure = () => process.env.ALLOW_INSECURE_TRANSPORT === "1";
 
 /** Loads and deletes the pending state (single use). Null if missing, expired or not bound to this browser. */
 export async function takeState(provider: ProviderName, state: string | null, cookieState: string | undefined) {
@@ -150,25 +109,28 @@ export async function takeState(provider: ProviderName, state: string | null, co
   return inst ? { ...pending, inst } : null;
 }
 
-/** Step 2. Exchange the code, fetch the profile, find-or-create the user. Returns the user ID. */
-export async function completeOAuth(inst: Instance, provider: ProviderName, code: string, verifier: string, legalAccepted = false) {
-  const { clientId, clientSecret } = await providerConfig(inst.id, provider);
-  const tokenRes = await fetch(endpoints(provider).token, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: callbackUrl(provider),
-      client_id: clientId,
-      client_secret: clientSecret,
-      code_verifier: verifier,
-    }),
+/** Step 2. Exchange the code, verify who the user is, find-or-create the user. Returns the user ID. */
+export async function completeOAuth(
+  inst: Instance,
+  provider: ProviderName,
+  code: string,
+  pending: { verifier: string; nonce: string; legalAccepted?: boolean },
+  appleUser: string | null = null,
+) {
+  const cfg = await providerConfig(inst.id, provider);
+  const def = DEFS[provider];
+  const e = await def.endpoints(cfg);
+  const tok = await exchangeCode(e.token, {
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: callbackUrl(provider),
+    client_id: cfg.clientId,
+    client_secret: def.secret ? await def.secret(cfg) : cfg.clientSecret,
+    ...(provider === "apple" ? {} : { code_verifier: pending.verifier }),
   });
-  const tok = await json<{ access_token?: string; error?: string }>(tokenRes, "Token exchange");
-  if (!tok.access_token) throw errors.badRequest("oauth_failed", "The provider didn't return an access token");
-  const profile = await fetchProfile(provider, tok.access_token);
-  return linkOrCreate(inst, provider, profile, legalAccepted);
+  if (!tok.access_token && !tok.id_token) throw errors.badRequest("oauth_failed", "The provider didn't return a token");
+  const profile = await def.profile(cfg, tok, { nonce: pending.nonce, appleUser });
+  return linkOrCreate(inst, provider, profile, pending.legalAccepted === true);
 }
 
 /**
@@ -191,7 +153,7 @@ async function linkOrCreate(inst: Instance, provider: ProviderName, p: Profile, 
     return existing.userId;
   }
   if (!p.email || !p.emailVerified)
-    throw errors.badRequest("email_unverified", `Your ${provider} account has no verified email address`);
+    throw errors.badRequest("email_unverified", `Your ${labelFor(provider)} account has no verified email address`);
 
   const emailIndex = blindIndex(p.email, `email:${inst.id}`);
   const revokedHashes: string[] = [];

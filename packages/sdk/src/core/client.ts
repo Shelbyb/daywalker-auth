@@ -20,6 +20,8 @@ export type AuthState = {
 };
 
 /** `needs_second_factor`: password/provider was right; call `completeSecondFactor(code)` next. */
+export type OAuthProvider = "google" | "github" | "microsoft" | "apple" | "discord" | "gitlab" | "oidc";
+
 export type SignInResult = { status: "complete"; user: User } | { status: "needs_second_factor" };
 
 export type SessionInfo = { id: string; current: boolean; device: string; ipHint: string | null; lastActiveAt: string; createdAt: string };
@@ -27,7 +29,7 @@ export type SecurityInfo = {
   hasPassword: boolean;
   twoFactorEnabled: boolean;
   backupCodesRemaining: number;
-  connectedAccounts: { provider: "google" | "github"; createdAt: string }[];
+  connectedAccounts: { provider: OAuthProvider; createdAt: string }[];
 };
 
 export type PasskeyInfo = { id: string; name: string; synced: boolean; lastUsedAt: string | null; createdAt: string };
@@ -269,7 +271,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
    * Full-page redirect to Google/GitHub. The user comes back to `redirectUrl` signed in.
    * `redirectUrl` must be on your instance's allowed origins (or it's ignored).
    */
-  function signInWithOAuth(provider: "google" | "github", redirectUrl?: string, opts: { legalAccepted?: boolean } = {}) {
+  function signInWithOAuth(provider: OAuthProvider, redirectUrl?: string, opts: { legalAccepted?: boolean } = {}) {
     const u = new URL(`${base}/v1/client/oauth/${provider}/start`);
     u.searchParams.set("pk", config.publishableKey);
     // Needed only when this creates a new account on an instance that requires terms.
@@ -283,7 +285,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   function getEnvironment() {
     return request<{
       name: string;
-      oauthProviders: ("google" | "github")[];
+      oauthProviders: (OAuthProvider)[];
       passwordMinLength: number;
       emailCodeSignIn: boolean;
       legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };

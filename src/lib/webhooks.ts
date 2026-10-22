@@ -1,15 +1,13 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { record, type Actor } from "./audit";
-import { lookup as dnsLookup } from "node:dns";
-import { promises as dns } from "node:dns";
 import https from "node:https";
 import http from "node:http";
-import { BlockList, isIP } from "node:net";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { db, schema } from "./db";
 import { decrypt, encrypt } from "./crypto";
 import { errors } from "./http";
 import { newId } from "./ids";
+import { checkPublicUrl, safeLookup, type UrlProblem } from "./net-guard";
 
 /** Everything we can emit. Endpoints subscribe to a list of these, or "*" for all. */
 export const EVENT_TYPES = [
@@ -34,63 +32,21 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const RETENTION_DAYS = 30;
 const LEASE_SECONDS = 120;
 
-// ---------- SSRF protection ----------
-
-const blocked = new BlockList();
-for (const [net, prefix] of [
-  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
-  ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["224.0.0.0", 4], ["240.0.0.0", 4],
-] as const) blocked.addSubnet(net, prefix, "ipv4");
-for (const [net, prefix] of [["::", 128], ["::1", 128], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8], ["64:ff9b::", 96]] as const)
-  blocked.addSubnet(net, prefix, "ipv6");
-
-/**
- * Lets tests post to localhost. Needs BOTH flags, and ALLOW_INSECURE_TRANSPORT is already
- * refused by env validation outside of explicit local testing, so it can't be set by accident.
- */
-const allowPrivate = () => process.env.WEBHOOK_ALLOW_PRIVATE === "1" && process.env.ALLOW_INSECURE_TRANSPORT === "1";
-
-function isBlockedIp(ip: string) {
-  const family = isIP(ip);
-  if (!family) return true;
-  const mapped = ip.toLowerCase().match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/); // IPv4-mapped IPv6
-  if (mapped) return blocked.check(mapped[1], "ipv4");
-  return blocked.check(ip, family === 6 ? "ipv6" : "ipv4");
-}
-
-/** Used for the connection itself, so the address we checked is the address we connect to (no DNS rebinding). */
-const safeLookup: typeof dnsLookup = ((host: string, opts: unknown, cb: (...a: unknown[]) => void) => {
-  const options = typeof opts === "function" ? {} : (opts as object);
-  const done = (typeof opts === "function" ? opts : cb) as (...a: unknown[]) => void;
-  dnsLookup(host, { ...options, all: true }, (err, addrs) => {
-    if (err) return done(err);
-    const list = addrs as unknown as { address: string; family: number }[];
-    if (!allowPrivate() && list.some((a) => isBlockedIp(a.address))) return done(new Error("blocked_address"));
-    if ((options as { all?: boolean }).all) return done(null, list);
-    done(null, list[0].address, list[0].family);
-  });
-}) as typeof dnsLookup;
+// ---------- SSRF protection (see net-guard.ts) ----------
 
 /** Throws a 400 if the URL isn't a public HTTPS address. */
 export async function assertSafeUrl(raw: string) {
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    throw errors.badRequest("invalid_url", "That isn't a valid URL");
-  }
-  const insecureOk = process.env.NODE_ENV !== "production" || process.env.ALLOW_INSECURE_TRANSPORT === "1";
-  if (u.protocol !== "https:" && !(insecureOk && u.protocol === "http:"))
-    throw errors.badRequest("invalid_url", "Webhook URLs must use https");
-  if (u.username || u.password) throw errors.badRequest("invalid_url", "Put credentials in a header or token, not the URL's user info");
-  if (raw.length > 2000) throw errors.badRequest("invalid_url", "URL is too long");
-  if (allowPrivate()) return u;
-  const host = u.hostname.replace(/^\[|\]$/g, "");
-  const addrs = isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => []);
-  if (!addrs.length) throw errors.badRequest("invalid_url", "We couldn't resolve that hostname");
-  if (addrs.some((a) => isBlockedIp(a.address)))
-    throw errors.badRequest("invalid_url", "That address is private or internal. Use a public URL");
-  return u;
+  const c = await checkPublicUrl(raw);
+  if (c.ok) return c.url;
+  const msg: Record<UrlProblem, string> = {
+    invalid: "That isn't a valid URL",
+    too_long: "URL is too long",
+    insecure: "Webhook URLs must use https",
+    credentials: "Put credentials in a header or token, not the URL's user info",
+    unresolvable: "We couldn't resolve that hostname",
+    private: "That address is private or internal. Use a public URL",
+  };
+  throw errors.badRequest("invalid_url", msg[c.problem]);
 }
 
 // ---------- Signing (Standard Webhooks compatible) ----------

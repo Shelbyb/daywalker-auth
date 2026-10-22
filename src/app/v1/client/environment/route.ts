@@ -11,7 +11,7 @@ export const GET = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   return ctx.json({
     name: ctx.inst.name,
-    oauthProviders: await enabledProviders(ctx.inst.id),
+    ...(await enabledProviders(ctx.inst.id).then((list) => ({ oauthProviders: list.map((p) => p.id), oauthProviderLabels: Object.fromEntries(list.map((p) => [p.id, p.label])) }))),
     passwordMinLength: ctx.inst.settings.passwordMinLength,
     legal: legalOf(ctx.inst),
     emailCodeSignIn: emailCodeEnabled(ctx.inst),

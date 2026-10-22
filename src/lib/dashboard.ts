@@ -18,7 +18,8 @@ import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
 import { createSigningKey, getJwks, issuerFor, listSigningKeys, rotateSigningKey } from "./auth/keys";
 import { getUser, deleteUser, setBanned } from "./auth/users";
-import { PROVIDERS, callbackUrl, setProviderConfig, type ProviderName } from "./auth/oauth";
+import { PROVIDERS, callbackUrl, isProvider, labelFor, setProviderConfig } from "./auth/oauth";
+import { parseSettings, type ProviderSettings } from "./auth/oauth-providers";
 import { legalInput, legalOf } from "./auth/legal";
 import type { Instance } from "./db/schema";
 
@@ -267,28 +268,33 @@ export async function listProviders(userId: string, instanceId: string) {
   const rows = await db().select().from(schema.oauthProviders).where(eq(schema.oauthProviders.instanceId, instanceId));
   return PROVIDERS.map((p) => {
     const r = rows.find((x) => x.provider === p);
-    return { provider: p, configured: !!r, enabled: !!r?.enabled, clientId: r?.clientId ?? null, redirectUri: callbackUrl(p) };
+    return { provider: p, label: labelFor(p, r?.settings), configured: !!r, enabled: !!r?.enabled, clientId: r?.clientId ?? null, settings: (r?.settings ?? {}) as ProviderSettings, redirectUri: callbackUrl(p) };
   });
 }
 
-/** The client secret is encrypted and never shown again, so saving always needs it re-entered. */
-export async function saveProvider(userId: string, instanceId: string, provider: string, input: { clientId: string; clientSecret: string; enabled: boolean }) {
+export async function saveProvider(
+  userId: string,
+  instanceId: string,
+  provider: string,
+  input: { clientId: string; clientSecret: string; enabled: boolean; settings?: Record<string, unknown> },
+) {
   await ownedInstance(userId, instanceId);
-  if (!(PROVIDERS as string[]).includes(provider)) throw errors.notFound("Unknown provider");
+  if (!isProvider(provider)) throw errors.notFound("Unknown provider");
   const cfg = z
-    .object({ clientId: z.string().trim().min(1).max(256), clientSecret: z.string().min(1).max(512), enabled: z.boolean() })
+    .object({ clientId: z.string().trim().min(1).max(256), clientSecret: z.string().min(1).max(4096), enabled: z.boolean() })
     .parse(input);
-  await setProviderConfig(instanceId, provider as ProviderName, cfg);
+  const settings = parseSettings(provider, input.settings, cfg.clientSecret);
+  await setProviderConfig(instanceId, provider, { ...cfg, settings });
   void record(instanceId, "social_provider.saved", { actor: { type: "developer", id: userId }, target: provider, data: { enabled: cfg.enabled } });
 }
 
 export async function setProviderEnabled(userId: string, instanceId: string, provider: string, enabled: boolean) {
   await ownedInstance(userId, instanceId);
-  if (!(PROVIDERS as string[]).includes(provider)) throw errors.notFound("Unknown provider");
+  if (!isProvider(provider)) throw errors.notFound("Unknown provider");
   await db()
     .update(schema.oauthProviders)
     .set({ enabled, updatedAt: new Date() })
-    .where(and(eq(schema.oauthProviders.instanceId, instanceId), eq(schema.oauthProviders.provider, provider as ProviderName)));
+    .where(and(eq(schema.oauthProviders.instanceId, instanceId), eq(schema.oauthProviders.provider, provider)));
   await cache().del(`oauth:enabled:${instanceId}`);
   void record(instanceId, enabled ? "social_provider.enabled" : "social_provider.disabled", { actor: { type: "developer", id: userId }, target: provider });
 }

@@ -169,7 +169,7 @@ export type Instance = typeof instances.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 
-export const oauthProviderEnum = pgEnum("oauth_provider", ["google", "github"]);
+export const oauthProviderEnum = pgEnum("oauth_provider", ["google", "github", "microsoft", "apple", "discord", "gitlab", "oidc"]);
 
 /** Per-instance OAuth app credentials. The client secret is encrypted (AAD-bound to instance+provider). */
 export const oauthProviders = pgTable(
@@ -180,6 +180,8 @@ export const oauthProviders = pgTable(
     clientId: text("client_id").notNull(),
     clientSecretEnc: text("client_secret_enc").notNull(),
     enabled: boolean("enabled").notNull().default(true),
+    /** Non-secret per-provider options (OIDC issuer, Microsoft tenant, Apple team and key IDs). */
+    settings: jsonb("settings").$type<import("../auth/oauth-providers").ProviderSettings>().notNull().default({}),
     updatedAt: updatedAt(),
   },
   (t) => [uniqueIndex("oauth_providers_pk").on(t.instanceId, t.provider)],
@@ -258,7 +260,7 @@ export const legalAcceptances = pgTable(
     instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     version: text("version").notNull(),
-    method: text("method").notNull(), // "password" | "google" | "github"
+    method: text("method").notNull(), // "password" or a provider name
     acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("legal_acceptances_user_idx").on(t.userId)],

@@ -38,9 +38,10 @@ const OAUTH_ERRORS: Record<string, string> = {
   legal_required: "Please accept the terms to create an account.",
 };
 
+type ProviderId = "google" | "github" | "microsoft" | "apple" | "discord" | "gitlab" | "oidc";
+
 export type LegalInfo = { required: boolean; termsUrl: string | null; privacyUrl: string | null };
 
-const PROVIDER_LABEL = { google: "Google", github: "GitHub" } as const;
 
 export function AuthForm({
   mode,
@@ -55,7 +56,7 @@ export function AuthForm({
   mode: Mode;
   pk: string;
   redirect?: string;
-  providers?: ("google" | "github")[];
+  providers?: { id: ProviderId; label: string }[];
   initialError?: string;
   signedIn?: boolean;
   legal?: LegalInfo;
@@ -196,18 +197,18 @@ export function AuthForm({
             )}
             {providers.map((p) => (
               <button
-                key={p}
+                key={p.id}
                 type="button"
                 disabled={needsConsent && !accepted}
                 title={needsConsent && !accepted ? "Accept the terms first" : undefined}
                 onClick={() =>
-                  hostedClient(pk).signInWithOAuth(p, redirect ?? `${window.location.origin}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`, {
+                  hostedClient(pk).signInWithOAuth(p.id, redirect ?? `${window.location.origin}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`, {
                     legalAccepted: mode === "sign-up" && accepted,
                   })
                 }
                 className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Continue with {PROVIDER_LABEL[p]}
+                Continue with {p.label}
               </button>
             ))}
           </div>

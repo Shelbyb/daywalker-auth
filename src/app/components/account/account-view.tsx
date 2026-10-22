@@ -8,6 +8,8 @@ import { PasswordSection } from "./password";
 import { TwoFactorSection } from "./two-factor";
 import { SessionsSection } from "./sessions";
 import { PasskeysSection } from "./passkeys";
+
+const PROVIDER_NAMES: Record<string, string> = { google: "Google", github: "GitHub", microsoft: "Microsoft", apple: "Apple", discord: "Discord", gitlab: "GitLab", oidc: "Single sign-on" };
 import { Card, Badge, Button } from "./ui";
 
 export function AccountView({ pk, back }: { pk: string; back?: string }) {
@@ -71,7 +73,7 @@ export function AccountView({ pk, back }: { pk: string; back?: string }) {
           <ul className="divide-y divide-stone-100">
             {security.connectedAccounts.map((a) => (
               <li key={a.provider} className="flex items-center justify-between py-2 text-sm">
-                <span>{a.provider === "google" ? "Google" : "GitHub"}</span>
+                <span>{PROVIDER_NAMES[a.provider] ?? a.provider}</span>
                 <span className="text-stone-400">Connected {new Date(a.createdAt).toLocaleDateString()}</span>
               </li>
             ))}
