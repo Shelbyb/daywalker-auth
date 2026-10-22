@@ -22,20 +22,28 @@ export const errors = {
 };
 
 /** Wrap a route handler: consistent JSON errors, never leak internals. */
+/**
+ * CORS headers granted to a request (set by the frontend API once the origin is checked), so
+ * error responses carry them too. Without them a browser hides the error and the user sees
+ * "network error" instead of "Email or password is incorrect".
+ */
+export const corsHeadersFor = new WeakMap<Request, Record<string, string>>();
+
 export function handler<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {
     try {
       return await fn(...args);
     } catch (e) {
+      const headers = args[0] instanceof Request ? (corsHeadersFor.get(args[0]) ?? {}) : {};
       if (e instanceof ApiError)
-        return NextResponse.json({ error: { code: e.code, message: e.message } }, { status: e.status });
+        return NextResponse.json({ error: { code: e.code, message: e.message } }, { status: e.status, headers });
       if (e instanceof ZodError)
         return NextResponse.json(
           { error: { code: "invalid_request", message: "Invalid request", fields: e.issues.map((i) => ({ path: i.path.join("."), message: i.message })) } },
-          { status: 422 },
+          { status: 422, headers },
         );
       console.error(e);
-      return NextResponse.json({ error: { code: "internal_error", message: "Something went wrong" } }, { status: 500 });
+      return NextResponse.json({ error: { code: "internal_error", message: "Something went wrong" } }, { status: 500, headers });
     }
   };
 }

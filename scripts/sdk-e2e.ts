@@ -33,6 +33,14 @@ const su = await fetch(`${AUTH}/v1/client/sign_up`, {
 });
 const { jwt, user } = await su.json();
 check("CORS grants the allow-listed app origin", su.headers.get("access-control-allow-origin") === APP);
+// A real browser's preflight carries no custom header values, only the URL: the key must be in the query.
+const pre = (origin: string, q: string) =>
+  fetch(`${AUTH}/v1/client/sign_in${q}`, { method: "OPTIONS", headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "content-type,x-publishable-key" } });
+const preOk = await pre(APP, `?pk=${encodeURIComponent(pk)}`);
+check("browser preflight (key in query, no header) is allowed for the app origin", preOk.headers.get("access-control-allow-origin") === APP && /x-publishable-key/.test(preOk.headers.get("access-control-allow-headers") ?? ""));
+check("browser preflight from another origin gets no CORS grant", !(await pre("https://evil.example", `?pk=${encodeURIComponent(pk)}`)).headers.get("access-control-allow-origin"));
+const bad = await fetch(`${AUTH}/v1/client/sign_in?pk=${encodeURIComponent(pk)}`, { method: "POST", headers: { "content-type": "application/json", origin: APP }, body: JSON.stringify({ email, password: "wrong password!!" }) });
+check("error responses carry CORS headers too (so the browser can show the message)", bad.status === 400 && bad.headers.get("access-control-allow-origin") === APP);
 
 const cfg = { publishableKey: pk, frontendApi: AUTH };
 const claims = await verifyToken(jwt, { ...cfg, authorizedParties: [APP] });

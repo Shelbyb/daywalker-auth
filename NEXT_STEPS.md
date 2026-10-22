@@ -22,13 +22,20 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
   `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
 - Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
-## Next: embeddable React components (roadmap #8)
+## In progress: embeddable React components (roadmap #8), branch `wip/components`
 
-Plan: `<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />` in `@daywalker/auth/react`,
-built on the existing client methods (password, email code, passkeys, OAuth buttons from
-`getEnvironment().oauthProviderLabels`, 2FA step). Unstyled-by-default with a small optional stylesheet and
-`appearance` overrides; no `dangerouslySetInnerHTML`; work under a strict CSP (no inline styles needed).
-Test with a Playwright page in `examples/nextjs`.
+Done (tested in a real browser with `scripts/browser/components.py`):
+- `packages/sdk/src/react/components.tsx`: `<SignIn />` (password, passkey, social, email code, 2FA),
+  `<SignUp />` (terms consent, social, email verification), `<UserButton />`, `<OrganizationSwitcher />`.
+  No inline styles; `dw-*` classes; `appearance.classNames`; optional `@daywalker/auth/styles.css`.
+- Demo pages in `examples/nextjs/src/app/components/*`.
+- Fixed two real cross-origin bugs found by the browser test: the SDK now sends the publishable key in the
+  query string too (browser CORS preflights carry no custom headers, so preflights were always refused), and
+  error responses now carry CORS headers (`corsHeadersFor` in `src/lib/http.ts`), so browsers can show
+  "Email or password is incorrect" instead of a network error. `scripts/sdk-e2e.ts` covers both.
+
+Left to do: docs guide (`content/docs/guides/components.md`, SDK react page), README, roadmap, full
+regression, merge to `main`.
 
 ## After that (in order)
 
@@ -43,6 +50,7 @@ Test with a Playwright page in `examples/nextjs`.
 - CI workflow hasn't run on GitHub yet.
 - Commits show "Unverified" on GitHub because they aren't signed; set up SSH/GPG signing to get "Verified".
 - Old SHAs from the earlier history rewrite may linger on GitHub (only GitHub support can purge them).
+- Delete the leftover branch `wip/social-providers` on GitHub (same commit as main; this session isn't allowed to delete branches).
 
 ## How to resume locally
 

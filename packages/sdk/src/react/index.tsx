@@ -46,6 +46,12 @@ export function useAuth() {
     getToken: c.getToken,
     authFetch: c.authFetch,
     signIn: c.signIn,
+    sendSignInCode: c.sendSignInCode,
+    signInWithEmailCode: c.signInWithEmailCode,
+    signInWithMagicLink: c.signInWithMagicLink,
+    listOrganizations: c.listOrganizations,
+    createOrganization: c.createOrganization,
+    setActiveOrganization: c.setActiveOrganization,
     signUp: c.signUp,
     signOut: c.signOut,
     sendVerificationCode: c.sendVerificationCode,
@@ -132,37 +138,5 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
   );
 }
 
-/** Avatar with a small menu. Unstyled except for minimal inline layout; pass className to theme. */
-export function UserButton({ className, afterSignOutUrl }: { className?: string; afterSignOutUrl?: string }) {
-  const { user } = useUser();
-  const c = useAuthClient();
-  const [open, setOpen] = useState(false);
-  if (!user) return null;
-  const email = user.emailAddresses.find((e) => e.primary)?.email ?? user.emailAddresses[0]?.email ?? "";
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || email;
-  const initials = (user.firstName?.[0] ?? email[0] ?? "?").toUpperCase() + (user.lastName?.[0] ?? "").toUpperCase();
-  return (
-    <div className={className} style={{ position: "relative", display: "inline-block" }}>
-      <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={`Account: ${name}`} onClick={() => setOpen((o) => !o)}
-        style={{ width: 36, height: 36, borderRadius: 999, border: "none", background: "#2a2536", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-        {initials}
-      </button>
-      {open && (
-        <div role="menu" style={{ position: "absolute", right: 0, top: 44, minWidth: 220, background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, padding: 12, boxShadow: "0 10px 30px rgba(0,0,0,.12)", zIndex: 50 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>{name}</div>
-          {name !== email && <div style={{ fontSize: 12, color: "#78716c" }}>{email}</div>}
-          <a role="menuitem" href={c.hostedUrl("account", typeof window !== "undefined" ? window.location.href : undefined)}
-            style={{ display: "block", marginTop: 10, padding: "6px 0", fontSize: 14, color: "inherit", textDecoration: "none" }}>
-            Manage account
-          </a>
-          <button role="menuitem" type="button" onClick={async () => { await c.signOut(); setOpen(false); if (afterSignOutUrl) window.location.assign(afterSignOutUrl); }}
-            style={{ width: "100%", textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: 14, cursor: "pointer" }}>
-            Sign out
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo } from "../core/client";
+export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
+export { SignIn, SignUp, UserButton, OrganizationSwitcher, type Appearance } from "./components";

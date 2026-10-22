@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { env } from "../env";
-import { errors, clientIp } from "../http";
+import { errors, clientIp, corsHeadersFor } from "../http";
 import { rateLimit } from "../cache";
 import { blindIndex } from "../crypto";
 import { instanceFromPublishableKey } from "./instance";
@@ -49,6 +49,7 @@ export async function frontendContext(req: Request) {
   const cors: Record<string, string> = allowed
     ? { "access-control-allow-origin": allowed, "access-control-allow-credentials": "true", vary: "Origin" }
     : {};
+  if (allowed) corsHeadersFor.set(req, cors);
   const jar = await cookies();
   const name = refreshCookieName(inst.id);
   return {

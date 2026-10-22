@@ -98,7 +98,10 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const res = await fetch(`${base}/v1/client/${path}`, {
+    // The key also goes in the query string: browsers don't send custom headers on CORS preflight
+    // requests, and the server needs the key to know which origins this instance allows.
+    const url = `${base}/v1/client/${path}${path.includes("?") ? "&" : "?"}pk=${encodeURIComponent(config.publishableKey)}`;
+    const res = await fetch(url, {
       ...init,
       credentials: "include",
       headers: { "content-type": "application/json", "x-publishable-key": config.publishableKey },
@@ -285,7 +288,9 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   function getEnvironment() {
     return request<{
       name: string;
-      oauthProviders: (OAuthProvider)[];
+      oauthProviders: OAuthProvider[];
+      /** Button labels; a custom OpenID Connect provider has its own name. */
+      oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
       passwordMinLength: number;
       emailCodeSignIn: boolean;
       legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };
