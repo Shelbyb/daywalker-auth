@@ -4,6 +4,7 @@ import { safeRedirect } from "@/lib/auth/redirect";
 import { enabledProviders } from "@/lib/auth/oauth";
 import { legalOf } from "@/lib/auth/legal";
 import { emailCodeEnabled } from "@/lib/auth/email-sign-in";
+import { hasSso } from "@/lib/auth/saml";
 
 export const metadata = { title: "Sign in" };
 
@@ -26,6 +27,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         signedIn={status === "signed_in"}
         legal={legalOf(inst)}
         emailCode={emailCodeEnabled(inst)}
+        sso={await hasSso(inst.id)}
       />
     </>
   );

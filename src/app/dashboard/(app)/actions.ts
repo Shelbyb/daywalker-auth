@@ -7,6 +7,7 @@ import {
   banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateSettings,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
+  createSsoConnection, updateSsoConnection, deleteSsoConnection,
 } from "@/lib/dashboard";
 import {
   EVENT_TYPES, createEndpoint, deleteEndpoint, retryDelivery, rotateSecret, sendTest, updateEndpoint,
@@ -294,5 +295,49 @@ export async function accentColorAction(_prev: ActionState, fd: FormData): Promi
     await setAccentColor(userId, id, reset ? null : str(fd, "accentColor", 20));
     refresh(id);
     return { message: reset ? "Default color restored." : "Color saved." };
+  });
+}
+
+// ---------- SSO ----------
+
+const lines = (v: string) => v.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+
+export async function createSsoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const metadataXml = str(fd, "metadataXml", 200_000);
+    const cert = str(fd, "certificate", 20_000);
+    await createSsoConnection(userId, id, {
+      name: str(fd, "name", 200),
+      domains: lines(str(fd, "domains", 2000)),
+      organizationId: str(fd, "organizationId", 100) || null,
+      ...(metadataXml.trim()
+        ? { metadataXml }
+        : { idpEntityId: str(fd, "idpEntityId", 1000), ssoUrl: str(fd, "ssoUrl", 2000), certificates: cert ? [cert] : [] }),
+    });
+    refresh(id);
+    return { message: "Connection created. Give your identity provider the details shown on the card." };
+  });
+}
+
+export async function toggleSsoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const enabled = fd.get("enabled") === "true";
+    await updateSsoConnection(userId, id, str(fd, "connectionId", 100), { enabled });
+    refresh(id);
+    return { message: enabled ? "Connection enabled." : "Connection disabled." };
+  });
+}
+
+export async function deleteSsoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await deleteSsoConnection(userId, id, str(fd, "connectionId", 100));
+    refresh(id);
+    return { message: "Connection deleted." };
   });
 }

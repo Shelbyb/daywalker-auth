@@ -3,6 +3,7 @@ import { frontendContext, preflight } from "@/lib/auth/frontend";
 import { enabledProviders } from "@/lib/auth/oauth";
 import { legalOf } from "@/lib/auth/legal";
 import { emailCodeEnabled } from "@/lib/auth/email-sign-in";
+import { hasSso } from "@/lib/auth/saml";
 
 export const OPTIONS = preflight;
 
@@ -15,5 +16,6 @@ export const GET = handler(async (req: Request) => {
     passwordMinLength: ctx.inst.settings.passwordMinLength,
     legal: legalOf(ctx.inst),
     emailCodeSignIn: emailCodeEnabled(ctx.inst),
+    ssoEnabled: await hasSso(ctx.inst.id),
   });
 });

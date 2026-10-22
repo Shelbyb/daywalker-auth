@@ -35,6 +35,7 @@ const OAUTH_ERRORS: Record<string, string> = {
   email_unverified: "That account has no verified email address. Verify it with the provider, or sign in with email.",
   provider_disabled: "That sign-in option isn't available for this app.",
   forbidden: "This account is suspended.",
+  sso_not_configured: "Single sign-on isn't set up for that email domain.",
   legal_required: "Please accept the terms to create an account.",
 };
 
@@ -52,6 +53,7 @@ export function AuthForm({
   signedIn,
   legal,
   emailCode = false,
+  sso = false,
 }: {
   mode: Mode;
   pk: string;
@@ -61,6 +63,7 @@ export function AuthForm({
   signedIn?: boolean;
   legal?: LegalInfo;
   emailCode?: boolean;
+  sso?: boolean;
 }) {
   const [useEmailCode, setUseEmailCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError ? (OAUTH_ERRORS[initialError] ?? null) : null);
@@ -232,6 +235,27 @@ export function AuthForm({
         >
           Forgot password?
         </Link>
+      )}
+      {mode === "sign-in" && sso && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async (e) => {
+            const email = String(new FormData(e.currentTarget.form!).get("email") ?? "").trim();
+            setError(null);
+            if (!/^[^@\s]+@[^@\s]+$/.test(email)) return setFieldErrors({ email: "Enter your work email first" });
+            try {
+              const r = await hostedClient(pk).checkSSO(email);
+              if (!r.sso) return setError("Single sign-on isn't set up for that email domain.");
+              hostedClient(pk).signInWithSSO(email, redirect ?? `${window.location.origin}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`);
+            } catch (err) {
+              setError(err instanceof AuthError ? err.message : "Network error. Try again.");
+            }
+          }}
+          className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-stone-50 disabled:opacity-60"
+        >
+          Sign in with SSO
+        </button>
       )}
       {mode === "sign-in" && emailCode && (
         <button

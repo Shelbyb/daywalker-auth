@@ -29,6 +29,7 @@ type Env = {
   oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
   passwordMinLength: number;
   emailCodeSignIn: boolean;
+  ssoEnabled?: boolean;
   legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null };
 };
 
@@ -250,6 +251,16 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl }: Co
         <a href={c.hostedUrl("forgot-password", redirectUrl ?? window.location.href)} className={cx(a, "link", "dw-link dw-forgot")}>Forgot password?</a>
         {error && <Alert a={a}>{error}</Alert>}
         <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Continue"}</button>
+        {env.ssoEnabled && (
+          <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-sso")} onClick={() => void run(async () => {
+            if (!/^[^@\s]+@[^@\s]+$/.test(email.trim())) throw new AuthError(400, "email_required", "Enter your work email first");
+            const r = await c.checkSSO(email.trim());
+            if (!r.sso) throw new AuthError(400, "sso_not_configured", "Single sign-on isn't set up for that email domain");
+            c.signInWithSSO(email.trim(), redirectUrl);
+          })}>
+            Sign in with SSO
+          </button>
+        )}
         {env.emailCodeSignIn && (
           <button type="button" className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-email-code")} onClick={() => { setStep("email-code"); setError(null); }}>
             Email me a sign-in code instead

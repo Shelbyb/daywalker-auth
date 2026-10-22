@@ -169,7 +169,7 @@ export type Instance = typeof instances.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 
-export const oauthProviderEnum = pgEnum("oauth_provider", ["google", "github", "microsoft", "apple", "discord", "gitlab", "oidc"]);
+export const oauthProviderEnum = pgEnum("oauth_provider", ["google", "github", "microsoft", "apple", "discord", "gitlab", "oidc", "saml"]);
 
 /** Per-instance OAuth app credentials. The client secret is encrypted (AAD-bound to instance+provider). */
 export const oauthProviders = pgTable(
@@ -392,4 +392,37 @@ export const emailTemplates = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.instanceId, t.kind] })],
+);
+
+/**
+ * Enterprise SSO: one SAML identity provider (Okta, Entra ID, Google Workspace…). Certificates are
+ * public, so they're stored as-is. People whose email is at one of `domains` sign in through it.
+ */
+export const samlConnections = pgTable(
+  "saml_connections",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** New users signing in through this connection join this organization. */
+    orgId: text("org_id").references(() => organizations.id, { onDelete: "set null" }),
+    idpEntityId: text("idp_entity_id").notNull(),
+    ssoUrl: text("sso_url").notNull(),
+    certificates: jsonb("certificates").$type<string[]>().notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("saml_connections_instance_idx").on(t.instanceId)],
+);
+
+/** Each email domain routes to at most one connection per instance. */
+export const samlDomains = pgTable(
+  "saml_domains",
+  {
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    connectionId: text("connection_id").notNull().references(() => samlConnections.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.instanceId, t.domain] }), index("saml_domains_connection_idx").on(t.connectionId)],
 );

@@ -14,6 +14,7 @@ import { errors } from "./http";
 import { listAudit, record, type AuditQuery } from "./audit";
 import { SAMPLE_VARS, accentInput, composeEmail, isTemplateKind, listTemplates, resetTemplate, saveTemplate } from "./email-templates";
 import { sendMail } from "./mail";
+import { createConnection, deleteConnection, listConnections, updateConnection } from "./auth/saml";
 import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
 import { createSigningKey, getJwks, issuerFor, listSigningKeys, rotateSigningKey } from "./auth/keys";
@@ -384,4 +385,32 @@ export async function sendTestEmail(userId: string, instanceId: string, kind: st
   await sendMail({ to: email, ...mail, subject: `[Test] ${mail.subject}`.slice(0, 200) });
   void record(instanceId, "email_template.test_sent", { actor: { type: "developer", id: userId }, target: kind });
   return email;
+}
+
+// ---------- SSO (SAML) ----------
+
+export async function ssoFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  const orgs = await db().select({ id: schema.organizations.id, name: schema.organizations.name }).from(schema.organizations).where(eq(schema.organizations.instanceId, instanceId)).limit(200);
+  return { connections: await listConnections(instanceId), orgs };
+}
+
+export async function createSsoConnection(userId: string, instanceId: string, raw: Record<string, unknown>) {
+  await ownedInstance(userId, instanceId);
+  const c = await createConnection(instanceId, raw);
+  void record(instanceId, "sso_connection.created", { actor: { type: "developer", id: userId }, target: c.id, data: { name: c.name, domains: c.domains } });
+  return c;
+}
+
+export async function updateSsoConnection(userId: string, instanceId: string, id: string, raw: Record<string, unknown>) {
+  await ownedInstance(userId, instanceId);
+  const c = await updateConnection(instanceId, id, raw);
+  void record(instanceId, "sso_connection.updated", { actor: { type: "developer", id: userId }, target: id });
+  return c;
+}
+
+export async function deleteSsoConnection(userId: string, instanceId: string, id: string) {
+  await ownedInstance(userId, instanceId);
+  await deleteConnection(instanceId, id);
+  void record(instanceId, "sso_connection.deleted", { actor: { type: "developer", id: userId }, target: id });
 }

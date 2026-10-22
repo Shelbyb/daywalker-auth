@@ -8,6 +8,7 @@ const TABS = [
   ["/keys", "API keys"],
   ["/settings", "Settings"],
   ["/social", "Social sign-in"],
+  ["/sso", "SSO"],
   ["/terms", "Terms"],
   ["/users", "Users"],
   ["/emails", "Emails"],

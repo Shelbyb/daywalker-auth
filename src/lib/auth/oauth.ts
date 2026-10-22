@@ -43,7 +43,7 @@ export async function enabledProviders(instanceId: string): Promise<{ id: Provid
     .select({ provider: schema.oauthProviders.provider, settings: schema.oauthProviders.settings })
     .from(schema.oauthProviders)
     .where(and(eq(schema.oauthProviders.instanceId, instanceId), eq(schema.oauthProviders.enabled, true)));
-  const list = rows.map((r) => ({ id: r.provider, label: labelFor(r.provider, r.settings) }));
+  const list = rows.flatMap((r) => (r.provider === "saml" ? [] : [{ id: r.provider, label: labelFor(r.provider, r.settings) }]));
   await cache().set(`oauth:enabled:${instanceId}`, JSON.stringify(list), "EX", 300);
   return list;
 }
@@ -141,7 +141,7 @@ export async function completeOAuth(
  *    address to hijack it later, so its password is removed and its sessions revoked.
  * 3. Otherwise create a new user (provider email must be verified to be attached).
  */
-async function linkOrCreate(inst: Instance, provider: ProviderName, p: Profile, legalAccepted: boolean): Promise<string> {
+export async function linkOrCreate(inst: Instance, provider: ProviderName | "saml", p: Profile, legalAccepted: boolean): Promise<string> {
   const identity = blindIndex(p.id, `oauth:${inst.id}:${provider}`);
   const [existing] = await db()
     .select({ userId: schema.oauthAccounts.userId, banned: schema.users.banned })
@@ -153,7 +153,7 @@ async function linkOrCreate(inst: Instance, provider: ProviderName, p: Profile, 
     return existing.userId;
   }
   if (!p.email || !p.emailVerified)
-    throw errors.badRequest("email_unverified", `Your ${labelFor(provider)} account has no verified email address`);
+    throw errors.badRequest("email_unverified", provider === "saml" ? "Your company sign-in didn't provide an email address at an approved domain" : `Your ${labelFor(provider)} account has no verified email address`);
 
   const emailIndex = blindIndex(p.email, `email:${inst.id}`);
   const revokedHashes: string[] = [];

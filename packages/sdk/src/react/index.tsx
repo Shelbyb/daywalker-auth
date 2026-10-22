@@ -47,6 +47,8 @@ export function useAuth() {
     authFetch: c.authFetch,
     signIn: c.signIn,
     sendSignInCode: c.sendSignInCode,
+    checkSSO: c.checkSSO,
+    signInWithSSO: c.signInWithSSO,
     signInWithEmailCode: c.signInWithEmailCode,
     signInWithMagicLink: c.signInWithMagicLink,
     listOrganizations: c.listOrganizations,

@@ -198,6 +198,21 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return r.status === "needs_second_factor" ? r : { ...finishSignIn(r), redirectUrl: r.redirectUrl };
   }
 
+  /** Does this email's domain sign in through the company's identity provider (SAML SSO)? */
+  async function checkSSO(email: string) {
+    return request<{ sso: boolean; connectionName: string | null }>("sso/check", { method: "POST", body: JSON.stringify({ email }) });
+  }
+
+  /** Full-page redirect to the company's sign-in page, then back to `redirectUrl` (default: current page). */
+  function signInWithSSO(email: string, redirectUrl?: string, opts: { legalAccepted?: boolean } = {}) {
+    const u = new URL(`${base}/v1/client/sso/start`);
+    u.searchParams.set("pk", config.publishableKey);
+    u.searchParams.set("email", email);
+    u.searchParams.set("redirect_url", redirectUrl ?? window.location.href);
+    if (opts.legalAccepted) u.searchParams.set("legal_accepted", "1");
+    window.location.assign(u.toString());
+  }
+
   /** Second step of sign-in for accounts with 2FA: a 6-digit authenticator code or a backup code. */
   async function completeSecondFactor(code: string) {
     return finishSignIn(await request<Completed>("sign_in/second_factor", { method: "POST", body: JSON.stringify({ code }) }));
@@ -293,6 +308,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
       passwordMinLength: number;
       emailCodeSignIn: boolean;
+      /** At least one SAML SSO connection is enabled. */
+      ssoEnabled: boolean;
       legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };
     }>("environment", { method: "GET" });
   }
@@ -472,6 +489,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     load,
     getToken,
     signIn,
+    checkSSO,
+    signInWithSSO,
     sendSignInCode,
     signInWithEmailCode,
     signInWithMagicLink,
