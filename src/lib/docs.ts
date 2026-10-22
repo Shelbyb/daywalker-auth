@@ -27,6 +27,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
       { slug: "guides/dashboard", title: "The developer dashboard" },
       { slug: "guides/organizations", title: "Organizations" },
+      { slug: "guides/enterprise-sso", title: "Enterprise SSO (SAML)" },
       { slug: "guides/webhooks", title: "Webhooks" },
       { slug: "guides/rotating-keys", title: "Rotating keys" },
       { slug: "guides/audit-logs", title: "Audit logs" },

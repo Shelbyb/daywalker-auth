@@ -36,6 +36,7 @@ Then open `/dashboard`, create your account, and you're in. Every person who sig
 | **Overview** | Your publishable key, the service URL and a ready-to-paste `.env.local` snippet |
 | **API keys** | Create and revoke secret keys. A new key is shown **once**; we store only a hash |
 | **Settings** | Name, allowed origins, minimum password length and how long sessions last |
+| **SSO** | Enterprise SAML connections for your business customers |
 | **Social sign-in** | Add Google, GitHub, Microsoft, Apple, Discord, GitLab or any OpenID Connect provider with your own credentials |
 | **Terms** | Require new users to accept your terms of service |
 | **Users** | See who signed up, suspend or restore accounts, delete users |

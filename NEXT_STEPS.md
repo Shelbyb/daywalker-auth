@@ -5,9 +5,9 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
 
 ## Current state
 
-- `main` is green: 18 end-to-end suites pass (plus the components browser walkthrough) (`npm run test:all` with the service on :3000; see README "Tests").
+- `main` is green: 19 end-to-end suites pass (plus the components browser walkthrough) (`npm run test:all` with the service on :3000; see README "Tests").
 - Done in this round: signing-key rotation, `MASTER_KEY` rotation, audit logs, email codes and magic links,
-  breached-password check, custom email templates, more social providers, drop-in React components.
+  breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML).
 
 ## Just finished: more social providers (roadmap #7)
 
@@ -29,26 +29,29 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
 browser walkthrough `scripts/browser/components.py`. Also fixed cross-origin SDK use (publishable key in the
 query string for CORS preflights; CORS headers on error responses).
 
-## Next: enterprise SSO with SAML (roadmap #9), branch `wip/saml`
+## Just finished: enterprise SSO with SAML (roadmap #9)
+
+`src/lib/auth/saml.ts` (on `@node-saml/node-saml`), connections per instance routed by email domain
+(`saml_connections`, `saml_domains`), SP-initiated only, state cookie + exact `InResponseTo` binding, issuer
+check, domain-ownership rule for emails, JIT org membership. Dashboard **SSO** tab, backend
+`/v1/saml_connections`, hosted and component "Sign in with SSO" buttons, SDK `checkSSO` / `signInWithSSO`.
+`scripts/saml-e2e.ts` (38 checks incl. unsigned, wrong key, tampering, signature wrapping, audience, expiry,
+issuer, replay, IdP-initiated, cross-connection, login CSRF, foreign domain). Needs `openssl` on the runner.
+Possible follow-ups: optional "SSO required" enforcement per domain (block password sign-in), SCIM provisioning.
+
+## Next: SMS codes (roadmap #10)
+
+Decided by Shelby: **Twilio**, as an **opt-in second factor only** (no SMS sign-in).
 
 Plan:
-- Library: `@node-saml/node-saml` 5.x (maintained passport-saml core; xml-crypto with the 2025 signature-wrapping
-  fixes). Never hand-roll XML signature checks.
-- `saml_connections` table per instance: name, optional organization, IdP entity ID, SSO URL, IdP signing
-  certificate(s), verified email domains (unique per instance), enabled. Configure from the dashboard and
-  backend API (paste IdP metadata XML or fields; metadata URLs fetched only through `net-guard`).
-- SP-initiated only: the user types their email, the domain picks the connection, we send a signed-state
-  AuthnRequest; IdP-initiated responses are refused. ACS is a cross-site POST, so the state cookie is
-  `SameSite=None; Secure` on HTTPS (like Apple).
-- ACS checks: signed assertion required, issuer, audience, recipient/destination, time window, `InResponseTo`
-  matches our request, assertion ID single-use (replay cache), email domain must be one of the connection's
-  verified domains. Then link/create the user (JIT) and add them to the connection's organization.
-- Tests: a mock IdP that signs assertions with xml-crypto, plus attacks (unsigned, wrong key, signature
-  wrapping, wrong audience, expired, replay, IdP-initiated, foreign domain).
-
-## After that
-
-10. SMS codes (needs a provider decision from Shelby, e.g. Twilio or Vonage).
+- Twilio Verify API (Twilio generates, sends and checks the codes, with its fraud guard and rate limits), configured
+  once per deployment with `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`; off unless set.
+- Per-instance switch "Allow SMS two-factor" (default off).
+- `mfa_sms` table: user, phone (encrypted, E.164, blind index), verified_at. Enrol: send code → confirm. Use at
+  sign-in as an alternative to the authenticator app; backup codes still work. Changing or removing the number
+  needs a current second factor.
+- Strict limits: per user, per phone number and per IP; country allow-list option; audit events.
+- Tests: mock Twilio Verify on a local port (`TWILIO_TEST_BASE_URL`, refused on HTTPS deployments).
 
 ## Open items for Shelby (not blocking)
 
@@ -58,7 +61,7 @@ Plan:
 - CI workflow hasn't run on GitHub yet.
 - Commits show "Unverified" on GitHub because they aren't signed; set up SSH/GPG signing to get "Verified".
 - Old SHAs from the earlier history rewrite may linger on GitHub (only GitHub support can purge them).
-- Delete the leftover branches `wip/social-providers` and `wip/components` on GitHub (same commit as main; this session isn't allowed to delete branches).
+- Delete the leftover branches `wip/social-providers`, `wip/components` and `wip/saml` on GitHub (same commit as main; this session isn't allowed to delete branches).
 
 ## How to resume locally
 

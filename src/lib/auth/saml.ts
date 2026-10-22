@@ -289,6 +289,11 @@ export async function completeSso(inst: Instance, connectionId: string, pending:
     throw errors.badRequest("oauth_failed", "The identity provider's response couldn't be verified");
   }
   if (!profile?.nameID) throw errors.badRequest("oauth_failed", "The identity provider didn't say who signed in");
+  // The library checks the signature; the assertion must also name the configured identity provider.
+  if (profile.issuer !== c.idpEntityId) {
+    void record(inst.id, "user.sign_in_failed", { target: null, data: { reason: "saml_invalid", connectionId, detail: "issuer mismatch" } });
+    throw errors.badRequest("oauth_failed", "The identity provider's response couldn't be verified");
+  }
   const email = (attr(profile, EMAIL_ATTRS) ?? (/^[^@\s]+@[^@\s]+$/.test(profile.nameID) ? profile.nameID : null))?.toLowerCase() ?? null;
   const domain = email?.split("@")[1];
   const ownsDomain = !!domain && (await domainsOf(c.id)).includes(domain);
