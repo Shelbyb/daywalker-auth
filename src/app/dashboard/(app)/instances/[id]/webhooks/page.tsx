@@ -7,7 +7,8 @@ import {
   createWebhookAction, deleteWebhookAction, retryDeliveryAction, rotateWebhookSecretAction, sendTestWebhookAction, toggleWebhookAction,
 } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
-import { Badge, Card, EmptyState, Field, PageHeader, Skeleton, inputCls } from "../../../ui";
+import { Badge, Card, EmptyState, Field, PageHeader, Skeleton } from "../../../ui";
+import { inputCls } from "../../../styles";
 import { fmtDateTime, guarded } from "../../../server";
 
 export const metadata = { title: "Webhooks" };

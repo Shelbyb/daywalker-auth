@@ -16,6 +16,7 @@ export const AUDIT_TYPES = [
   "api_key.created", "api_key.revoked", "signing_key.rotated",
   "instance.settings_updated", "instance.terms_updated",
   "social_provider.saved", "social_provider.enabled", "social_provider.disabled",
+  "email_template.updated", "email_template.reset", "email_template.test_sent",
   "webhook.created", "webhook.updated", "webhook.secret_rotated", "webhook.deleted",
 ] as const;
 export type AuditType = (typeof AUDIT_TYPES)[number];

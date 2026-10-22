@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { composeEmail } from "../email-templates";
 import { assertNotBreached } from "./breach";
 import { record } from "../audit";
 import { z } from "zod";
@@ -6,7 +7,7 @@ import { db, schema } from "../db";
 import { cache, rateLimit } from "../cache";
 import { blindIndex, decrypt, hashPassword } from "../crypto";
 import { errors } from "../http";
-import { codeEmail, sendMail } from "../mail";
+import { sendMail } from "../mail";
 import { issueCode, consumeCode } from "./codes";
 import type { Instance } from "../db/schema";
 
@@ -32,7 +33,7 @@ export async function sendVerification(inst: Instance, userId: string) {
   if (e.verified) throw errors.badRequest("already_verified", "This email address is already verified");
   if ((await rateLimit(`${inst.id}:verify_send:${userId}`, 5, 3600)) < 0) throw errors.tooMany();
   const code = await issueCode("verify_email", e.id);
-  await sendMail({ to: e.email, ...codeEmail("verify", inst.name, code) });
+  await sendMail({ to: e.email, ...(await composeEmail(inst, "verify_email", { code, expires_minutes: "10" })) });
 }
 
 export async function verifyEmail(inst: Instance, userId: string, code: string) {
@@ -55,7 +56,7 @@ export async function forgotPassword(inst: Instance, email: string) {
     .where(and(eq(schema.emailAddresses.instanceId, inst.id), eq(schema.emailAddresses.emailIndex, idx)));
   if (!row) return;
   const code = await issueCode("reset_password", idx);
-  await sendMail({ to: email, ...codeEmail("reset", inst.name, code) });
+  await sendMail({ to: email, ...(await composeEmail(inst, "reset_password", { code, expires_minutes: "10" })) });
 }
 
 /**

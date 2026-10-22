@@ -3,7 +3,8 @@ import { listProviders } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
 import { saveProviderAction, setProviderEnabledAction } from "../../../actions";
 import { ActionForm } from "../../../forms";
-import { Badge, Card, CodeBlock, Field, PageHeader, Skeleton, inputCls } from "../../../ui";
+import { Badge, Card, CodeBlock, Field, PageHeader, Skeleton } from "../../../ui";
+import { inputCls } from "../../../styles";
 import { guarded } from "../../../server";
 
 export const metadata = { title: "Social sign-in" };

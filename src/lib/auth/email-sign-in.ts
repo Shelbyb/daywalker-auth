@@ -17,7 +17,8 @@ import { blindIndex, decrypt, encrypt } from "../crypto";
 import { env } from "../env";
 import { errors } from "../http";
 import { newToken, safeEqual, sha256 } from "../ids";
-import { escapeHtml, sendMail } from "../mail";
+import { sendMail } from "../mail";
+import { composeEmail } from "../email-templates";
 import { record } from "../audit";
 import { publishableKey } from "./instance";
 import type { Instance } from "../db/schema";
@@ -48,17 +49,6 @@ async function accountFor(instanceId: string, idx: string) {
   return row ?? null;
 }
 
-export function signInEmail(appName: string, code: string, link: string) {
-  const subject = `${code} is your ${appName} sign-in code`;
-  const text = `Sign in to ${appName} with this code:\n\n${code}\n\nOr open this link:\n${link}\n\nBoth expire in 10 minutes and work once. If you didn't try to sign in, you can ignore this email. Never share this code with anyone.`;
-  const html = `<div style="font-family:system-ui,sans-serif;max-width:420px;margin:auto;padding:24px;color:#14121a">
-<p>Sign in to <strong>${escapeHtml(appName)}</strong> with this code:</p>
-<p style="font-size:28px;letter-spacing:6px;font-weight:700;margin:24px 0">${code}</p>
-<p style="margin:24px 0"><a href="${escapeHtml(link)}" style="background:#14121a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Sign in to ${escapeHtml(appName)}</a></p>
-<p style="color:#78716c;font-size:13px">Both expire in 10 minutes and work once. If you didn't try to sign in, you can ignore this email. Never share this code with anyone.</p></div>`;
-  return { subject, text, html };
-}
-
 /** Sends the code and link if the address has an account. Resolves the same way either way. */
 export async function sendSignInEmail(inst: Instance, email: string, redirect: string | null) {
   assertEnabled(inst);
@@ -75,7 +65,7 @@ export async function sendSignInEmail(inst: Instance, email: string, redirect: s
   await cache().expire(k, TTL);
   await cache().set(linkKey(token), encrypt(JSON.stringify({ i: inst.id, x: idx }), "esi_link"), "EX", TTL);
   const link = `${env().APP_URL}/magic-link?pk=${encodeURIComponent(publishableKey(inst))}#token=${encodeURIComponent(token)}`;
-  await sendMail({ to: email, ...signInEmail(inst.name, code, link) });
+  await sendMail({ to: email, ...(await composeEmail(inst, "sign_in", { code, link, expires_minutes: "10" })) });
 }
 
 async function finish(inst: Instance, idx: string, method: "email_code" | "magic_link") {

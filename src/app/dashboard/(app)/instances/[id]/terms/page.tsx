@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requireUser } from "../../../guard";
 import { updateLegalAction } from "../../../actions";
 import { ActionForm } from "../../../forms";
-import { Card, Field, PageHeader, inputCls } from "../../../ui";
+import { Card, Field, PageHeader } from "../../../ui";
+import { inputCls } from "../../../styles";
 import { details } from "../../../server";
 
 export const metadata = { title: "Terms" };

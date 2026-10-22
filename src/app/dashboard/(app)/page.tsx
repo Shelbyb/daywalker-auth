@@ -4,7 +4,8 @@ import { listInstances, requireDashboardUser } from "@/lib/dashboard";
 import { requireUser } from "./guard";
 import { createInstanceAction } from "./actions";
 import { ActionForm } from "./forms";
-import { Badge, Card, EmptyState, Field, PageHeader, Skeleton, inputCls } from "./ui";
+import { Badge, Card, EmptyState, Field, PageHeader, Skeleton } from "./ui";
+import { inputCls } from "./styles";
 import { fmtDate } from "./server";
 
 export const metadata = { title: "Instances" };

@@ -10,6 +10,7 @@ const TABS = [
   ["/social", "Social sign-in"],
   ["/terms", "Terms"],
   ["/users", "Users"],
+  ["/emails", "Emails"],
   ["/webhooks", "Webhooks"],
   ["/audit", "Audit log"],
 ] as const;

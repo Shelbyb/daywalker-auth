@@ -12,6 +12,8 @@ import { cache, rateLimit } from "./cache";
 import { env } from "./env";
 import { errors } from "./http";
 import { listAudit, record, type AuditQuery } from "./audit";
+import { SAMPLE_VARS, accentInput, composeEmail, isTemplateKind, listTemplates, resetTemplate, saveTemplate } from "./email-templates";
+import { sendMail } from "./mail";
 import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
 import { createSigningKey, getJwks, issuerFor, listSigningKeys, rotateSigningKey } from "./auth/keys";
@@ -333,4 +335,47 @@ export async function removeUser(userId: string, instanceId: string, targetId: s
 export async function auditFor(userId: string, instanceId: string, q: AuditQuery) {
   await ownedInstance(userId, instanceId);
   return listAudit(instanceId, q);
+}
+
+// ---------- Email templates ----------
+
+export async function templatesFor(userId: string, instanceId: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  return { templates: await listTemplates(instanceId), accentColor: inst.settings.emailAccentColor ?? null, appName: inst.name };
+}
+
+export async function saveTemplateFor(userId: string, instanceId: string, kind: string, input: { subject: string; body: string }) {
+  await ownedInstance(userId, instanceId);
+  if (!isTemplateKind(kind)) throw errors.notFound("Unknown email");
+  const t = await saveTemplate(instanceId, kind, input);
+  void record(instanceId, "email_template.updated", { actor: { type: "developer", id: userId }, target: kind });
+  return t;
+}
+
+export async function resetTemplateFor(userId: string, instanceId: string, kind: string) {
+  await ownedInstance(userId, instanceId);
+  if (!isTemplateKind(kind)) throw errors.notFound("Unknown email");
+  await resetTemplate(instanceId, kind);
+  void record(instanceId, "email_template.reset", { actor: { type: "developer", id: userId }, target: kind });
+}
+
+export async function setAccentColor(userId: string, instanceId: string, color: string | null) {
+  const inst = await ownedInstance(userId, instanceId);
+  const accent = color ? accentInput.parse(color) : undefined;
+  await db().update(schema.instances).set({ settings: { ...inst.settings, emailAccentColor: accent }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
+  await invalidateInstance(instanceId);
+  void record(instanceId, "email_template.updated", { actor: { type: "developer", id: userId }, target: "branding", data: { accentColor: accent ?? null } });
+}
+
+/** Sends the saved (or default) wording, filled with sample values, to the developer's own address only. */
+export async function sendTestEmail(userId: string, instanceId: string, kind: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  if (!isTemplateKind(kind)) throw errors.notFound("Unknown email");
+  const { email } = await dashboardProfile(userId);
+  if (!email) throw errors.badRequest("no_email", "Your dashboard account has no email address");
+  if ((await rateLimit(`${instanceId}:template_test:${userId}`, 10, 3600)) < 0) throw errors.tooMany();
+  const mail = await composeEmail(inst, kind, SAMPLE_VARS(inst.name));
+  await sendMail({ to: email, ...mail, subject: `[Test] ${mail.subject}`.slice(0, 200) });
+  void record(instanceId, "email_template.test_sent", { actor: { type: "developer", id: userId }, target: kind });
+  return email;
 }

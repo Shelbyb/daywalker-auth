@@ -8,6 +8,7 @@ import {
   index,
   pgEnum,
   bigint,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 // Prefixed, sortable-enough IDs are generated in app code (see lib/ids.ts).
@@ -46,7 +47,7 @@ export const instances = pgTable(
     // Origins allowed to call the frontend API with credentials (CORS).
     allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
     settings: jsonb("settings")
-      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean }>()
+      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.
@@ -376,4 +377,17 @@ export const auditEvents = pgTable(
     index("audit_events_type_idx").on(t.instanceId, t.type, t.createdAt),
     index("audit_events_target_idx").on(t.instanceId, t.targetId, t.createdAt),
   ],
+);
+
+/** A developer's wording for one kind of email. Missing row = the built-in default. */
+export const emailTemplates = pgTable(
+  "email_templates",
+  {
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.instanceId, t.kind] })],
 );

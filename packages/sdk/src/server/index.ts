@@ -98,6 +98,17 @@ export function verifyWebhook<T = Record<string, unknown>>(
   }
 }
 
+export type EmailTemplateKind = "verify_email" | "reset_password" | "sign_in" | "invitation";
+export type EmailTemplate = {
+  kind: EmailTemplateKind;
+  subject: string;
+  body: string;
+  custom: boolean;
+  placeholders?: string[];
+  required?: string[];
+  updatedAt: string | null;
+};
+
 export type AuditEvent = {
   id: string;
   type: string;
@@ -168,6 +179,16 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
           "GET",
           `organizations/${encodeURIComponent(orgId)}/members`,
         ).then((r) => r.data),
+    },
+    emailTemplates: {
+      list: () => call<{ data: EmailTemplate[]; accentColor: string | null }>("GET", "email_templates"),
+      get: (kind: EmailTemplateKind) => call<EmailTemplate>("GET", `email_templates/${kind}`),
+      /** Plain text with {{placeholders}}; HTML is built and escaped for you. */
+      update: (kind: EmailTemplateKind, input: { subject: string; body: string }) => call<EmailTemplate>("PUT", `email_templates/${kind}`, input),
+      /** Back to the built-in wording. */
+      reset: (kind: EmailTemplateKind) => call<EmailTemplate>("DELETE", `email_templates/${kind}`),
+      /** Button and link color, e.g. "#4f46e5". `null` restores the default. */
+      setAccentColor: (accentColor: string | null) => call<{ accentColor: string | null }>("PUT", "email_templates/branding", { accentColor }),
     },
     auditEvents: {
       /** Newest first. Pass `before: page.nextCursor` for the next page. */

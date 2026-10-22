@@ -3,7 +3,8 @@ import { listKeys } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
 import { createKeyAction, revokeKeyAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
-import { Card, EmptyState, Field, PageHeader, Skeleton, inputCls } from "../../../ui";
+import { Card, EmptyState, Field, PageHeader, Skeleton } from "../../../ui";
+import { inputCls } from "../../../styles";
 import { fmtDate, guarded } from "../../../server";
 
 export const metadata = { title: "API keys" };

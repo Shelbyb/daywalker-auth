@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/http";
 import {
   banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateSettings,
+  saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
 } from "@/lib/dashboard";
 import {
   EVENT_TYPES, createEndpoint, deleteEndpoint, retryDelivery, rotateSecret, sendTest, updateEndpoint,
@@ -251,5 +252,46 @@ export async function retryDeliveryAction(_prev: ActionState, fd: FormData): Pro
     await retryDelivery(id, str(fd, "deliveryId", 200));
     refresh(id);
     return { message: "Queued for retry." };
+  });
+}
+
+// ---------- Email templates ----------
+
+export async function saveTemplateAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await saveTemplateFor(userId, id, str(fd, "kind", 50), { subject: str(fd, "subject", 300), body: str(fd, "body", 6000) });
+    refresh(id);
+    return { message: "Email saved. New emails use this wording." };
+  });
+}
+
+export async function resetTemplateAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await resetTemplateFor(userId, id, str(fd, "kind", 50));
+    refresh(id);
+    return { message: "Back to the default wording." };
+  });
+}
+
+export async function testTemplateAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const to = await sendTestEmail(userId, str(fd, "instanceId", 200), str(fd, "kind", 50));
+    return { message: `Test email sent to ${to}.` };
+  });
+}
+
+export async function accentColorAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const reset = fd.get("reset") === "1";
+    await setAccentColor(userId, id, reset ? null : str(fd, "accentColor", 20));
+    refresh(id);
+    return { message: reset ? "Default color restored." : "Color saved." };
   });
 }

@@ -2,7 +2,8 @@ import { requireUser } from "../../../guard";
 import { signingKeysFor } from "@/lib/dashboard";
 import { rotateSigningKeyAction, updateSettingsAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
-import { Card, Field, PageHeader, inputCls } from "../../../ui";
+import { Card, Field, PageHeader } from "../../../ui";
+import { inputCls } from "../../../styles";
 import { details, fmtDateTime } from "../../../server";
 
 export const metadata = { title: "Settings" };

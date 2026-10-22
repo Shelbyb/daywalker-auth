@@ -3,7 +3,8 @@ import Link from "next/link";
 import { auditFor } from "@/lib/dashboard";
 import { AUDIT_TYPES, RETENTION_DAYS } from "@/lib/audit";
 import { requireUser } from "../../../guard";
-import { Badge, EmptyState, PageHeader, Skeleton, inputCls, btnCls } from "../../../ui";
+import { Badge, EmptyState, PageHeader, Skeleton } from "../../../ui";
+import { inputCls, btnCls } from "../../../styles";
 import { fmtDateTime, guarded } from "../../../server";
 
 export const metadata = { title: "Audit log" };

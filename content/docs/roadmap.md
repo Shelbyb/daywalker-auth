@@ -14,7 +14,7 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
 | 3 | **Audit logs** | A searchable record of sign-ins, key changes and settings changes per instance, in the dashboard and API | Done |
 | 4 | **Magic links and email codes** | Passwordless sign-in: click a link or type a code from your email | Done |
 | 5 | **Breached-password check** | Reject passwords found in known data breaches (privacy-preserving k-anonymity lookup) | Done |
-| 6 | **Custom email templates** | Edit the wording and branding of verification, reset and invitation emails per instance | Planned |
+| 6 | **Custom email templates** | Edit the wording and branding of verification, reset and invitation emails per instance | Done |
 | 7 | **More social providers** | Microsoft, Apple, Discord, GitLab and any OpenID Connect provider | Planned |
 | 8 | **Embeddable components** | Drop-in `<SignIn />`, `<SignUp />`, `<UserButton />` and `<OrganizationSwitcher />` for React | Planned |
 | 9 | **Enterprise SSO (SAML)** | Let an organization's members sign in with their company identity provider | Planned |
@@ -22,4 +22,4 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
 
 ## Already done
 
-Email and password, email verification, password reset, Google and GitHub, passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key and `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, and DigitalOcean deployment. See the [guides](/docs/quickstart).
+Email and password, email verification, password reset, Google and GitHub, passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key and `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, and DigitalOcean deployment. See the [guides](/docs/quickstart).
