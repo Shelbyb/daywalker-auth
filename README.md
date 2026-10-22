@@ -25,7 +25,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 | Terms | Optional required terms acceptance at sign-up, recorded per user and version |
 | Emails | Per-instance wording for every email, brand color, preview and test sends; plain text with escaped placeholders |
 | Dashboard | `/dashboard`: instances, keys, allowed origins, social providers, terms, users, emails, webhooks, audit log |
-| SDK | Browser client, React hooks, server `verifyToken`/`verifyWebhook`/backend client, Next.js `auth()` and `authProxy` |
+| SDK | Browser client, React hooks, drop-in `<SignIn />` / `<SignUp />` / `<UserButton />` / `<OrganizationSwitcher />`, server `verifyToken`/`verifyWebhook`/backend client, Next.js `auth()` and `authProxy` |
 
 ## Run locally
 
@@ -121,8 +121,7 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 
 Working notes and current status: [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, and more social providers. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
+Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, and drop-in React components. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
 
-1. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
-2. Enterprise SSO (SAML)
-3. SMS codes
+1. Enterprise SSO (SAML)
+2. SMS codes

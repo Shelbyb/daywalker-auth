@@ -84,9 +84,11 @@ Returns the underlying [browser client](/docs/sdk/client), for example to build 
 | `<SignedIn>` | Its children, only when loaded and signed in |
 | `<SignedOut>` | Its children, only when loaded and signed out |
 | `<SignInButton mode? redirectUrl? className?>` | A button that opens the hosted sign-in (or `mode="sign-up"`) page and returns to `redirectUrl` (default: current page) |
-| `<OAuthButton provider redirectUrl? className?>` | "Continue with Google/GitHub". See [Social sign-in](/docs/guides/social-sign-in). |
+| `<OAuthButton provider redirectUrl? className?>` | "Continue with Google" (or any [social provider](/docs/guides/social-sign-in)) |
 | `<SignOutButton afterSignOutUrl? className?>` | A button that signs out, then optionally navigates |
-| `<UserButton afterSignOutUrl? className?>` | Initials avatar with name, email, **Manage account** ([account page](/docs/guides/account-page)) and **Sign out** |
+| `<UserButton afterSignOutUrl? className? appearance?>` | Initials avatar with name, email, **Manage account** ([account page](/docs/guides/account-page)) and **Sign out** |
+| `<SignIn>` / `<SignUp>` | Full sign-in and sign-up forms on your own page. See [Drop-in components](/docs/guides/components) |
+| `<OrganizationSwitcher>` | Switch or create organizations. See [Drop-in components](/docs/guides/components) |
 
 All buttons accept `children` to change their label:
 

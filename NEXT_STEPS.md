@@ -34,8 +34,8 @@ Done (tested in a real browser with `scripts/browser/components.py`):
   error responses now carry CORS headers (`corsHeadersFor` in `src/lib/http.ts`), so browsers can show
   "Email or password is incorrect" instead of a network error. `scripts/sdk-e2e.ts` covers both.
 
-Left to do: docs guide (`content/docs/guides/components.md`, SDK react page), README, roadmap, full
-regression, merge to `main`.
+Docs written (`content/docs/guides/components.md`, SDK react page, README, roadmap). Left: full regression,
+merge to `main`.
 
 ## After that (in order)
 

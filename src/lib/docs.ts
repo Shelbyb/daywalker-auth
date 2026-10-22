@@ -34,6 +34,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/breached-passwords", title: "Breached passwords" },
       { slug: "guides/email-templates", title: "Email templates" },
       { slug: "guides/account-page", title: "Account page" },
+      { slug: "guides/components", title: "Drop-in components" },
       { slug: "guides/custom-ui", title: "Build your own sign-in form" },
       { slug: "guides/other-backends", title: "Express, Hono and other servers" },
       { slug: "guides/manage-users", title: "Manage users from your server" },
