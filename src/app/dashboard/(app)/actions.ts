@@ -109,6 +109,7 @@ export async function updateSettingsAction(_prev: ActionState, fd: FormData): Pr
       passwordMinLength: Number(str(fd, "passwordMinLength", 10)),
       sessionLifetimeDays: Number(str(fd, "sessionLifetimeDays", 10)),
       emailCodeSignIn: fd.get("emailCodeSignIn") === "on",
+      breachedPasswordCheck: fd.get("breachedPasswordCheck") === "on",
     });
     refresh(id);
     return { message: "Settings saved." };

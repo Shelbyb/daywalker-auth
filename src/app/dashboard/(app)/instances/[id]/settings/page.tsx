@@ -33,6 +33,13 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             </Field>
           </div>
           <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="breachedPasswordCheck" defaultChecked={inst.settings.breachedPasswordCheck !== false} className="mt-0.5 size-4 accent-ink" />
+            <span>
+              <span className="font-medium">Block breached passwords</span>
+              <span className="block text-stone-600">Reject new passwords found in known data breaches. Only a 5-character piece of the password&apos;s hash is ever sent to check.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="emailCodeSignIn" defaultChecked={inst.settings.emailCodeSignIn === true} className="mt-0.5 size-4 accent-ink" />
             <span>
               <span className="font-medium">Email sign-in codes and links</span>

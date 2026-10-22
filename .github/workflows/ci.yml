@@ -36,6 +36,8 @@ jobs:
       ALLOW_INSECURE_TRANSPORT: "1"
       WEBHOOK_ALLOW_PRIVATE: "1"
       OAUTH_TEST_BASE_URL: http://localhost:3999
+      # Local mock for the breached-password API (started by breach-e2e; other suites fail open when it is down).
+      PWNED_PASSWORDS_TEST_URL: http://localhost:3997
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,7 +57,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf localhost:3000/healthz && break; sleep 2; done
       - name: Service test suites
         run: |
-          for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e keyrotation-e2e masterkey-e2e audit-e2e emailcode-e2e; do
+          for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e keyrotation-e2e masterkey-e2e audit-e2e emailcode-e2e breach-e2e; do
             echo "::group::$t"; npx tsx scripts/$t.ts; echo "::endgroup::"
           done
       - name: SDK suite (example app)

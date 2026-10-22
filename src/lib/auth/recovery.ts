@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { assertNotBreached } from "./breach";
 import { record } from "../audit";
 import { z } from "zod";
 import { db, schema } from "../db";
@@ -64,6 +65,8 @@ export async function forgotPassword(inst: Instance, email: string) {
 export async function resetPassword(inst: Instance, input: z.infer<typeof resetInput>) {
   if (input.password.length < inst.settings.passwordMinLength)
     throw errors.badRequest("password_too_short", `Password must be at least ${inst.settings.passwordMinLength} characters`);
+  // Before the code is used up, so picking a breached password doesn't cost the user their code.
+  await assertNotBreached(inst, input.password);
   const idx = emailIndex(inst.id, input.email);
   if (!(await consumeCode("reset_password", idx, input.code)))
     throw errors.badRequest("invalid_code", "That code is incorrect or has expired");

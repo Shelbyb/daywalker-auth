@@ -46,7 +46,7 @@ export const instances = pgTable(
     // Origins allowed to call the frontend API with credentials (CORS).
     allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
     settings: jsonb("settings")
-      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean }>()
+      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.

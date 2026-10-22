@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { assertNotBreached } from "./breach";
 import { record } from "../audit";
 import { z } from "zod";
 import { db, schema } from "../db";
@@ -32,6 +33,7 @@ export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>)
   // Checked before hashing, so a missing tick fails fast.
   if (legalOf(inst).required && input.legalAccepted !== true)
     throw errors.badRequest("legal_required", "Please accept the terms to create an account");
+  await assertNotBreached(inst, input.password);
   const hash = await hashPassword(input.password);
   const userId = newId("user");
   try {

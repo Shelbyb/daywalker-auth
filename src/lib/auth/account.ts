@@ -1,4 +1,5 @@
 import { and, desc, eq, ne } from "drizzle-orm";
+import { assertNotBreached } from "./breach";
 import { record, recordForUser } from "../audit";
 import { z } from "zod";
 import { db, schema } from "../db";
@@ -38,6 +39,7 @@ export async function changePassword(inst: Instance, userId: string, currentSess
   if (!row) throw errors.badRequest("no_password", "This account signs in without a password. Use “Forgot password” to set one");
   if (!(await verifyPassword(row.hash, input.currentPassword)))
     throw errors.badRequest("invalid_credentials", "Your current password is incorrect");
+  await assertNotBreached(inst, input.newPassword);
   await db().update(schema.passwords).set({ hash: await hashPassword(input.newPassword), updatedAt: new Date() }).where(eq(schema.passwords.userId, userId));
   void record(inst.id, "user.password_changed", { actor: { type: "user", id: userId }, target: userId });
   return revokeOtherSessions(userId, currentSessionId);
