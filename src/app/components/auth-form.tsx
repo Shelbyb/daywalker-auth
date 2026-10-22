@@ -6,6 +6,7 @@ import { AuthError } from "@daywalker/auth";
 import { hostedClient } from "./hosted-client";
 import { VerifyEmailStep } from "./verify-email";
 import { SecondFactorStep } from "./second-factor";
+import { EmailCodeStep } from "./email-code";
 
 type Mode = "sign-in" | "sign-up";
 type Field = { name: string; label: string; type: string; autoComplete: string; required?: boolean };
@@ -49,6 +50,7 @@ export function AuthForm({
   initialError,
   signedIn,
   legal,
+  emailCode = false,
 }: {
   mode: Mode;
   pk: string;
@@ -57,7 +59,9 @@ export function AuthForm({
   initialError?: string;
   signedIn?: boolean;
   legal?: LegalInfo;
+  emailCode?: boolean;
 }) {
+  const [useEmailCode, setUseEmailCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError ? (OAUTH_ERRORS[initialError] ?? null) : null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -127,6 +131,17 @@ export function AuthForm({
       setBusy(false);
     }
   }
+
+  if (useEmailCode !== null && !done)
+    return (
+      <EmailCodeStep
+        pk={pk}
+        initialEmail={useEmailCode}
+        redirect={redirect}
+        onBack={() => setUseEmailCode(null)}
+        onDone={(name) => (redirect ? window.location.assign(redirect) : setDone({ name }))}
+      />
+    );
 
   if (needsSecondFactor)
     return <SecondFactorStep pk={pk} onDone={(name) => (redirect ? window.location.assign(redirect) : setDone({ name }))} />;
@@ -216,6 +231,15 @@ export function AuthForm({
         >
           Forgot password?
         </Link>
+      )}
+      {mode === "sign-in" && emailCode && (
+        <button
+          type="button"
+          onClick={(e) => setUseEmailCode(String(new FormData(e.currentTarget.form!).get("email") ?? ""))}
+          className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-stone-50"
+        >
+          Email me a sign-in code instead
+        </button>
       )}
       {error && (
         <p role="alert" className="rounded-lg bg-ember/10 px-3 py-2 text-sm text-ember">

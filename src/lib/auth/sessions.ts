@@ -19,7 +19,7 @@ const sessKey = (refreshHash: string) => `sess:${refreshHash}`;
 export async function createSession(
   inst: Instance,
   userId: string,
-  meta: { userAgent?: string | null; ip?: string | null },
+  meta: { userAgent?: string | null; ip?: string | null; method?: string },
 ) {
   const refreshToken = newToken();
   const expiresAt = new Date(Date.now() + inst.settings.sessionLifetimeDays * 86_400_000);
@@ -35,7 +35,7 @@ export async function createSession(
   });
   await db().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, userId));
   void emit(inst.id, "session.created", { sessionId: id, userId });
-  void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null } });
+  void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null, ...(meta.method ? { method: meta.method } : {}) } });
   return { id, refreshToken, expiresAt };
 }
 

@@ -158,7 +158,7 @@ function origins(list: string[]) {
 export async function updateSettings(
   userId: string,
   instanceId: string,
-  input: { name: string; allowedOrigins: string[]; passwordMinLength: number; sessionLifetimeDays: number },
+  input: { name: string; allowedOrigins: string[]; passwordMinLength: number; sessionLifetimeDays: number; emailCodeSignIn?: boolean },
 ) {
   const inst = await ownedInstance(userId, instanceId);
   const s = z
@@ -173,12 +173,12 @@ export async function updateSettings(
     .set({
       name: s.name,
       allowedOrigins: origins(input.allowedOrigins),
-      settings: { ...inst.settings, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays },
+      settings: { ...inst.settings, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true },
       updatedAt: new Date(),
     })
     .where(eq(schema.instances.id, instanceId));
   await invalidateInstance(instanceId);
-  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { name: s.name, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays } });
+  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { name: s.name, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true } });
 }
 
 export async function updateLegal(userId: string, instanceId: string, input: unknown) {

@@ -172,6 +172,27 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return r.status === "needs_second_factor" ? r : finishSignIn(r);
   }
 
+  /**
+   * Passwordless sign-in, step 1: email a 6-digit code and a one-time link. Resolves the same way
+   * whether or not the email has an account. `redirectUrl` is where the link lands after sign-in
+   * (must be an allowed origin). Needs "Email sign-in" turned on for the instance.
+   */
+  async function sendSignInCode(input: { email: string; redirectUrl?: string }) {
+    await request("sign_in/email_code", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  /** Passwordless sign-in, step 2: the code from the email. */
+  async function signInWithEmailCode(input: { email: string; code: string }): Promise<SignInResult> {
+    const r = await request<Completed | { status: "needs_second_factor" }>("sign_in/email_code/verify", { method: "POST", body: JSON.stringify(input) });
+    return r.status === "needs_second_factor" ? r : finishSignIn(r);
+  }
+
+  /** Completes a sign-in link: pass the `token` from the link's URL fragment (#token=...). */
+  async function signInWithMagicLink(token: string): Promise<SignInResult & { redirectUrl: string | null }> {
+    const r = await request<(Completed | { status: "needs_second_factor" }) & { redirectUrl: string | null }>("sign_in/magic_link", { method: "POST", body: JSON.stringify({ token }) });
+    return r.status === "needs_second_factor" ? r : { ...finishSignIn(r), redirectUrl: r.redirectUrl };
+  }
+
   /** Second step of sign-in for accounts with 2FA: a 6-digit authenticator code or a backup code. */
   async function completeSecondFactor(code: string) {
     return finishSignIn(await request<Completed>("sign_in/second_factor", { method: "POST", body: JSON.stringify({ code }) }));
@@ -264,6 +285,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       name: string;
       oauthProviders: ("google" | "github")[];
       passwordMinLength: number;
+      emailCodeSignIn: boolean;
       legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };
     }>("environment", { method: "GET" });
   }
@@ -443,6 +465,9 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     load,
     getToken,
     signIn,
+    sendSignInCode,
+    signInWithEmailCode,
+    signInWithMagicLink,
     signUp,
     signOut,
     authFetch,

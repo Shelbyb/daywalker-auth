@@ -32,6 +32,13 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
               <input name="sessionLifetimeDays" type="number" min={1} max={90} required defaultValue={inst.settings.sessionLifetimeDays} className={inputCls} />
             </Field>
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="emailCodeSignIn" defaultChecked={inst.settings.emailCodeSignIn === true} className="mt-0.5 size-4 accent-ink" />
+            <span>
+              <span className="font-medium">Email sign-in codes and links</span>
+              <span className="block text-stone-600">Let people sign in without a password: we email a 6-digit code and a one-time link. Two-factor still applies.</span>
+            </span>
+          </label>
         </ActionForm>
       </Card>
       <Card>

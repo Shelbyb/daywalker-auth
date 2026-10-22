@@ -3,6 +3,7 @@ import { parsePublishableKey, getInstance } from "@/lib/auth/instance";
 import { safeRedirect } from "@/lib/auth/redirect";
 import { enabledProviders } from "@/lib/auth/oauth";
 import { legalOf } from "@/lib/auth/legal";
+import { emailCodeEnabled } from "@/lib/auth/email-sign-in";
 
 export const metadata = { title: "Sign in" };
 
@@ -24,6 +25,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         initialError={error}
         signedIn={status === "signed_in"}
         legal={legalOf(inst)}
+        emailCode={emailCodeEnabled(inst)}
       />
     </>
   );

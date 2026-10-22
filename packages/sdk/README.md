@@ -87,6 +87,8 @@ import { createAuthClient } from "@daywalker/auth";
 const client = createAuthClient({ publishableKey, frontendApi: "https://users.daywalker.dev" });
 await client.load();
 await client.signIn({ email, password });
+// Or passwordless (turn on "Email sign-in" in the dashboard):
+// await client.sendSignInCode({ email }); await client.signInWithEmailCode({ email, code });
 const res = await client.authFetch("/api/orders");
 
 // Any Node/edge server (Express, Hono, NestJS guard…)

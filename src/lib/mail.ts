@@ -4,7 +4,7 @@ import { blindIndex } from "./crypto";
 
 type Mail = { to: string; subject: string; text: string; html: string };
 
-const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+export const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** Code emails. Plain layout, no tracking pixels or remote images. */
 export function codeEmail(kind: "verify" | "reset", appName: string, code: string): Omit<Mail, "to"> {

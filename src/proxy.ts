@@ -7,7 +7,7 @@ const prod = process.env.NODE_ENV === "production";
  * request's random nonce, so injected markup can't execute even if it slips past escaping.
  * These pages render per request anyway (they read search params and cookies).
  */
-const STRICT = /^\/(sign-in|sign-up|forgot-password|second-factor|accept-invite|account|dashboard)(\/|$)/;
+const STRICT = /^\/(sign-in|sign-up|forgot-password|second-factor|magic-link|accept-invite|account|dashboard)(\/|$)/;
 
 function policy(nonce: string | null) {
   const script = nonce

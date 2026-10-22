@@ -16,7 +16,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 
 | Area | Highlights |
 |---|---|
-| Sign-in | Email + password (argon2id), email verification, password reset, Google and GitHub, passkeys (WebAuthn), TOTP two-factor with backup codes |
+| Sign-in | Email + password (argon2id), email verification, password reset, passwordless email codes and magic links, Google and GitHub, passkeys (WebAuthn), TOTP two-factor with backup codes |
 | Sessions | HttpOnly refresh cookie + 60-second ES256 JWTs verified locally against per-instance JWKS; revoke and ban take effect within a minute |
 | Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
 | Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |
@@ -118,12 +118,11 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 
 ## Next steps
 
-Done: signing-key rotation, `MASTER_KEY` rotation and audit logs. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
+Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, and magic links and email codes. Planned, in this order (details and status in [`content/docs/roadmap.md`](content/docs/roadmap.md)):
 
-1. Magic links and email codes
-2. Breached-password check
-3. Custom email templates
-4. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect)
-5. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
-6. Enterprise SSO (SAML)
-7. SMS codes
+1. Breached-password check
+2. Custom email templates
+3. More social providers (Microsoft, Apple, Discord, GitLab, generic OpenID Connect)
+4. Embeddable React components (`<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />`)
+5. Enterprise SSO (SAML)
+6. SMS codes

@@ -108,6 +108,7 @@ export async function updateSettingsAction(_prev: ActionState, fd: FormData): Pr
       allowedOrigins: str(fd, "allowedOrigins", 10_000).split(/\r?\n/),
       passwordMinLength: Number(str(fd, "passwordMinLength", 10)),
       sessionLifetimeDays: Number(str(fd, "sessionLifetimeDays", 10)),
+      emailCodeSignIn: fd.get("emailCodeSignIn") === "on",
     });
     refresh(id);
     return { message: "Settings saved." };
