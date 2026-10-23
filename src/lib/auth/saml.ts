@@ -11,7 +11,7 @@
  *   provider can't vouch for addresses it doesn't own.
  */
 import { X509Certificate } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { DOMParser } from "@xmldom/xmldom";
 import { SAML, ValidateInResponseTo, type CacheProvider, type Profile } from "@node-saml/node-saml";
 import { z } from "zod";
@@ -162,7 +162,35 @@ export async function updateConnection(instanceId: string, id: string, raw: Reco
     await tx.update(schema.samlConnections).set({ name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, updatedAt: new Date() }).where(eq(schema.samlConnections.id, id));
     await writeDomains(tx, instanceId, id, input.domains);
   });
+  // Turning enforcement on must not leave password-era sessions alive: end them so everyone re-enters through the IdP.
+  if (input.ssoRequired && input.enabled && !(c.ssoRequired && c.enabled)) await endSessionsAtDomains(instanceId, input.domains);
   return getConnection(instanceId, id);
+}
+
+/**
+ * Revokes active sessions of users whose primary email is at one of these domains.
+ * Emails are encrypted, so matching happens in code, in batches.
+ */
+export async function endSessionsAtDomains(instanceId: string, domains: string[]) {
+  const wanted = new Set(domains.map((d) => d.toLowerCase()));
+  if (!wanted.size) return 0;
+  const rows = await db()
+    .selectDistinct({ userId: schema.emailAddresses.userId, id: schema.emailAddresses.id, enc: schema.emailAddresses.emailEnc })
+    .from(schema.emailAddresses)
+    .innerJoin(schema.sessions, and(eq(schema.sessions.userId, schema.emailAddresses.userId), eq(schema.sessions.status, "active")))
+    .where(and(eq(schema.emailAddresses.instanceId, instanceId), eq(schema.emailAddresses.isPrimary, true)));
+  const userIds = rows.filter((r) => wanted.has((decrypt(r.enc, `email_addresses.email:${r.id}`).split("@")[1] ?? "").toLowerCase())).map((r) => r.userId);
+  let n = 0;
+  for (let i = 0; i < userIds.length; i += 200) {
+    const revoked = await db()
+      .update(schema.sessions)
+      .set({ status: "revoked" })
+      .where(and(eq(schema.sessions.instanceId, instanceId), inArray(schema.sessions.userId, userIds.slice(i, i + 200)), eq(schema.sessions.status, "active")))
+      .returning({ h: schema.sessions.refreshTokenHash });
+    if (revoked.length) await cache().del(...revoked.map((r) => `sess:${r.h}`));
+    n += revoked.length;
+  }
+  return n;
 }
 
 export async function getConnection(instanceId: string, id: string) {

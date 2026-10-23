@@ -209,11 +209,18 @@ const carol = `carol.${t}@acme.test`, eveMail = `eve.${t}@acme.test`, dave = `da
 for (const e of [carol, eveMail, dave]) await cl("sign_up", { email: e, password: PW });
 await db().execute(sql`update instances set settings = settings || '{"emailCodeSignIn": true}'::jsonb where id = ${instanceId}`);
 await invalidateInstance(instanceId);
-check("before enforcing, a password sign-in at the domain works", (await cl("sign_in", { email: carol, password: PW })).status === 200);
+const carolIn = await cl("sign_in", { email: carol, password: PW });
+check("before enforcing, a password sign-in at the domain works", carolIn.status === 200);
+const carolId = (await carolIn.json()).user.id as string;
+const daveId = (await (await cl("sign_in", { email: dave, password: PW })).json()).user.id as string;
+const active = async (uid: string) => ((await db().execute(sql`select count(*)::int as n from sessions where user_id = ${uid} and status = 'active'`)) as unknown as { n: number }[])[0].n;
+check("both have a live session before enforcing", (await active(carolId)) > 0 && (await active(daveId)) > 0);
 
 check("a connection starts with SSO not required", conn.ssoRequired === false);
 const req = await (await api("PATCH", `saml_connections/${conn.id}`, { ssoRequired: true })).json();
 check("turn on SSO required", req.ssoRequired === true);
+check("turning it on ends the sessions of people at the domain", (await active(carolId)) === 0);
+check("…and leaves other domains alone", (await active(daveId)) > 0);
 const code = async (r: Response) => (await r.json())?.error?.code;
 const pwIn = await cl("sign_in", { email: carol, password: PW });
 check("password sign-in is refused for the domain, even with the right password", pwIn.status === 403 && (await code(pwIn)) === "sso_required");

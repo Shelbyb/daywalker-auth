@@ -59,7 +59,7 @@ Then, for addresses at those domains:
 - Other domains are unaffected.
 - Pausing the connection (`enabled: false`) also pauses the rule, so a broken identity provider never locks everyone out.
 
-People who are already signed in stay signed in until their session ends. To cut them off now, revoke their sessions from the dashboard or the backend API.
+When you switch it on, everyone already signed in at those domains is signed out, so they come back through your identity provider. People at other domains are not affected.
 
 Enforcement uses each person's primary email address.
 

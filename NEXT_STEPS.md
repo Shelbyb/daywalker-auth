@@ -16,7 +16,7 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
 - **"SSO required"** (migration 0013). `saml_connections.sso_required`; `src/lib/auth/sso-policy.ts` refuses password,
   sign-up, email code/magic link, password reset, passkey and social sign-in for addresses at an enforced domain
   (`403 sso_required`). Backstop: `createSession` refuses any session that isn't `method: "saml"`. A disabled connection
-  doesn't enforce (no lockout). Uses the primary email. Existing sessions are NOT revoked when it's switched on.
+  doesn't enforce (no lockout). Uses the primary email. Switching it on revokes active sessions of users at the connection's domains.
   Tests: end of `scripts/saml-e2e.ts`.
 - **SMS country allow-list.** `settings.smsCountries` (calling codes like `1 44 49`), validated in `src/lib/sms.ts`
   (`parseCallingCodes`), enforced when a phone is *added* only (existing phones keep working). Dashboard Settings field.
@@ -81,7 +81,6 @@ redirect URL the form stayed on the 2FA step.
 ## Possible follow-ups (not started; ask Shelby)
 
 - Use the drop-in components for the hosted pages too (one UI to maintain).
-- Revoke existing sessions of an SSO-required domain when the switch is turned on.
 - SCIM Groups (map groups to organization roles); try SCIM against a real Okta or Entra ID trial.
 - Let a security key confirm account changes (today those need a code or backup code).
 - SAML single logout; IdP-initiated sign-in (currently refused on purpose).
