@@ -57,6 +57,9 @@ description: What's protected, how, and what's still your responsibility.
 | Replayed 2FA code | Each accepted 30-second window can only be used once |
 | Phishing | Passkeys only work on your real domain |
 | Adding a backdoor passkey from a hijacked session | Registration needs a session started in the last 15 minutes |
+| Stealing a session to weaken two-factor | Turning 2FA off, adding or removing a factor, and new backup codes need a current code or a security key touch (valid 2 minutes, once, for that session only) |
+| Skipping company sign-in | With "SSO required", password, email code, magic link, passkey, social sign-in and password reset are refused for those domains, and switching it on signs out everyone already in |
+| A leaked or over-broad provisioning token | The SCIM token is random, only its SHA-256 is stored, it works for one connection's own domains and people only, and the last admin of an organization is never demoted by a group push |
 | Cloned security key | Signature counters must always increase |
 | Code guessing | 6 digits, 5 guesses, 10 minutes, single use |
 | Stolen database dump | Personal data encrypted; passwords hashed; tokens hashed |

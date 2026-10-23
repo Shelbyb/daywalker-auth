@@ -78,6 +78,17 @@ curl https://users.daywalker.dev/v1/users?limit=5 \
   -H "Authorization: Bearer $DAYWALKER_SECRET_KEY"
 ```
 
+## Enterprise SSO and SCIM
+
+| Endpoint | Description |
+| --- | --- |
+| `GET` / `POST /v1/saml_connections` | List or create SAML connections (`name`, `domains`, `organizationId?`, `metadataXml` or `idpEntityId` + `ssoUrl` + `certificates`) |
+| `GET` / `PATCH` / `DELETE /v1/saml_connections/{id}` | Read, update, delete. `PATCH` accepts `enabled`, `ssoRequired` and `scimAdminGroups` |
+| `POST /v1/saml_connections/{id}/scim_token` | Turn on SCIM provisioning. Returns the token **once**; calling again replaces it |
+| `DELETE /v1/saml_connections/{id}/scim_token` | Turn SCIM off and revoke the token |
+
+The identity provider itself calls `/v1/scim/v2/{connectionId}/Users` and `/Groups` with the SCIM token. See [Enterprise SSO](/docs/guides/enterprise-sso).
+
 ## Organizations
 
 | Endpoint | Description |

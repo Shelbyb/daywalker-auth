@@ -17,7 +17,11 @@ You add a few lines of code to your app; Daywalker Auth does the rest.
 - **Hosted sign-in and sign-up pages.** Send people there and they come back signed in. No forms to build.
 - **Email verification and password reset**, with one-time codes sent by email.
 - **Social sign-in** with Google, GitHub, Microsoft, Apple, Discord, GitLab or any OpenID Connect provider, with safe account linking.
-- **Two-factor authentication** with authenticator apps and backup codes.
+- **Two-factor authentication** with authenticator apps, text messages (SMS), hardware security keys and backup codes.
+- **Passwordless email**: magic links and one-time email codes.
+- **Enterprise SSO** with SAML, optional "SSO required" per company domain, and SCIM provisioning of users and groups.
+- **Organizations and invitations**, with roles, plus signed **webhooks** and a searchable **audit log**.
+- **Drop-in React components** (`<SignIn />`, `<SignUp />`, `<UserButton />`) that match the hosted pages.
 - **Passkeys**: passwordless sign-in with Face ID, fingerprints or a device PIN.
 - **A hosted account page** where users manage their profile, password, 2FA and signed-in devices.
 - **An SDK for Next.js and React** that tells any component or server route who the current user is.

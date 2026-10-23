@@ -27,7 +27,11 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `signIn({ email, password })` | Resolves `{ status: "complete", user }` or `{ status: "needs_second_factor" }` |
 | `completeSecondFactor(code)` | Finishes a 2FA sign-in with an authenticator or backup code |
 | `startTotpSetup()` / `confirmTotpSetup(code)` | Turn on 2FA; confirm returns backup codes |
-| `disableTwoFactor(code)` / `regenerateBackupCodes(code)` | Manage 2FA; both need a current code |
+| `disableTwoFactor(code?)` / `regenerateBackupCodes(code?)` | Manage 2FA; both need a current code, or call `confirmWithSecurityKey()` first and pass none |
+| `startSmsSetup(phone, code?)` / `confirmSmsSetup(code)` / `removeSmsPhone(code?)` | SMS as a second factor (when the app allows it) |
+| `addSecurityKey({ name?, currentCode? })` / `listSecurityKeys()` / `renameSecurityKey(id, name)` / `removeSecurityKey(id, code?)` | Security keys (YubiKey and similar) as a second factor |
+| `completeSecondFactorWithSecurityKey()` | Finishes a 2FA sign-in by touching a key |
+| `confirmWithSecurityKey()` | Confirms one sensitive change (add/remove a factor, turn 2FA off, new backup codes) with a key instead of a code, for two minutes |
 | `signUp({ email, password, firstName?, lastName? })` | Creates the account and signs in |
 | `signOut()` | Ends the session here and in other tabs |
 | `getToken({ force? })` | A valid session token, or `null` |

@@ -75,8 +75,10 @@ Your app's origin must be in the instance's **allowed origins** (dashboard → S
 
 | Component | Props |
 |---|---|
-| `<SignIn>` | `redirectUrl?`, `onSignedIn?(user)`, `signUpUrl?`, `appearance?` |
-| `<SignUp>` | `redirectUrl?`, `onSignedIn?(user)`, `signInUrl?`, `appearance?` |
+| `<SignIn>` | `redirectUrl?`, `onSignedIn?(user)`, `signUpUrl?`, `appearance?`, `initialEnvironment?`, `initialError?`, `signedIn?` |
+| `<SignUp>` | `redirectUrl?`, `onSignedIn?(user)`, `signInUrl?`, `appearance?`, `initialEnvironment?`, `initialError?`, `signedIn?` |
+
+`initialEnvironment` is the settings you already fetched on the server (skips the request and the loading flash), `initialError` is an error code from a redirect back (shown as a fixed message, never raw text from the URL), and `signedIn` shows the signed-in state straight away. The hosted sign-in and sign-up pages at `users.daywalker.dev` are these same components, so what you build matches them.
 | `<UserButton>` | `afterSignOutUrl?`, `className?`, `appearance?` |
 | `<OrganizationSwitcher>` | `hidePersonal?`, `onChange?(org)`, `appearance?` |
 

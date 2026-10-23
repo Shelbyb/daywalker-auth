@@ -39,6 +39,16 @@ POST /v1/client/sign_in/second_factor   { "code": "123456" }   // or a backup co
 
 Needs the pending cookie from `sign_in`. `200` → `{ status: "complete", user, sessionId, jwt }`. Five wrong codes void the attempt (`401`).
 
+## Single sign-on
+
+```http
+POST /v1/client/sso/check  { "email" }   → { sso, connectionName, required }
+GET  /v1/client/sso/start?pk=…&email=…&redirect_url=…   // navigate the browser here; it redirects to the company sign-in page
+GET  /v1/client/environment              → { name, oauthProviders, passwordMinLength, legal, emailCodeSignIn, ssoEnabled, smsSecondFactor, ... }
+```
+
+When `required` is true, every other sign-in method for that address answers `403 sso_required`.
+
 ## Two-factor setup (signed in)
 
 ```http
@@ -48,11 +58,41 @@ POST /v1/client/mfa/totp/disable { code } → { enabled: false }
 POST /v1/client/mfa/backup_codes { code } → { backupCodes: [...] }
 ```
 
+Turning 2FA off, making new backup codes, and adding or removing any factor need a current code (authenticator, texted or backup), or a security key touch made earlier in the same session (see below).
+
+### SMS
+
+```http
+POST /v1/client/mfa/sms          { phone, code? }  → { phone }      // texts a code; `code` needed if 2FA is already on
+POST /v1/client/mfa/sms/verify   { code }          → { backupCodes }
+POST /v1/client/mfa/sms/send                       → { phone }      // text a code to confirm a change
+POST /v1/client/mfa/sms/remove   { code }          → { removed: true }
+POST /v1/client/sign_in/second_factor/sms          // text a code during sign-in
+```
+
+Only numbers in the countries the instance allows can be added (`sms_country_not_allowed`).
+
+### Security keys
+
+```http
+GET    /v1/client/mfa/security_keys                         → { securityKeys: [{ id, name, createdAt, lastUsedAt }] }
+POST   /v1/client/mfa/security_keys/register/options { code? } → WebAuthn registration options
+POST   /v1/client/mfa/security_keys/register/verify  { response, name? } → { id, backupCodes }
+PATCH  /v1/client/mfa/security_keys/{id}            { name }
+POST   /v1/client/mfa/security_keys/{id}/remove     { code? }
+POST   /v1/client/sign_in/second_factor/security_key         → WebAuthn authentication options (needs the pending cookie)
+POST   /v1/client/sign_in/second_factor             { response }  // the key's answer; or { code, method? }
+```
+
+Registering needs a sign-in from the last 15 minutes, and a current code if 2FA is already on. An account can hold 5 keys. A key is only ever a second factor; it can't sign anyone in alone.
+
+**Confirming with a key instead of a code.** `POST /v1/client/mfa/security_keys/confirm/options` returns authentication options; `POST /v1/client/mfa/security_keys/confirm { response }` checks the answer and, for two minutes, lets that session make **one** sensitive change above by omitting `code`.
+
 ## Account (signed in)
 
 ```http
 PATCH /v1/client/me                  { "firstName": "Grace", "lastName": null } → { user }
-GET   /v1/client/me/security         → { hasPassword, twoFactorEnabled, backupCodesRemaining, connectedAccounts }
+GET   /v1/client/me/security         → { hasPassword, twoFactorEnabled, totpEnabled, smsPhone, smsAvailable, securityKeys, backupCodesRemaining, connectedAccounts }
 POST  /v1/client/password/change     { "currentPassword", "newPassword" } → { changed, otherSessionsSignedOut }
 GET   /v1/client/sessions            → { sessions: [{ id, current, device, ipHint, lastActiveAt, createdAt }] }
 POST  /v1/client/sessions/{id}/revoke

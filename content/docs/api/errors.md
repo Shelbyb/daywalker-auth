@@ -53,6 +53,15 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `passkey_exists` | 409 | This device already has a passkey for the account | Nothing to do |
 | `too_many_passkeys` | 400 | Already 10 passkeys | Remove one first |
 | `passkey_cancelled` / `passkey_unsupported` | — | Browser prompt closed, or no passkey support (SDK only) | Hide passkey options or let the user retry |
+| `sso_required` | 403 | The email's domain requires single sign-on | Send the person through “Sign in with SSO” |
+| `sso_not_configured` | — | SSO was tried for a domain with no enabled connection (in the `error` query param) | Use another sign-in method |
+| `code_required` | 400 | Adding a factor needs a current code or a security key confirmation | Ask for a code, or call `confirmWithSecurityKey()` |
+| `security_key_invalid` | 400 | The key's answer couldn't be verified | Try again, or use a code |
+| `security_key_cancelled` / `security_key_unsupported` | — | Browser prompt closed, or no security key support (SDK only) | Let the person retry or use a code |
+| `security_key_exists` / `too_many_keys` | 409 / 400 | Key already added, or 5 keys already | Nothing to do / remove one first |
+| `no_security_key` | 400 | A key action on an account with no keys | Use a code |
+| `sms_failed` / `sms_disabled` | 400 | The text couldn't be sent, or SMS isn't on for this app | Check the number, or use another method |
+| `sms_country_not_allowed` | 400 | Numbers in that country aren't allowed | Use another method |
 | `already_verified` | 400 | Email is already verified | Nothing to do |
 | `unauthenticated` | 401 | No valid session or key | Sign in, or check your keys |
 | `forbidden` | 403 | Origin not allowed, or account suspended | Add the origin, or contact support |
