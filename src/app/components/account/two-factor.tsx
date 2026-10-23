@@ -1,19 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import type { SecurityInfo } from "@daywalker/auth";
 import { hostedClient } from "../hosted-client";
 import { Card, Field, Button, Notice, Badge, useAction } from "./ui";
 
-type Action = "disable" | "rotate" | "remove-phone" | "add-app" | "add-phone";
+type Action = "disable" | "rotate" | "remove-phone" | "add-app" | "add-phone" | "add-key" | "remove-key";
 type Step =
   | { kind: "idle" }
   | { kind: "scan"; qr: string; secret: string }
   | { kind: "phone"; currentCode?: string }
   | { kind: "phone-code"; phone: string }
+  | { kind: "key-name"; currentCode?: string }
   | { kind: "codes"; codes: string[] }
-  | { kind: "confirm"; action: Action };
+  | { kind: "confirm"; action: Action; keyId?: string };
 
 const PROMPT: Record<Action, string> = {
   disable: "To turn off two-step verification",
@@ -21,7 +22,10 @@ const PROMPT: Record<Action, string> = {
   "remove-phone": "To remove your phone",
   "add-app": "To add an authenticator app",
   "add-phone": "To add a phone",
+  "add-key": "To add a security key",
+  "remove-key": "To remove this security key",
 };
+const MAX_KEYS = 5;
 
 export function TwoFactorSection({ pk, security, onChanged }: { pk: string; security: SecurityInfo; onChanged: () => void }) {
   const client = hostedClient(pk);
@@ -30,6 +34,10 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
   const [texted, setTexted] = useState<string | null>(null);
   const on = security.twoFactorEnabled;
   const canAddPhone = security.smsAvailable && !security.smsPhone;
+  const keys = security.securityKeys ?? [];
+  const [webauthn, setWebauthn] = useState(false); // only known in the browser
+  useEffect(() => setWebauthn(client.passkeysSupported()), [client]);
+  const canAddKey = webauthn && keys.length < MAX_KEYS;
 
   const startApp = (currentCode?: string) =>
     a.run(async () => {
@@ -47,11 +55,12 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
   };
 
   return (
-    <Card title="Two-step verification" description="Ask for a second code when you sign in: from an authenticator app, or texted to your phone.">
+    <Card title="Two-step verification" description="Ask for a second step when you sign in: a code from an authenticator app, a text message, or a security key.">
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {on ? <Badge tone="good">On</Badge> : <Badge>Off</Badge>}
         {security.totpEnabled && <Badge>Authenticator app</Badge>}
         {security.smsPhone && <Badge>Text message to {security.smsPhone}</Badge>}
+        {keys.length > 0 && <Badge>{keys.length} security key{keys.length === 1 ? "" : "s"}</Badge>}
         {on && <span className="text-xs text-stone-500">{security.backupCodesRemaining} backup code{security.backupCodesRemaining === 1 ? "" : "s"} left</span>}
       </div>
 
@@ -67,10 +76,51 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
               {on ? "Add a phone" : "Use text messages"}
             </Button>
           )}
+          {canAddKey && (
+            <Button variant="secondary" onClick={() => (on ? setStep({ kind: "confirm", action: "add-key" }) : setStep({ kind: "key-name" }))}>
+              Add a security key
+            </Button>
+          )}
           {security.smsPhone && <Button variant="secondary" onClick={() => setStep({ kind: "confirm", action: "remove-phone" })}>Remove phone</Button>}
           {on && <Button variant="secondary" onClick={() => setStep({ kind: "confirm", action: "rotate" })}>New backup codes</Button>}
           {on && <Button variant="danger" onClick={() => setStep({ kind: "confirm", action: "disable" })}>Turn off</Button>}
         </div>
+      )}
+
+      {step.kind === "idle" && keys.length > 0 && (
+        <ul className="mt-4 divide-y divide-stone-100 rounded-lg border border-stone-200 text-sm">
+          {keys.map((k) => (
+            <li key={k.id} className="flex items-center justify-between gap-3 px-3 py-2">
+              <span>
+                <span className="font-medium">{k.name}</span>
+                <span className="ml-2 text-xs text-stone-500">{k.lastUsedAt ? `Used ${new Date(k.lastUsedAt).toLocaleDateString()}` : "Never used"}</span>
+              </span>
+              <Button variant="secondary" onClick={() => setStep({ kind: "confirm", action: "remove-key", keyId: k.id })}>Remove</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {step.kind === "key-name" && (
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const name = String(new FormData(e.currentTarget).get("name") ?? "");
+            a.run(async () => {
+              const r = await client.addSecurityKey({ name, currentCode: step.currentCode });
+              return done(r.backupCodes, "Security key added.");
+            });
+          }}
+        >
+          <p className="text-sm text-stone-600">Give the key a name you&apos;ll recognise, then press Continue and touch the key when your browser asks.</p>
+          <Field label="Name" name="name" placeholder="YubiKey on my keychain" maxLength={60} />
+          {a.error && <Notice tone="error">{a.error}</Notice>}
+          <div className="flex gap-2">
+            <Button disabled={a.busy}>Continue</Button>
+            <Button type="button" variant="secondary" onClick={() => setStep({ kind: "idle" })}>Cancel</Button>
+          </div>
+        </form>
       )}
 
       {step.kind === "scan" && (
@@ -168,6 +218,11 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
             a.run(async () => {
               if (action === "add-app") return void startApp(code);
               if (action === "add-phone") return void setStep({ kind: "phone", currentCode: code });
+              if (action === "add-key") return void setStep({ kind: "key-name", currentCode: code });
+              if (action === "remove-key") {
+                await client.removeSecurityKey(step.keyId ?? "", code);
+                return done([], "Security key removed.");
+              }
               if (action === "disable") {
                 await client.disableTwoFactor(code);
                 return done([], "Two-step verification is off.");
@@ -182,7 +237,7 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
           }}
         >
           <p className="text-sm text-stone-600">
-            {PROMPT[step.action]}, enter a code from your authenticator app{security.smsPhone ? ", a texted code" : ""} or a backup code.
+            {PROMPT[step.action]}, enter {[security.totpEnabled && "a code from your authenticator app", security.smsPhone && "a texted code", "a backup code"].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " or $1")}.
           </p>
           <Field label="Code" name="code" autoComplete="one-time-code" required maxLength={11} />
           {security.smsPhone && (
@@ -196,7 +251,7 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
           )}
           {a.error && <Notice tone="error">{a.error}</Notice>}
           <div className="flex gap-2">
-            <Button variant={step.action === "disable" || step.action === "remove-phone" ? "danger" : "primary"} disabled={a.busy}>Continue</Button>
+            <Button variant={step.action === "disable" || step.action === "remove-phone" || step.action === "remove-key" ? "danger" : "primary"} disabled={a.busy}>Continue</Button>
             <Button type="button" variant="secondary" onClick={() => { setStep({ kind: "idle" }); setTexted(null); }}>Cancel</Button>
           </div>
         </form>

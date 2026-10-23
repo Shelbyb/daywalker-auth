@@ -261,6 +261,30 @@ export const passkeys = pgTable(
   ],
 );
 
+/**
+ * Security keys registered as a *second* factor. Kept apart from `passkeys` on purpose: a passkey can
+ * sign someone in on its own, a security key never can.
+ */
+export const mfaSecurityKeys = pgTable(
+  "mfa_security_keys",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    credentialId: text("credential_id").notNull(), // base64url
+    publicKey: text("public_key").notNull(), // base64url COSE key
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
+    transports: jsonb("transports").$type<string[]>().notNull().default([]),
+    name: text("name").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("mfa_security_keys_instance_credential_idx").on(t.instanceId, t.credentialId),
+    index("mfa_security_keys_user_idx").on(t.userId),
+  ],
+);
+
 /** Proof that a user accepted a given version of the instance's terms, and when. */
 export const legalAcceptances = pgTable(
   "legal_acceptances",

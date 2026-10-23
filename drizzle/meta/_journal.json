@@ -99,6 +99,13 @@
       "when": 1792758678509,
       "tag": "0013_sso_required",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792759172511,
+      "tag": "0014_security_keys",
+      "breakpoints": true
     }
   ]
 }

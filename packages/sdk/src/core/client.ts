@@ -34,10 +34,13 @@ export type SecurityInfo = {
   smsPhone: string | null;
   /** This app allows SMS two-factor. */
   smsAvailable: boolean;
+  /** Security keys (YubiKey and similar) used as a second factor. */
+  securityKeys: SecurityKeyInfo[];
   backupCodesRemaining: number;
   connectedAccounts: { provider: OAuthProvider; createdAt: string }[];
 };
 
+export type SecurityKeyInfo = { id: string; name: string; lastUsedAt: string | null; createdAt: string };
 export type PasskeyInfo = { id: string; name: string; synced: boolean; lastUsedAt: string | null; createdAt: string };
 
 export type OrgRole = "admin" | "member";
@@ -226,7 +229,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
 
   /** During sign-in: which second factors the account has. `sms` is the masked phone or null. */
   function getSecondFactorOptions() {
-    return request<{ totp: boolean; sms: string | null; backupCodes: boolean }>("sign_in/second_factor/options", { method: "POST" });
+    return request<{ totp: boolean; sms: string | null; securityKey: boolean; backupCodes: boolean }>("sign_in/second_factor/options", { method: "POST" });
   }
 
   /** During sign-in: text a code to the account's phone, then call completeSecondFactor(code, "sms"). */
@@ -439,6 +442,56 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     await request(`passkeys/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
+  function securityKeyError(e: unknown): never {
+    if (e instanceof AuthError) throw e;
+    const name = (e as { name?: string })?.name;
+    if (name === "NotAllowedError" || name === "AbortError") throw new AuthError(0, "security_key_cancelled", "The security key prompt was closed or timed out");
+    if (name === "InvalidStateError") throw new AuthError(0, "security_key_exists", "This security key is already registered");
+    throw new AuthError(0, "security_key_unsupported", "This browser couldn't use a security key");
+  }
+
+  /**
+   * Adds a security key (YubiKey and similar) as a second factor. Needs a recent sign-in, and a current
+   * code (`currentCode`) if two-factor is already on. Returns backup codes (shown once) when this turned two-factor on.
+   */
+  async function addSecurityKey(opts: { name?: string; currentCode?: string } = {}) {
+    const optionsJSON = await request<Parameters<typeof startRegistration>[0]["optionsJSON"]>("mfa/security_keys/register/options", { method: "POST", body: JSON.stringify({ code: opts.currentCode }) });
+    let response;
+    try {
+      response = await startRegistration({ optionsJSON });
+    } catch (e) {
+      securityKeyError(e);
+    }
+    const r = await request<{ id: string; backupCodes: string[] }>("mfa/security_keys/register/verify", { method: "POST", body: JSON.stringify({ response, name: opts.name }) });
+    if (state.user) setState({ user: { ...state.user, twoFactorEnabled: true } });
+    return r;
+  }
+
+  async function listSecurityKeys() {
+    return (await request<{ securityKeys: SecurityKeyInfo[] }>("mfa/security_keys", { method: "GET" })).securityKeys;
+  }
+
+  async function renameSecurityKey(id: string, name: string) {
+    await request(`mfa/security_keys/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ name }) });
+  }
+
+  /** Remove a security key. Needs a current code (authenticator, texted or backup). */
+  async function removeSecurityKey(id: string, code: string) {
+    await request(`mfa/security_keys/${encodeURIComponent(id)}/remove`, { method: "POST", body: JSON.stringify({ code }) });
+  }
+
+  /** During sign-in: finish with a security key. The browser asks the person to touch it. */
+  async function completeSecondFactorWithSecurityKey() {
+    const optionsJSON = await request<Parameters<typeof startAuthentication>[0]["optionsJSON"]>("sign_in/second_factor/security_key", { method: "POST" });
+    let response;
+    try {
+      response = await startAuthentication({ optionsJSON });
+    } catch (e) {
+      securityKeyError(e);
+    }
+    return finishSignIn(await request<Completed>("sign_in/second_factor", { method: "POST", body: JSON.stringify({ response }) }));
+  }
+
   const orgPath = (id: string, rest = "") => `organizations/${encodeURIComponent(id)}${rest}`;
   const json = (body: unknown, method = "POST") => ({ method, body: JSON.stringify(body) });
 
@@ -551,6 +604,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     confirmSmsSetup,
     sendSmsCode,
     removeSmsPhone,
+    addSecurityKey,
+    listSecurityKeys,
+    renameSecurityKey,
+    removeSecurityKey,
+    completeSecondFactorWithSecurityKey,
     startTotpSetup,
     confirmTotpSetup,
     disableTwoFactor,

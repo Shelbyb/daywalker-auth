@@ -68,6 +68,11 @@ export function useAuth() {
     confirmSmsSetup: c.confirmSmsSetup,
     sendSmsCode: c.sendSmsCode,
     removeSmsPhone: c.removeSmsPhone,
+    addSecurityKey: c.addSecurityKey,
+    listSecurityKeys: c.listSecurityKeys,
+    renameSecurityKey: c.renameSecurityKey,
+    removeSecurityKey: c.removeSecurityKey,
+    completeSecondFactorWithSecurityKey: c.completeSecondFactorWithSecurityKey,
     startTotpSetup: c.startTotpSetup,
     confirmTotpSetup: c.confirmTotpSetup,
     disableTwoFactor: c.disableTwoFactor,
@@ -146,5 +151,5 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
   );
 }
 
-export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
+export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
 export { SignIn, SignUp, UserButton, OrganizationSwitcher, type Appearance } from "./components";

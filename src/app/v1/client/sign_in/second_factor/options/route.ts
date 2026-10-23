@@ -11,5 +11,5 @@ export const POST = handler(async (req: Request) => {
   const userId = await pendingUser(ctx.inst.id, ctx.twoFactorToken);
   if (!userId) throw errors.unauthorized("Your sign-in attempt expired. Please sign in again");
   const m = await twoFactorMethods(userId);
-  return ctx.json({ totp: m.totp, sms: m.sms, backupCodes: m.backupCodes > 0 });
+  return ctx.json({ totp: m.totp, sms: m.sms, securityKey: m.securityKeys > 0, backupCodes: m.backupCodes > 0 });
 });

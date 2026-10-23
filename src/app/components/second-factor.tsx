@@ -13,12 +13,14 @@ export function SecondFactorStep({ pk, onDone }: { pk: string; onDone: (name: st
   const [smsPhone, setSmsPhone] = useState<string | null>(null);
   const [texted, setTexted] = useState(false);
   const [onlySms, setOnlySms] = useState(false);
+  const [securityKey, setSecurityKey] = useState(false);
   useEffect(() => {
     hostedClient(pk)
       .getSecondFactorOptions()
       .then((o) => {
         setSmsPhone(o.sms);
         setOnlySms(!o.totp && !!o.sms);
+        setSecurityKey(o.securityKey);
       })
       .catch(() => {});
   }, [pk]);
@@ -31,6 +33,19 @@ export function SecondFactorStep({ pk, onDone }: { pk: string; onDone: (name: st
       setUseBackup(false);
     } catch (err) {
       setError(err instanceof AuthError ? err.message : "Network error. Try again.");
+    }
+  }
+
+  async function useKey() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { user } = await hostedClient(pk).completeSecondFactorWithSecurityKey();
+      onDone(user.firstName || user.emailAddresses[0]?.email || "");
+    } catch (err) {
+      if (!(err instanceof AuthError && err.code === "security_key_cancelled")) setError(err instanceof AuthError ? err.message : "Network error. Try again.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -76,6 +91,11 @@ export function SecondFactorStep({ pk, onDone }: { pk: string; onDone: (name: st
       </label>
       {error && <Alert>{error}</Alert>}
       <Submit busy={busy}>Verify</Submit>
+      {securityKey && !useBackup && (
+        <button type="button" disabled={busy} onClick={() => void useKey()} className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium hover:bg-stone-50 disabled:opacity-60">
+          Use a security key
+        </button>
+      )}
       {smsPhone && !useBackup && (
         <button type="button" onClick={() => void text()} className="w-full text-center text-sm text-stone-500 hover:text-ink">
           {texted ? "Send another code" : `Text a code to ${smsPhone}`}

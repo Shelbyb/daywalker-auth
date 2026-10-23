@@ -9,6 +9,14 @@ import { errors } from "../http";
 import { newTotpSecret, matchTotp, otpauthUri } from "./totp";
 import type { Instance } from "../db/schema";
 import { rateLimit } from "../cache";
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simplewebauthn/server";
+import {
+  countSecurityKeys,
+  deleteSecurityKeyRow,
+  securityKeyRegistrationOptions,
+  verifySecurityKeyAuthentication,
+  verifySecurityKeyRegistration,
+} from "./security-keys";
 import { checkSmsCode, maskPhone, normalizePhone, phoneInAllowedCountry, sendSmsCode, smsConfigured } from "../sms";
 
 const secretCtx = (userId: string) => `mfa_totp.secret:${userId}`;
@@ -32,15 +40,15 @@ async function smsPhone(userId: string, verified = true) {
   return row ? decrypt(row.phoneEnc, phoneCtx(userId)) : null;
 }
 
-/** On when an authenticator app or a verified phone is set up. */
+/** On when an authenticator app, a verified phone or a security key is set up. */
 export async function hasTwoFactor(userId: string) {
-  return (await totpOn(userId)) || (await smsPhone(userId)) !== null;
+  return (await totpOn(userId)) || (await smsPhone(userId)) !== null || (await countSecurityKeys(userId)) > 0;
 }
 
 /** Which second factors this user can use right now (for the sign-in and account screens). */
 export async function twoFactorMethods(userId: string) {
   const phone = smsConfigured() ? await smsPhone(userId) : null;
-  return { totp: await totpOn(userId), sms: phone ? maskPhone(phone) : null, backupCodes: await remainingBackupCodes(userId) };
+  return { totp: await totpOn(userId), sms: phone ? maskPhone(phone) : null, securityKeys: await countSecurityKeys(userId), backupCodes: await remainingBackupCodes(userId) };
 }
 
 // ---------- Enrollment ----------
@@ -70,7 +78,7 @@ export async function confirmTotpEnrollment(userId: string, code: string) {
   if (!row) throw errors.badRequest("no_pending_enrollment", "Start two-factor setup first");
   if (!(await consumeTotp(userId, decrypt(row.secretEnc, secretCtx(userId)), code)))
     throw errors.badRequest("invalid_code", "That code is incorrect. Check your device's clock and try again");
-  const hadSms = (await smsPhone(userId)) !== null;
+  const hadSms = (await smsPhone(userId)) !== null || (await countSecurityKeys(userId)) > 0;
   await db().update(schema.mfaTotp).set({ verifiedAt: new Date() }).where(eq(schema.mfaTotp.userId, userId));
   void recordForUser(userId, "user.two_factor_enabled", { data: { method: "totp" } });
   // Backup codes are made when two-factor is first turned on; adding a second method keeps them.
@@ -82,6 +90,7 @@ export async function disableTwoFactor(userId: string, code: string) {
   if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
   await db().delete(schema.mfaTotp).where(eq(schema.mfaTotp.userId, userId));
   await db().delete(schema.mfaSms).where(eq(schema.mfaSms.userId, userId));
+  await db().delete(schema.mfaSecurityKeys).where(eq(schema.mfaSecurityKeys.userId, userId));
   await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
   void recordForUser(userId, "user.two_factor_disabled");
 }
@@ -96,6 +105,7 @@ export async function rotateBackupCodes(userId: string, code: string) {
 export async function adminResetTwoFactor(userId: string) {
   await db().delete(schema.mfaTotp).where(eq(schema.mfaTotp.userId, userId));
   await db().delete(schema.mfaSms).where(eq(schema.mfaSms.userId, userId));
+  await db().delete(schema.mfaSecurityKeys).where(eq(schema.mfaSecurityKeys.userId, userId));
   await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
   void recordForUser(userId, "user.two_factor_reset", { actor: { type: "api" } });
 }
@@ -205,7 +215,7 @@ export async function confirmSmsEnrollment(userId: string, code: string) {
   const phone = await smsPhone(userId, false);
   if (!phone) throw errors.badRequest("no_pending_enrollment", "Add a phone number first");
   if (!(await checkSmsCode(phone, code.trim()))) throw errors.badRequest("invalid_code", "That code is incorrect or has expired");
-  const hadTotp = await totpOn(userId);
+  const hadTotp = (await totpOn(userId)) || (await countSecurityKeys(userId)) > 0;
   await db().update(schema.mfaSms).set({ verifiedAt: new Date() }).where(eq(schema.mfaSms.userId, userId));
   void recordForUser(userId, "user.two_factor_enabled", { data: { method: "sms", phone: maskPhone(phone) } });
   return hadTotp && (await remainingBackupCodes(userId)) > 0 ? [] : regenerateBackupCodes(userId);
@@ -229,8 +239,33 @@ export async function removeSms(userId: string, code: string) {
     if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
   }
   await db().delete(schema.mfaSms).where(eq(schema.mfaSms.userId, userId));
-  if (!(await totpOn(userId))) await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
+  if (!(await hasTwoFactor(userId))) await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
   void recordForUser(userId, "user.two_factor_disabled", { data: { method: "sms" } });
+}
+
+// ---------- Security keys ----------
+
+/** Step 1 of adding a key. If two-factor is already on, a current code is required (same rule as every other factor). */
+export async function startSecurityKeyEnrollment(inst: Instance, userId: string, sessionId: string, currentCode?: string) {
+  if ((await hasTwoFactor(userId)) && !(currentCode && (await verifySecondFactor(userId, currentCode))))
+    throw errors.badRequest("code_required", "Enter a current two-factor code to add a security key");
+  return securityKeyRegistrationOptions(inst, userId, sessionId);
+}
+
+/** Step 2: the key's answer. Returns backup codes when this is what turns two-factor on. */
+export async function confirmSecurityKeyEnrollment(inst: Instance, userId: string, sessionId: string, response: RegistrationResponseJSON, label?: string) {
+  const hadOther = await hasTwoFactor(userId);
+  const id = await verifySecurityKeyRegistration(inst, userId, sessionId, response, label);
+  void recordForUser(userId, "user.two_factor_enabled", { data: { method: "security_key", keyId: id } });
+  return { id, backupCodes: hadOther && (await remainingBackupCodes(userId)) > 0 ? [] : await regenerateBackupCodes(userId) };
+}
+
+/** Removing a key needs a current code. If it was the last factor, two-factor turns off. */
+export async function removeSecurityKey(userId: string, id: string, code: string) {
+  if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
+  await deleteSecurityKeyRow(userId, id);
+  if (!(await hasTwoFactor(userId))) await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
+  void recordForUser(userId, "user.two_factor_disabled", { data: { method: "security_key", keyId: id } });
 }
 
 // ---------- Pending second factor (between password/OAuth and session) ----------
@@ -263,6 +298,26 @@ export async function completePendingSecondFactor(instanceId: string, token: str
   if (!(await verifySecondFactor(pending.userId, code, method))) {
     void record(instanceId, "user.two_factor_failed", { target: pending.userId, data: { attempt: attempts } });
     throw errors.badRequest("invalid_code", "That code is incorrect");
+  }
+  await cache().del(key);
+  return pending.userId;
+}
+
+/** Same attempt limit as codes, for a security key's answer. */
+export async function completePendingWithSecurityKey(inst: Instance, token: string | undefined, response: AuthenticationResponseJSON) {
+  if (!token) throw errors.unauthorized("Your sign-in attempt expired. Please sign in again");
+  const key = pendingKey(token);
+  const attempts = await cache().hincrby(key, "n", 1);
+  const raw = await cache().hget(key, "d");
+  if (!raw || attempts > MAX_ATTEMPTS) {
+    await cache().del(key);
+    throw errors.unauthorized("Your sign-in attempt expired. Please sign in again");
+  }
+  const pending = JSON.parse(decrypt(raw, "2fa_pending")) as { instanceId: string; userId: string };
+  if (pending.instanceId !== inst.id) throw errors.unauthorized();
+  if (!(await verifySecurityKeyAuthentication(inst, pending.userId, response))) {
+    void record(inst.id, "user.two_factor_failed", { target: pending.userId, data: { attempt: attempts, method: "security_key" } });
+    throw errors.badRequest("security_key_invalid", "That security key couldn't be verified");
   }
   await cache().del(key);
   return pending.userId;

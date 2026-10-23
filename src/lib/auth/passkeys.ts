@@ -32,7 +32,7 @@ export function rpId() {
 }
 
 /** This service, plus allowed app origins that fall under the RP ID. */
-function expectedOrigins(inst: Instance) {
+export function expectedOrigins(inst: Instance) {
   const id = rpId();
   const own = new URL(env().APP_URL).origin;
   const apps = inst.allowedOrigins.filter((o) => {

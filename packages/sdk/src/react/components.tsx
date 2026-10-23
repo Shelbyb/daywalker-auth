@@ -138,9 +138,21 @@ function SecondFactor({ a, onUser }: { a?: Appearance; onUser: (u: User) => void
   const [busy, setBusy] = useState(false);
   const [sms, setSms] = useState<string | null>(null);
   const [texted, setTexted] = useState(false);
+  const [key, setKey] = useState(false);
   useEffect(() => {
-    c.getSecondFactorOptions().then((o) => setSms(o.sms)).catch(() => {});
+    c.getSecondFactorOptions().then((o) => { setSms(o.sms); setKey(o.securityKey); }).catch(() => {});
   }, [c]);
+  async function useSecurityKey() {
+    setBusy(true);
+    setError(null);
+    try {
+      onUser((await c.completeSecondFactorWithSecurityKey()).user);
+    } catch (err) {
+      if (!(err instanceof AuthError && err.code === "security_key_cancelled")) setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -159,6 +171,11 @@ function SecondFactor({ a, onUser }: { a?: Appearance; onUser: (u: User) => void
       <Field a={a} key={backup ? "b" : "t"} label={backup ? "Backup code" : "Authentication code"} name="code" autoComplete="one-time-code" inputMode={backup ? undefined : "numeric"} maxLength={backup ? 11 : 6} required autoFocus />
       {error && <Alert a={a}>{error}</Alert>}
       <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Verify"}</button>
+      {key && !backup && (
+        <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-security-key")} onClick={() => void useSecurityKey()}>
+          Use a security key
+        </button>
+      )}
       {sms && !backup && (
         <button type="button" className={cx(a, "link", "dw-link")} onClick={() => c.sendSecondFactorSms().then(() => setTexted(true)).catch((e) => setError(message(e)))}>
           {texted ? "Send another code" : `Text a code to ${sms}`}

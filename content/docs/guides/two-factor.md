@@ -1,6 +1,6 @@
 ---
 title: Two-factor authentication
-description: Ask for a code from an authenticator app as well as a password.
+description: Ask for a second step as well as a password: an authenticator app, a text message or a security key.
 ---
 
 With two-factor authentication (2FA) turned on, signing in needs **something you know** (a password, or a Google/GitHub account) **and something you have** (a phone with an authenticator app). A stolen password on its own is no longer enough.
@@ -169,6 +169,33 @@ await auth.completeSecondFactor(code, "sms");
 - Texts are limited per user, per phone number and per IP, so nobody can run up your Twilio bill.
 - Phone numbers are encrypted at rest and only ever shown masked. No SMS code is stored here; Twilio checks them, and each works once.
 - If you later turn the setting off, people who already use SMS can still sign in with it. Nobody gets locked out.
+
+## Security keys (YubiKey and similar)
+
+A hardware security key is the strongest second factor here: it can't be phished, because the key checks which website is asking, and nothing can be intercepted or SIM-swapped. It works with any FIDO2 key (YubiKey, Google Titan, Feitian, and others), and users can add up to 5.
+
+Nothing to switch on. If the browser supports it, the account page shows **Add a security key**, and sign-in offers **Use a security key**.
+
+**With the SDK**
+
+```ts
+// Account settings (needs a sign-in from the last 15 minutes)
+const { id, backupCodes } = await auth.addSecurityKey({ name: "YubiKey", currentCode }); // currentCode only if 2FA is already on
+const keys = await auth.listSecurityKeys();
+await auth.removeSecurityKey(keys[0].id, code);
+
+// Sign-in, after signIn() returned needs_second_factor
+const { securityKey } = await auth.getSecondFactorOptions(); // true if the account has one
+await auth.completeSecondFactorWithSecurityKey();            // the browser asks the person to touch the key
+```
+
+**Good to know**
+
+- **A security key is only a second factor.** It can never sign anyone in by itself. That's what [passkeys](/docs/guides/passkeys) are for, and they're stored separately.
+- Adding or removing a key needs a **current code**, like every other factor. If a key is someone's only factor, they use a backup code for that, so keep the backup codes safe.
+- The key's answer is checked against a one-time challenge for that sign-in. Replayed, forged and cloned keys (a signature counter that goes backwards) are refused, and five wrong tries void the sign-in.
+- Only the key's public half is stored. Removing the last factor turns two-factor off and clears the backup codes.
+- Keys work on your own domains the same way passkeys do. See `PASSKEY_RP_ID` in [passkeys](/docs/guides/passkeys) if your app runs on a different subdomain than the auth service.
 
 ## When a user is locked out
 
