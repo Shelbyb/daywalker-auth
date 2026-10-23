@@ -89,10 +89,18 @@ curl https://users.daywalker.dev/v1/users?limit=5 \
 
 The identity provider itself calls `/v1/scim/v2/{connectionId}/Users` and `/Groups` with the SCIM token. See [Enterprise SSO](/docs/guides/enterprise-sso).
 
+## Sign-up protection and two-factor policy
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /v1/instance/protection` | Email rules, the Turnstile site key (never the secret) and the two-factor requirement |
+| `PATCH /v1/instance/protection` | Any of `allowedDomains`, `blockedDomains`, `blockDisposableEmails`, `captcha` (`{ siteKey, secretKey }` or `null`), `requireTwoFactor`, `twoFactorGraceDays` |
+
 ## Organizations
 
 | Endpoint | Description |
 | --- | --- |
+| `GET` / `PATCH /v1/organizations/{orgId}` | One organization; `PATCH { requireTwoFactor }` |
 | `GET /v1/organizations?limit=&offset=` | List organizations in your instance |
 | `GET /v1/organizations/{orgId}/members` | Members as `{ userId, role, joinedAt }` |
 

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assertEmailAllowed } from "./signup-protection";
 import { DEFS, exchangeCode, labelFor, type Profile, type ProviderName, type ProviderSettings } from "./oauth-providers";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db";
@@ -184,6 +185,7 @@ export async function linkOrCreate(inst: Instance, provider: ProviderName | "sam
       // Only *new* accounts need to accept; existing users signing in with a provider don't.
       if (legalOf(inst).required && !legalAccepted)
         throw errors.badRequest("legal_required", "Please accept the terms to create an account");
+      if (provider !== "saml") assertEmailAllowed(inst, p.email); // sign-up rules; SSO is vouched for by the company
       uid = newId("user");
       await tx.insert(schema.users).values({
         id: uid,

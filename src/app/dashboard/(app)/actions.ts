@@ -5,7 +5,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import {
   banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser,
-  revokeKey, saveProvider, setProviderEnabled, updateLegal, updateSettings,
+  revokeKey, saveProvider, setProviderEnabled, updateLegal, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
 } from "@/lib/dashboard";
@@ -117,6 +117,26 @@ export async function updateSettingsAction(_prev: ActionState, fd: FormData): Pr
     });
     refresh(id);
     return { message: "Settings saved." };
+  });
+}
+
+export async function updateProtectionAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const list = (k: string) => str(fd, k, 10_000).split(/[\s,]+/).map((d) => d.trim().toLowerCase()).filter(Boolean);
+    const siteKey = str(fd, "captchaSiteKey", 200).trim(), secretKey = str(fd, "captchaSecretKey", 200).trim();
+    const grace = str(fd, "twoFactorGraceDays", 3).trim();
+    await updateProtectionFor(userId, id, {
+      allowedDomains: list("allowedDomains"),
+      blockedDomains: list("blockedDomains"),
+      blockDisposableEmails: fd.get("blockDisposableEmails") === "on",
+      captcha: siteKey ? { siteKey, ...(secretKey ? { secretKey } : {}) } : null,
+      requireTwoFactor: fd.get("requireTwoFactor") === "on",
+      ...(grace ? { twoFactorGraceDays: Number(grace) } : {}),
+    });
+    refresh(id);
+    return { message: "Protection settings saved." };
   });
 }
 

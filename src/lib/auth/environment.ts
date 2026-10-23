@@ -4,6 +4,7 @@ import { emailCodeEnabled } from "./email-sign-in";
 import { hasSso } from "./saml";
 import { smsAllowed } from "./mfa";
 import type { Instance } from "../db/schema";
+import { captchaInfo } from "./signup-protection";
 
 /** Public instance settings the sign-in UI needs. Nothing secret: shared by the API and the hosted pages. */
 export async function publicEnvironment(inst: Instance) {
@@ -17,5 +18,6 @@ export async function publicEnvironment(inst: Instance) {
     emailCodeSignIn: emailCodeEnabled(inst),
     ssoEnabled: await hasSso(inst.id),
     smsSecondFactor: smsAllowed(inst),
+    captcha: captchaInfo(inst),
   };
 }

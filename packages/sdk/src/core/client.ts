@@ -17,12 +17,15 @@ export type AuthState = {
   isLoaded: boolean;
   user: User | null;
   sessionId: string | null;
+  /** The app requires two-step verification and this person hasn't set it up: no session token until they do (send them to the account page). */
+  twoFactorSetupRequired?: boolean;
 };
 
 /** `needs_second_factor`: password/provider was right; call `completeSecondFactor(code)` next. */
 export type OAuthProvider = "google" | "github" | "microsoft" | "apple" | "discord" | "gitlab" | "oidc";
 
-export type SignInResult = { status: "complete"; user: User } | { status: "needs_second_factor" };
+/** `needs_two_factor_setup`: signed in, but the app requires two-step verification first (see `hostedUrl("account")`). */
+export type SignInResult = { status: "complete"; user: User } | { status: "needs_second_factor" } | { status: "needs_two_factor_setup"; user: User };
 
 export type SessionInfo = { id: string; current: boolean; device: string; ipHint: string | null; lastActiveAt: string; createdAt: string };
 export type SecurityInfo = {
@@ -38,13 +41,16 @@ export type SecurityInfo = {
   securityKeys: SecurityKeyInfo[];
   backupCodesRemaining: number;
   connectedAccounts: { provider: OAuthProvider; createdAt: string }[];
+  /** The app requires two-step verification (a reminder until `twoFactorGraceUntil`, required after). */
+  twoFactorRequired?: boolean;
+  twoFactorGraceUntil?: string | null;
 };
 
 export type SecurityKeyInfo = { id: string; name: string; lastUsedAt: string | null; createdAt: string };
 export type PasskeyInfo = { id: string; name: string; synced: boolean; lastUsedAt: string | null; createdAt: string };
 
 export type OrgRole = "admin" | "member";
-export type OrgInfo = { id: string; name: string; slug: string; role: OrgRole; createdAt?: string };
+export type OrgInfo = { id: string; name: string; slug: string; role: OrgRole; requireTwoFactor?: boolean; createdAt?: string };
 export type OrgMember = { userId: string; role: OrgRole; email?: string | null; firstName?: string | null; lastName?: string | null; joinedAt: string };
 export type OrgInvitation = { id: string; email: string; role: OrgRole; expiresAt: string; createdAt: string };
 
@@ -139,7 +145,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     token = null;
     clearTimeout(timer);
     writeCookies(null);
-    setState({ isLoaded: true, user: null, sessionId: null });
+    setState({ isLoaded: true, user: null, sessionId: null, twoFactorSetupRequired: false });
   }
 
   /** Returns a valid JWT, refreshing if needed. Concurrent callers share one request. */
@@ -153,6 +159,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       })
       .catch((e) => {
         if (e instanceof AuthError && e.status === 401) clearLocal();
+        if (e instanceof AuthError && e.code === "two_factor_setup_required") setState({ twoFactorSetupRequired: true });
         return null;
       })
       .finally(() => (inflight = null));
@@ -172,13 +179,13 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return state;
   }
 
-  type Completed = { status: "complete"; user: User; sessionId: string; jwt: string };
+  type Completed = { status: "complete"; user: User; sessionId: string; jwt: string | null; twoFactorSetupRequired?: boolean };
 
-  function finishSignIn(r: Completed): { status: "complete"; user: User } {
-    acceptToken(r.jwt);
-    setState({ isLoaded: true, user: r.user, sessionId: r.sessionId });
+  function finishSignIn(r: Completed): { status: "complete"; user: User } | { status: "needs_two_factor_setup"; user: User } {
+    if (r.jwt) acceptToken(r.jwt);
+    setState({ isLoaded: true, user: r.user, sessionId: r.sessionId, twoFactorSetupRequired: !r.jwt && r.twoFactorSetupRequired === true });
     channel?.postMessage("signed-in");
-    return { status: "complete", user: r.user };
+    return !r.jwt && r.twoFactorSetupRequired ? { status: "needs_two_factor_setup", user: r.user } : { status: "complete", user: r.user };
   }
 
   async function signIn(input: { email: string; password: string }): Promise<SignInResult> {
@@ -191,7 +198,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
    * whether or not the email has an account. `redirectUrl` is where the link lands after sign-in
    * (must be an allowed origin). Needs "Email sign-in" turned on for the instance.
    */
-  async function sendSignInCode(input: { email: string; redirectUrl?: string }) {
+  async function sendSignInCode(input: { email: string; redirectUrl?: string; /** Turnstile answer, when the app has the human check on. */ captchaToken?: string }) {
     await request("sign_in/email_code", { method: "POST", body: JSON.stringify(input) });
   }
 
@@ -299,10 +306,10 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** `legalAccepted` is required when the instance requires terms acceptance (see getEnvironment().legal). */
-  async function signUp(input: { email: string; password: string; firstName?: string; lastName?: string; legalAccepted?: boolean }) {
-    const r = await request<{ user: User; sessionId: string; jwt: string }>("sign_up", { method: "POST", body: JSON.stringify(input) });
-    acceptToken(r.jwt);
-    setState({ isLoaded: true, user: r.user, sessionId: r.sessionId });
+  async function signUp(input: { email: string; password: string; firstName?: string; lastName?: string; legalAccepted?: boolean; /** Turnstile answer, when the app has the human check on (see getEnvironment().captcha). */ captchaToken?: string }) {
+    const r = await request<{ user: User; sessionId: string; jwt: string | null; twoFactorSetupRequired?: boolean }>("sign_up", { method: "POST", body: JSON.stringify(input) });
+    if (r.jwt) acceptToken(r.jwt);
+    setState({ isLoaded: true, user: r.user, sessionId: r.sessionId, twoFactorSetupRequired: !r.jwt && r.twoFactorSetupRequired === true });
     channel?.postMessage("signed-in");
     return r.user;
   }
@@ -445,7 +452,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** Sign in with a passkey. No email needed: the user picks their passkey in the browser prompt. */
-  async function signInWithPasskey(): Promise<{ status: "complete"; user: User }> {
+  async function signInWithPasskey(): Promise<SignInResult> {
     const optionsJSON = await request<Parameters<typeof startAuthentication>[0]["optionsJSON"]>("passkeys/authenticate/options", { method: "POST" });
     let response;
     try {
@@ -533,6 +540,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
 
   async function renameOrganization(orgId: string, name: string) {
     await request(orgPath(orgId), json({ name }, "PATCH"));
+  }
+
+  /** Admins: require two-step verification for this organization's members. You need it on yourself first. */
+  async function setOrganizationTwoFactor(orgId: string, required: boolean) {
+    await request(orgPath(orgId), json({ requireTwoFactor: required }, "PATCH"));
   }
 
   async function deleteOrganization(orgId: string) {
@@ -655,6 +667,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     listOrganizations,
     createOrganization,
     renameOrganization,
+    setOrganizationTwoFactor,
     deleteOrganization,
     listOrgMembers,
     changeOrgRole,

@@ -85,6 +85,10 @@ const members = await backend.organizations.members(orgs[0].id); // [{ userId, r
 
 Organizations are scoped to your instance: another app's secret key can never see them.
 
+## Requiring two-factor
+
+An organization can require two-step verification for its members: `setOrganizationTwoFactor(orgId, true)` in the browser (admins only, and they need it on themselves first) or `PATCH /v1/organizations/{orgId} { "requireTwoFactor": true }` from your backend. Members without it don't get that organization's claims in their token until they turn it on. See [Requiring 2FA](/docs/guides/two-factor#requiring-2fa).
+
 ## Good to know
 
 - Non-members get a `404` for an organization, so its existence isn't revealed.

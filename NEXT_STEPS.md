@@ -44,6 +44,53 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
   `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
 - Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
+## Just finished: sign-up protection + required two-factor (migration 0018)
+
+Protection (`src/lib/auth/signup-protection.ts`, `instance-policy.ts`, `GET|PATCH /v1/instance/protection`, dashboard
+Settings card): allow/block domain lists (subdomains match), throwaway-address list (`disposable-email-domains`, ~120k),
+applied to new accounts from password sign-up and social sign-in (not SSO/SCIM); one generic `sign_up_not_allowed`.
+Turnstile on sign-up and email-code send: secret in `instances.captcha_secret_enc` (in rotation registry), server-side
+siteverify via guardedFetch, single use, fails closed; `TURNSTILE_TEST_BASE_URL` mock in tests; CSP `frame-src
+challenges.cloudflare.com`; components render the widget. Required 2FA (`two-factor-policy.ts`): app-wide after a grace
+period → `issueToken` refuses (`two_factor_setup_required`), sign-in returns `jwt: null, twoFactorSetupRequired`
+(session kept so the account page can enroll); SSO sessions exempt. Per org (`organizations.require_two_factor`): no
+org claims / can't activate without 2FA; admins need 2FA themselves to turn it on. SDK: `needs_two_factor_setup`,
+`state.twoFactorSetupRequired`, `captchaToken`, `setOrganizationTwoFactor`. Fixed: protection update merged into a
+cached instance and could undo other settings. `scripts/protection-e2e.ts` (~50 checks) in test:all and CI.
+Not covered by a test: the OAuth new-account path of the email rules (same function as sign-up), and the real
+Turnstile widget in a browser (needs Cloudflare keys and network).
+
+## Plans (approved order: 4, then 6, then 10)
+
+### 4. Custom session-token claims
+- Per-instance claim template in the dashboard/backend (`PUT /v1/instance/token_claims`): JSON object whose values are
+  `{{user.public_metadata.x}}`, `{{user.email}}`, `{{org.role}}`, `{{org.slug}}`, literals. No code execution: a small
+  path resolver over an allow-listed object (public metadata, primary email + verified, name, org id/slug/role).
+- Reserved claims (`sub sid iss aud azp exp iat nbf org_id org_role act`) can't be overridden; max 4 KB rendered (tokens
+  ride in headers/cookies); private metadata never reachable.
+- Rendered in `issueToken` (cache rendered claims 60 s per session to keep refresh cheap; bust on user/org update).
+- SDK `verifyToken` returns them as-is; types via generic `verifyToken<Claims>()`. Docs + e2e (reserved claim refused,
+  private metadata unreachable, size limit, updates visible within a minute).
+
+### 6. Support impersonation
+- Backend only: `POST /v1/users/{id}/impersonation { actor: "support@…", reason, minutes ≤ 60 }` returns a one-time
+  sign-in URL (token hashed, 60 s to use). Dashboard button with a required reason.
+- Creates a normal session flagged `impersonated_by` (new `sessions.actor` columns), JWT gets RFC 8693 `act: { sub }`;
+  max 60 min, can't be refreshed past that, no "remember me".
+- While impersonating: can't change password/email/2FA/passkeys/security keys, delete the account, or create API-ish
+  credentials (403 `impersonation_forbidden`); hosted pages and `<UserButton>` show a banner with "End".
+- Not allowed for: banned users, users in an org requiring 2FA? (allowed, but audited), the platform's own dashboard
+  instance. Audit `user.impersonation_started/ended` with actor + reason; webhook `session.impersonation_started`.
+- Server SDK: `auth()` exposes `actor`; docs advise apps to log it. e2e: one-time URL, expiry, forbidden actions, audit.
+
+### 10. Sign-in analytics dashboard
+- Daily rollups table (`analytics_daily`: instance, day, sign_ups, sign_ins, active_users (HyperLogLog in Valkey per
+  day → count), failed_sign_ins, mfa_users) updated from the audit events already written (no new tracking, no IPs).
+- Backfill job from `audit_events` (90 days) + nightly rollup via the existing worker/cron route.
+- Dashboard "Overview" page: 30/90-day charts (inline SVG, CSP-safe, no chart library), 2FA adoption %, sign-in
+  methods split, top failure reasons. Backend `GET /v1/analytics?from&to`.
+- Privacy: aggregates only, counts < 5 shown as "<5" to avoid singling people out.
+
 ## Just finished: SAML single logout (migration 0017)
 
 `/v1/saml/{id}/slo` (GET redirect + POST binding). IdP-initiated: signed LogoutRequest → revoke every session linked to that
@@ -112,6 +159,8 @@ Adding any second factor to an account that already has one requires a current c
 redirect URL the form stayed on the 2FA step.
 
 ## Possible follow-ups (not started; ask Shelby)
+
+- After 4/6/10, the rest of the feature list: new-device sign-in alerts, invite-only/waitlist sign-up, self-service account deletion + data export, username/phone sign-in, custom org roles/permissions + verified-domain auto-join, acting as an OIDC provider.
 
 - Try SCIM (Users and Groups) against a real Okta or Entra ID trial; only simulated IdP calls are tested so far.
 - IdP-initiated SAML sign-in stays refused on purpose (unsolicited assertions); revisit only if a customer needs it.

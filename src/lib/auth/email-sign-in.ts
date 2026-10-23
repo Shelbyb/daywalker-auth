@@ -27,7 +27,7 @@ import { assertSsoNotRequired, assertSsoNotRequiredForUser } from "./sso-policy"
 const TTL = 600;
 const MAX_ATTEMPTS = 5;
 const normEmail = z.string().trim().toLowerCase().email().max(254);
-export const sendInput = z.object({ email: normEmail, redirectUrl: z.string().max(2048).optional() });
+export const sendInput = z.object({ email: normEmail, redirectUrl: z.string().max(2048).optional(), captchaToken: z.string().max(2048).optional() });
 export const verifyInput = z.object({ email: normEmail, code: z.string().trim().max(10) });
 export const linkInput = z.object({ token: z.string().min(20).max(100) });
 

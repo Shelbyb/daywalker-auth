@@ -1,5 +1,5 @@
 import { clientIp } from "../http";
-import { createSession, issueToken } from "./sessions";
+import { createSession, issueTokenOrSetup } from "./sessions";
 import { createPendingSecondFactor, hasTwoFactor } from "./mfa";
 import { getUser } from "./users";
 import { setTwoFactorCookie, type frontendContext } from "./frontend";
@@ -13,7 +13,7 @@ export async function completeFirstFactor(req: Request, ctx: Ctx, userId: string
     return setTwoFactorCookie(ctx.json({ status: "needs_second_factor", ...extra }), ctx.inst.id, token, maxAge);
   }
   const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req), method });
-  const { jwt } = await issueToken(ctx.inst, s.refreshToken, ctx.origin);
-  const res = ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt, ...extra });
+  const { jwt, twoFactorSetupRequired } = await issueTokenOrSetup(ctx.inst, s.refreshToken, ctx.origin);
+  const res = ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt, ...extra, ...(twoFactorSetupRequired ? { twoFactorSetupRequired } : {}) });
   return ctx.setRefreshCookie(res, s.refreshToken, s.expiresAt);
 }

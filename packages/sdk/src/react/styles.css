@@ -62,3 +62,5 @@
 .dw-menu-meta { font-size: 12px; color: var(--dw-muted); }
 .dw-org-create { display: flex; gap: 6px; padding: 6px; }
 .dw-org-create .dw-button { width: auto; }
+
+.dw-captcha { min-height: 65px; }

@@ -1,7 +1,7 @@
 import { handler, clientIp } from "@/lib/http";
 import { frontendContext, preflight, setTwoFactorCookie } from "@/lib/auth/frontend";
 import { signIn, signInInput, getUser } from "@/lib/auth/users";
-import { createSession, issueToken } from "@/lib/auth/sessions";
+import { createSession, issueTokenOrSetup } from "@/lib/auth/sessions";
 import { hasTwoFactor, createPendingSecondFactor } from "@/lib/auth/mfa";
 
 export const OPTIONS = preflight;
@@ -21,7 +21,7 @@ export const POST = handler(async (req: Request) => {
   }
 
   const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
-  const { jwt } = await issueToken(ctx.inst, s.refreshToken, ctx.origin);
-  const res = ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt });
+  const { jwt, twoFactorSetupRequired } = await issueTokenOrSetup(ctx.inst, s.refreshToken, ctx.origin);
+  const res = ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt, ...(twoFactorSetupRequired ? { twoFactorSetupRequired } : {}) });
   return ctx.setRefreshCookie(res, s.refreshToken, s.expiresAt);
 });

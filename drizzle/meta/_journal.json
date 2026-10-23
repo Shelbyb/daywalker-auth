@@ -127,6 +127,13 @@
       "when": 1792767233083,
       "tag": "0017_saml_logout",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792768929390,
+      "tag": "0018_signup_rules_2fa_policy",
+      "breakpoints": true
     }
   ]
 }

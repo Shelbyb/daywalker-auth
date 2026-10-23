@@ -62,6 +62,8 @@ description: What's protected, how, and what's still your responsibility.
 | A leaked or over-broad provisioning token | The SCIM token is random, only its SHA-256 is stored, it works for one connection's own domains and people only, and the last admin of an organization is never demoted by a group push |
 | Forged or replayed SSO logout | Logout messages must be signed by the IdP's certificate (unsigned redirect messages are refused), match its issuer and our URL, be recent, and work once; a logout answer can only send the browser to a redirect we stored |
 | Cloned security key | Signature counters must always increase |
+| Bot sign-ups and throwaway accounts | Optional Turnstile check (server-verified, single use, fails closed), domain allow/block lists, and a disposable-provider list |
+| Stolen password on an account without 2FA | Optional two-factor requirement: no session token without it, app-wide or per organization |
 | Code guessing | 6 digits, 5 guesses, 10 minutes, single use |
 | Stolen database dump | Personal data encrypted; passwords hashed; tokens hashed |
 | Leaked logs or cache | Rate-limit keys are HMAC'd; no raw IPs or emails in Valkey |

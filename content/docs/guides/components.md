@@ -78,6 +78,8 @@ Your app's origin must be in the instance's **allowed origins** (dashboard → S
 | `<SignIn>` | `redirectUrl?`, `onSignedIn?(user)`, `signUpUrl?`, `appearance?`, `initialEnvironment?`, `initialError?`, `signedIn?` |
 | `<SignUp>` | `redirectUrl?`, `onSignedIn?(user)`, `signInUrl?`, `appearance?`, `initialEnvironment?`, `initialError?`, `signedIn?` |
 
+When the app has the [human check](/docs/guides/sign-up-protection) on, `<SignUp />` and the email-code form show the Turnstile widget. When the app [requires two-factor](/docs/guides/two-factor#requiring-2fa), they send people without it to the account page.
+
 `initialEnvironment` is the settings you already fetched on the server (skips the request and the loading flash), `initialError` is an error code from a redirect back (shown as a fixed message, never raw text from the URL), and `signedIn` shows the signed-in state straight away. The hosted sign-in and sign-up pages at `users.daywalker.dev` are these same components, so what you build matches them.
 | `<UserButton>` | `afterSignOutUrl?`, `className?`, `appearance?` |
 | `<OrganizationSwitcher>` | `hidePersonal?`, `onChange?(org)`, `appearance?` |

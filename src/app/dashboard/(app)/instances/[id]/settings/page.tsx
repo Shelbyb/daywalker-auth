@@ -1,6 +1,6 @@
 import { requireUser } from "../../../guard";
-import { signingKeysFor } from "@/lib/dashboard";
-import { rotateSigningKeyAction, updateSettingsAction } from "../../../actions";
+import { protectionFor, signingKeysFor } from "@/lib/dashboard";
+import { rotateSigningKeyAction, updateProtectionAction, updateSettingsAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
 import { Card, Field, PageHeader } from "../../../ui";
 import { inputCls } from "../../../styles";
@@ -13,6 +13,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/settings`);
   const inst = await details(userId, id);
   const keys = await signingKeysFor(userId, id);
+  const prot = await protectionFor(userId, id);
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" description="Basic rules for this instance: its name, which websites may use it, and how passwords and sessions behave." />
@@ -61,6 +62,47 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
               <span className="block text-stone-600">Let people sign in without a password: we email a 6-digit code and a one-time link. Two-factor still applies.</span>
             </span>
           </label>
+        </ActionForm>
+      </Card>
+      <Card>
+        <h2 className="text-lg font-semibold">Sign-up protection and two-factor</h2>
+        <p className="mt-1 max-w-xl text-sm text-stone-600">Keep bots and throwaway accounts out, and decide whether everyone must use two-step verification.</p>
+        <ActionForm action={updateProtectionAction} submit="Save protection" className="mt-4 max-w-xl space-y-5">
+          <input type="hidden" name="instanceId" value={inst.id} />
+          <Field label="Only allow these email domains (optional)" hint="Spaces or new lines between them. Subdomains count. Leave empty to allow any domain. Applies to new accounts from sign-up and social sign-in, not SSO.">
+            <textarea name="allowedDomains" rows={2} defaultValue={prot.allowedDomains.join("\n")} placeholder="mycompany.com" spellCheck={false} className={`${inputCls} font-mono`} />
+          </Field>
+          <Field label="Block these email domains (optional)">
+            <textarea name="blockedDomains" rows={2} defaultValue={prot.blockedDomains.join("\n")} spellCheck={false} className={`${inputCls} font-mono`} />
+          </Field>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="blockDisposableEmails" defaultChecked={prot.blockDisposableEmails} className="mt-0.5 size-4 accent-ink" />
+            <span>
+              <span className="font-medium">Block throwaway email addresses</span>
+              <span className="block text-stone-600">Refuse sign-ups from about 120,000 known disposable email providers.</span>
+            </span>
+          </label>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Turnstile site key (optional)" hint="From Cloudflare Turnstile. Adds a human check to sign-up and to emailing sign-in codes. Leave empty to turn it off.">
+              <input name="captchaSiteKey" defaultValue={prot.captcha?.siteKey ?? ""} maxLength={200} spellCheck={false} className={`${inputCls} font-mono`} />
+            </Field>
+            <Field label="Turnstile secret key" hint={prot.captcha?.secretSet ? "Saved (encrypted). Leave empty to keep it." : "Stored encrypted, never shown again."}>
+              <input name="captchaSecretKey" type="password" autoComplete="off" maxLength={200} spellCheck={false} className={`${inputCls} font-mono`} />
+            </Field>
+          </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="requireTwoFactor" defaultChecked={prot.requireTwoFactor} className="mt-0.5 size-4 accent-ink" />
+            <span>
+              <span className="font-medium">Require two-step verification for everyone</span>
+              <span className="block text-stone-600">
+                After the grace period, people without it can still sign in but get no session token until they set it up on their account page. SSO sign-ins are exempt (the identity provider handles MFA).
+                {prot.requireTwoFactor && prot.twoFactorGraceUntil && <> Grace period ends {fmtDateTime(prot.twoFactorGraceUntil)}.</>}
+              </span>
+            </span>
+          </label>
+          <Field label="Grace period (days)" hint="Only used when you turn it on or change it. 0 means right away.">
+            <input name="twoFactorGraceDays" type="number" min={0} max={90} placeholder="7" className={inputCls} />
+          </Field>
         </ActionForm>
       </Card>
       <Card>

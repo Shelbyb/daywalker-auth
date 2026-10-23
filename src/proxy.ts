@@ -21,6 +21,7 @@ function policy(nonce: string | null) {
     "img-src 'self' data: https:",
     "connect-src 'self'",
     "font-src 'self'",
+    "frame-src https://challenges.cloudflare.com", // the optional Turnstile human check
     "frame-ancestors 'none'", // hosted pages must never be framed (clickjacking)
     "form-action 'self'",
     "base-uri 'none'",

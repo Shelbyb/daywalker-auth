@@ -46,8 +46,16 @@ export const instances = pgTable(
     environment: environmentEnum("environment").notNull().default("development"),
     // Origins allowed to call the frontend API with credentials (CORS).
     allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
+    /** Cloudflare Turnstile secret, encrypted. */
+    captchaSecretEnc: text("captcha_secret_enc"),
     settings: jsonb("settings")
-      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string; smsSecondFactor?: boolean; smsCountries?: string[] }>()
+      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string; smsSecondFactor?: boolean; smsCountries?: string[];
+        /** Sign-up rules for new accounts (see auth/signup-protection.ts). */
+        signUpAllowedDomains?: string[]; signUpBlockedDomains?: string[]; blockDisposableEmails?: boolean;
+        /** Cloudflare Turnstile site key; the secret is in captcha_secret_enc. */
+        captchaSiteKey?: string | null;
+        /** Two-factor policy: required for everyone, after a grace period that ends at this time. */
+        requireTwoFactor?: boolean; twoFactorGraceUntil?: string | null }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.
@@ -308,6 +316,8 @@ export const organizations = pgTable(
     instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
+    /** Members must have two-factor on to use this organization (no org claims in their token otherwise). */
+    requireTwoFactor: boolean("require_two_factor").notNull().default(false),
     createdBy: text("created_by"),
     createdAt: createdAt(),
   },

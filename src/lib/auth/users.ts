@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { assertEmailAllowed } from "./signup-protection";
 import { assertNotBreached } from "./breach";
 import { record } from "../audit";
 import { assertSsoNotRequired } from "./sso-policy";
@@ -21,6 +22,8 @@ export const signUpInput = z.object({
   firstName: z.string().trim().max(100).optional(),
   lastName: z.string().trim().max(100).optional(),
   legalAccepted: z.boolean().optional(),
+  /** Turnstile answer, when the instance turned the human check on. */
+  captchaToken: z.string().max(2048).optional(),
 });
 /** Scoped per instance so the same email in two apps doesn't produce linkable index values. */
 const emailIndex = (instanceId: string, email: string) => blindIndex(email, `email:${instanceId}`);
@@ -29,6 +32,7 @@ export const signInInput = z.object({ email, password: z.string().max(256) });
 
 export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>) {
   await assertSsoNotRequired(inst.id, input.email);
+  assertEmailAllowed(inst, input.email);
   if (input.password.length < inst.settings.passwordMinLength)
     throw errors.badRequest("password_too_short", `Password must be at least ${inst.settings.passwordMinLength} characters`);
 

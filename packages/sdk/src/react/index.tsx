@@ -44,6 +44,8 @@ export function useAuth() {
     isSignedIn: s.isLoaded ? !!s.sessionId : undefined,
     userId: s.user?.id ?? null,
     sessionId: s.sessionId,
+    /** Signed in, but the app requires two-step verification first: send them to the account page. */
+    twoFactorSetupRequired: s.twoFactorSetupRequired === true,
     getToken: c.getToken,
     authFetch: c.authFetch,
     signIn: c.signIn,

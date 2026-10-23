@@ -10,6 +10,7 @@ import { roleIn } from "./orgs";
 import type { Instance } from "../db/schema";
 import { emit } from "../webhooks";
 import { assertSsoNotRequiredForUser } from "./sso-policy";
+import { appRequiresSetup, orgAllowed, setupRequiredError } from "./two-factor-policy";
 
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
@@ -91,11 +92,26 @@ export async function issueToken(inst: Instance, refreshToken: string | undefine
   if (!refreshToken) throw errors.unauthorized();
   const s = await resolveSession(inst.id, refreshToken);
   if (!s) throw errors.unauthorized("Session is no longer active");
+  if (await appRequiresSetup(inst, s.userId, s.id)) throw setupRequiredError();
   // Role is re-checked on every mint, so removal from an org drops the claims within a minute.
-  const orgRole = s.activeOrgId ? await roleIn(inst.id, s.activeOrgId, s.userId) : null;
+  // An organization that requires two-factor only appears in the token of members who have it.
+  const orgRole = s.activeOrgId && (await orgAllowed(s.activeOrgId, s.userId)) ? await roleIn(inst.id, s.activeOrgId, s.userId) : null;
   const org = orgRole ? { org_id: s.activeOrgId!, org_role: orgRole } : undefined;
   const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org }, inst.settings.tokenTtlSeconds);
   return { jwt, sessionId: s.id, userId: s.userId, orgId: org?.org_id ?? null, orgRole: org?.org_role ?? null };
+}
+
+/**
+ * For sign-in responses: the token, or `null` with `twoFactorSetupRequired` when the app requires
+ * two-factor and this person hasn't set it up (the session cookie is still set, so they can).
+ */
+export async function issueTokenOrSetup(inst: Instance, refreshToken: string, azp?: string) {
+  try {
+    return { jwt: (await issueToken(inst, refreshToken, azp)).jwt as string | null, twoFactorSetupRequired: false };
+  } catch (e) {
+    if (e instanceof Error && (e as { code?: string }).code === "two_factor_setup_required") return { jwt: null, twoFactorSetupRequired: true };
+    throw e;
+  }
 }
 
 export async function endSession(instanceId: string, refreshToken: string, status: "ended" | "revoked" = "ended") {

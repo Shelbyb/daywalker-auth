@@ -3,6 +3,7 @@
  * user's ID and re-checks that they own the instance: the dashboard never trusts an
  * instance ID from the URL or a form.
  */
+import { protectionView, updateProtection } from "./auth/instance-policy";
 import { createScimToken, revokeScimToken } from "./auth/scim";
 import { cookies } from "next/headers";
 import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
@@ -437,4 +438,16 @@ export async function deleteSsoConnection(userId: string, instanceId: string, id
   await ownedInstance(userId, instanceId);
   await deleteConnection(instanceId, id);
   void record(instanceId, "sso_connection.deleted", { actor: { type: "developer", id: userId }, target: id });
+}
+
+// ---------- Sign-up protection and two-factor policy ----------
+
+export async function protectionFor(userId: string, instanceId: string) {
+  return protectionView(await ownedInstance(userId, instanceId));
+}
+
+export async function updateProtectionFor(userId: string, instanceId: string, raw: unknown) {
+  const view = await updateProtection(await ownedInstance(userId, instanceId), raw);
+  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { protection: { ...view, captcha: view.captcha ? { siteKey: view.captcha.siteKey } : null } } });
+  return view;
 }

@@ -31,7 +31,52 @@ export type EnvironmentInfo = {
   emailCodeSignIn: boolean;
   ssoEnabled?: boolean;
   legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null };
+  /** Cloudflare Turnstile, when the app has the human check on. */
+  captcha?: { provider: "turnstile"; siteKey: string } | null;
 };
+
+// ---------- Human check (Cloudflare Turnstile) ----------
+
+type TurnstileApi = { render: (el: HTMLElement, o: Record<string, unknown>) => string; remove: (id: string) => void };
+let turnstileLoad: Promise<TurnstileApi> | null = null;
+function loadTurnstile() {
+  return (turnstileLoad ??= new Promise((resolve, reject) => {
+    const w = window as unknown as { turnstile?: TurnstileApi };
+    if (w.turnstile) return resolve(w.turnstile);
+    const el = document.createElement("script");
+    el.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    el.async = true;
+    el.onload = () => (w.turnstile ? resolve(w.turnstile) : reject(new Error("turnstile")));
+    el.onerror = () => {
+      turnstileLoad = null;
+      reject(new Error("turnstile"));
+    };
+    document.head.appendChild(el);
+  }));
+}
+
+/** Renders the widget; `onToken` gets each answer (or null when it expires). Change `round` to get a fresh one. */
+function Captcha({ siteKey, onToken, round }: { siteKey: string; onToken: (t: string | null) => void; round: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const cb = useRef(onToken);
+  cb.current = onToken;
+  useEffect(() => {
+    let id: string | null = null, api: TurnstileApi | null = null, live = true;
+    cb.current(null);
+    loadTurnstile()
+      .then((t) => {
+        if (!live || !ref.current) return;
+        api = t;
+        id = t.render(ref.current, { sitekey: siteKey, callback: (tok: string) => cb.current(tok), "expired-callback": () => cb.current(null), "error-callback": () => cb.current(null) });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+      if (api && id) api.remove(id);
+    };
+  }, [siteKey, round]);
+  return <div ref={ref} className="dw-captcha" />;
+}
 
 function useEnvironment(initial?: EnvironmentInfo) {
   const c = useAuthClient();
@@ -208,12 +253,23 @@ function SecondFactor({ a, onUser }: { a?: Appearance; onUser: (u: User) => void
   );
 }
 
+function SetupTwoFactor({ a, redirectUrl }: { a?: Appearance; redirectUrl?: string }) {
+  const c = useAuthClient();
+  return (
+    <Shell a={a} title="Set up two-step verification" subtitle="This app requires it before you can continue.">
+      <a href={c.hostedUrl("account", redirectUrl ?? window.location.href)} className={cx(a, "button", "dw-button dw-button-primary")}>Set it up now</a>
+    </Shell>
+  );
+}
+
 // ---------- <SignIn /> ----------
 
 export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "No account yet?". */ signUpUrl?: string }) {
   const c = useAuthClient();
   const { env, failed } = useEnvironment(initialEnvironment);
-  const [step, setStep] = useState<"password" | "email-code" | "code-sent" | "second-factor" | "done">(signedIn ? "done" : "password");
+  const [step, setStep] = useState<"password" | "email-code" | "code-sent" | "second-factor" | "setup" | "done">(signedIn ? "done" : "password");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(redirectError(initialError));
   const [info, setInfo] = useState<string | null>(null);
@@ -224,6 +280,7 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
 
   const done = (u: User) => {
     setDoneUser(u);
+    if (c.state.twoFactorSetupRequired) return setStep("setup"); // the app requires two-step verification first
     setStep("done");
     finish(redirectUrl, onSignedIn, u);
   };
@@ -243,6 +300,7 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
   if (!env) return <div className={cx(a, "root", "dw-root dw-loading")} aria-busy="true" />;
   if (step === "done") return <Shell a={a} title="You're signed in" subtitle={doneUser ? `Welcome, ${displayName(doneUser)}.` : undefined}><span /></Shell>;
   if (step === "second-factor") return <Shell a={a} title="Two-step verification"><SecondFactor a={a} onUser={done} /></Shell>;
+  if (step === "setup") return <SetupTwoFactor a={a} redirectUrl={redirectUrl} />;
 
   const footer = signUpUrl ? <>No account yet? <a href={signUpUrl} className={cx(a, "link", "dw-link")}>Sign up</a></> : undefined;
 
@@ -250,10 +308,11 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
     return (
       <Shell a={a} title={step === "code-sent" ? "Check your email" : "Sign in with an email code"} subtitle={env.name}>
         {step === "email-code" ? (
-          <form className={cx(a, "form", "dw-form")} onSubmit={(e) => { e.preventDefault(); void run(async () => { await c.sendSignInCode({ email, redirectUrl }); setInfo(`If ${email} has an account, we've sent it a code and a sign-in link.`); setStep("code-sent"); }); }}>
+          <form className={cx(a, "form", "dw-form")} onSubmit={(e) => { e.preventDefault(); void run(async () => { try { await c.sendSignInCode({ email, redirectUrl, captchaToken: captchaToken ?? undefined }); } finally { setCaptchaRound((n) => n + 1); } setInfo(`If ${email} has an account, we've sent it a code and a sign-in link.`); setStep("code-sent"); }); }}>
             <Field a={a} label="Email" name="email" type="email" autoComplete="email" required value={email} onChange={setEmail} autoFocus />
+            {env.captcha && <Captcha siteKey={env.captcha.siteKey} onToken={setCaptchaToken} round={captchaRound} />}
             {error && <Alert a={a}>{error}</Alert>}
-            <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Email me a code"}</button>
+            <button disabled={busy || (!!env.captcha && !captchaToken)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Email me a code"}</button>
             <button type="button" className={cx(a, "link", "dw-link")} onClick={() => { setStep("password"); setError(null); }}>Use a password instead</button>
           </form>
         ) : (
@@ -275,7 +334,7 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
           <div className={cx(a, "providers", "dw-providers")}>
             {passkeys && (
               <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-passkey")}
-                onClick={() => void run(async () => done((await c.signInWithPasskey()).user))}>
+                onClick={() => void run(async () => { const r = await c.signInWithPasskey(); if (r.status !== "needs_second_factor") done(r.user); })}>
                 Sign in with a passkey
               </button>
             )}
@@ -323,7 +382,9 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
 export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "Already have an account?". */ signInUrl?: string }) {
   const c = useAuthClient();
   const { env, failed } = useEnvironment(initialEnvironment);
-  const [step, setStep] = useState<"form" | "verify" | "done">(signedIn ? "done" : "form");
+  const [step, setStep] = useState<"form" | "verify" | "setup" | "done">(signedIn ? "done" : "form");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(redirectError(initialError));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -342,10 +403,12 @@ export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, init
   const needsConsent = env.legal.required && !!env.legal.termsUrl;
   const complete = (u: User) => {
     setUser(u);
+    if (c.state.twoFactorSetupRequired) return setStep("setup"); // the app requires two-step verification first
     setStep("done");
     finish(redirectUrl, onSignedIn, u);
   };
 
+  if (step === "setup") return <SetupTwoFactor a={a} redirectUrl={redirectUrl} />;
   if (step === "done") return <Shell a={a} title="You're all set" subtitle={user ? `Welcome, ${displayName(user)}.` : undefined}><span /></Shell>;
   if (step === "verify")
     return (
@@ -402,6 +465,7 @@ export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, init
             firstName: String(f.get("firstName") ?? "") || undefined,
             lastName: String(f.get("lastName") ?? "") || undefined,
             legalAccepted: needsConsent ? accepted : undefined,
+            captchaToken: captchaToken ?? undefined,
           });
           setUser(u);
           if (u.emailAddresses[0]?.verified) complete(u);
@@ -409,6 +473,7 @@ export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, init
         } catch (err) {
           setError(message(err));
           if (err instanceof AuthError) setFieldErrors(Object.fromEntries(err.fields.map((x) => [x.path, x.message])));
+          setCaptchaRound((n) => n + 1); // each answer works once
         } finally {
           setBusy(false);
         }
@@ -419,9 +484,10 @@ export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, init
         </div>
         <Field a={a} label="Email" name="email" type="email" autoComplete="email" required />
         <Field a={a} label={`Password (at least ${env.passwordMinLength} characters)`} name="password" type="password" autoComplete="new-password" required maxLength={256} />
+        {env.captcha && <Captcha siteKey={env.captcha.siteKey} onToken={setCaptchaToken} round={captchaRound} />}
         {Object.values(fieldErrors)[0] && <Alert a={a}>{Object.values(fieldErrors)[0]}</Alert>}
         {error && !Object.keys(fieldErrors).length && <Alert a={a}>{error}</Alert>}
-        <button disabled={busy || (needsConsent && !accepted)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Create account"}</button>
+        <button disabled={busy || (needsConsent && !accepted) || (!!env.captcha && !captchaToken)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Create account"}</button>
       </form>
     </Shell>
   );

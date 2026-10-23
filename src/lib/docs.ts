@@ -33,6 +33,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/audit-logs", title: "Audit logs" },
       { slug: "guides/email-codes", title: "Email codes and magic links" },
       { slug: "guides/breached-passwords", title: "Breached passwords" },
+      { slug: "guides/sign-up-protection", title: "Sign-up protection" },
       { slug: "guides/email-templates", title: "Email templates" },
       { slug: "guides/account-page", title: "Account page" },
       { slug: "guides/components", title: "Drop-in components" },

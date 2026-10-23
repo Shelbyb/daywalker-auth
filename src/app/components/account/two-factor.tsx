@@ -79,6 +79,16 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
 
   return (
     <Card title="Two-step verification" description="Ask for a second step when you sign in: a code from an authenticator app, a text message, or a security key.">
+      {!on && security.twoFactorRequired && (
+        <div className="mb-4">
+          <Notice tone="error">
+            This app requires two-step verification.{" "}
+            {security.twoFactorGraceUntil && Date.parse(security.twoFactorGraceUntil) > Date.now()
+              ? `Set it up before ${new Date(security.twoFactorGraceUntil).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} to keep using it.`
+              : "Set it up below to continue."}
+          </Notice>
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {on ? <Badge tone="good">On</Badge> : <Badge>Off</Badge>}
         {security.totpEnabled && <Badge>Authenticator app</Badge>}

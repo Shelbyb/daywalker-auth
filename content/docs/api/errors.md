@@ -62,6 +62,10 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `no_security_key` | 400 | A key action on an account with no keys | Use a code |
 | `sms_failed` / `sms_disabled` | 400 | The text couldn't be sent, or SMS isn't on for this app | Check the number, or use another method |
 | `sms_country_not_allowed` | 400 | Numbers in that country aren't allowed | Use another method |
+| `sign_up_not_allowed` | 403 | The email breaks the app's sign-up rules | Ask for another address |
+| `captcha_required` / `captcha_failed` | 400 | The human check is on and the answer was missing, wrong, used, or couldn't be verified | Show a fresh widget and retry |
+| `two_factor_setup_required` | 403 | The app (or organization) requires two-step verification and it's off | Send the person to the account page |
+| `two_factor_required_first` | 400 | An admin tried to require two-factor without having it | Turn it on for yourself first |
 | `already_verified` | 400 | Email is already verified | Nothing to do |
 | `unauthenticated` | 401 | No valid session or key | Sign in, or check your keys |
 | `forbidden` | 403 | Origin not allowed, or account suspended | Add the origin, or contact support |

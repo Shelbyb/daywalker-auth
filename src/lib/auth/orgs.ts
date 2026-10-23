@@ -1,4 +1,6 @@
 import { and, eq, gt, isNull, count } from "drizzle-orm";
+import { hasTwoFactor } from "./mfa";
+import { forgetOrgPolicy } from "./two-factor-policy";
 import { db, schema } from "../db";
 import { cache, rateLimit } from "../cache";
 import { blindIndex, decrypt, encrypt } from "../crypto";
@@ -87,7 +89,7 @@ export async function createOrg(inst: Instance, userId: string, name: string) {
 
 export async function myOrgs(instanceId: string, userId: string) {
   return db()
-    .select({ id: schema.organizations.id, name: schema.organizations.name, slug: schema.organizations.slug, role: schema.memberships.role })
+    .select({ id: schema.organizations.id, name: schema.organizations.name, slug: schema.organizations.slug, role: schema.memberships.role, requireTwoFactor: schema.organizations.requireTwoFactor })
     .from(schema.memberships)
     .innerJoin(schema.organizations, eq(schema.organizations.id, schema.memberships.orgId))
     .where(and(eq(schema.memberships.userId, userId), eq(schema.organizations.instanceId, instanceId)));
@@ -104,6 +106,16 @@ export async function getOrg(instanceId: string, orgId: string) {
 export async function renameOrg(instanceId: string, orgId: string, actorId: string, name: string) {
   await requirePermission(instanceId, orgId, actorId, "org:manage");
   await db().update(schema.organizations).set({ name }).where(eq(schema.organizations.id, orgId));
+}
+
+/** Admins only. Turning it on needs two-factor yourself, so you can't lock yourself out of your own organization. */
+export async function setOrgTwoFactor(instanceId: string, orgId: string, actorId: string | null, required: boolean) {
+  if (actorId) {
+    await requirePermission(instanceId, orgId, actorId, "org:manage");
+    if (required && !(await hasTwoFactor(actorId))) throw errors.badRequest("two_factor_required_first", "Turn on two-step verification for your own account first");
+  } else if (!(await getOrg(instanceId, orgId))) throw errors.notFound("Organization not found");
+  await db().update(schema.organizations).set({ requireTwoFactor: required }).where(and(eq(schema.organizations.id, orgId), eq(schema.organizations.instanceId, instanceId)));
+  await forgetOrgPolicy(orgId);
 }
 
 export async function deleteOrg(instanceId: string, orgId: string, actorId: string) {

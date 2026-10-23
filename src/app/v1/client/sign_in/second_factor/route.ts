@@ -4,7 +4,7 @@ import { frontendContext, preflight } from "@/lib/auth/frontend";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 import { completePendingSecondFactor, completePendingWithSecurityKey } from "@/lib/auth/mfa";
 import { readCredential } from "@/lib/auth/webauthn-input";
-import { createSession, issueToken } from "@/lib/auth/sessions";
+import { createSession, issueTokenOrSetup } from "@/lib/auth/sessions";
 import { getUser } from "@/lib/auth/users";
 import { linkAfterSecondFactor } from "@/lib/auth/saml-logout";
 
@@ -25,7 +25,7 @@ export const POST = handler(async (req: Request) => {
   }
   const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
   await linkAfterSecondFactor(ctx.twoFactorToken, s.id); // a SAML sign-in that needed 2FA
-  const { jwt } = await issueToken(ctx.inst, s.refreshToken, ctx.origin);
-  const res = ctx.clearTwoFactorCookie(ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt }));
+  const { jwt, twoFactorSetupRequired } = await issueTokenOrSetup(ctx.inst, s.refreshToken, ctx.origin);
+  const res = ctx.clearTwoFactorCookie(ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt, ...(twoFactorSetupRequired ? { twoFactorSetupRequired } : {}) }));
   return ctx.setRefreshCookie(res, s.refreshToken, s.expiresAt);
 });

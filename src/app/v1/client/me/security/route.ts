@@ -23,5 +23,8 @@ export const GET = handler(async (req: Request) => {
     securityKeys: await listSecurityKeys(s.userId),
     backupCodesRemaining: twoFactorEnabled ? await remainingBackupCodes(s.userId) : 0,
     connectedAccounts: await linkedProviders(s.userId),
+    /** The app requires two-factor; until `graceUntil` it's a reminder, after that tokens stop until it's on. */
+    twoFactorRequired: ctx.inst.settings.requireTwoFactor === true,
+    twoFactorGraceUntil: ctx.inst.settings.requireTwoFactor ? (ctx.inst.settings.twoFactorGraceUntil ?? null) : null,
   });
 });

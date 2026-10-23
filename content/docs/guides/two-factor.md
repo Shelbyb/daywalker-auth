@@ -211,7 +211,15 @@ curl -X DELETE https://users.example.com/v1/users/user_123/mfa \
 
 ## Requiring 2FA
 
-Every user object includes `twoFactorEnabled`. To require it, for example for admins, check it on the server:
+**For everyone in your app:** in the dashboard (**Settings → Require two-step verification for everyone**) or with `PATCH /v1/instance/protection { "requireTwoFactor": true, "twoFactorGraceDays": 7 }`.
+
+- During the grace period nothing is blocked; the account page shows a reminder with the deadline.
+- After it, people without two-factor can still sign in, but they get **no session token** until they set it up, so your backend never sees them. Sign-in answers `{ status: "complete", jwt: null, twoFactorSetupRequired: true }`, `signIn()` resolves `{ status: "needs_two_factor_setup" }`, and `useAuth().twoFactorSetupRequired` is true. Send them to the account page (`client.hostedUrl("account")`); the drop-in components do this for you. Their existing sessions stop getting tokens too, within a minute.
+- Sessions that came through company SSO are exempt: the identity provider is in charge of MFA there.
+
+**For one organization:** an admin calls `setOrganizationTwoFactor(orgId, true)` (they need two-factor on themselves first, so nobody locks themselves out), or your backend calls `PATCH /v1/organizations/{orgId} { "requireTwoFactor": true }`. Members without two-factor keep their account, but that organization can't be made active and never appears in their token (`org_id` is missing), so organization-scoped checks on your server fail safely.
+
+**For some users only** (for example admins), check `twoFactorEnabled` on the server:
 
 ```ts
 const user = await backend().users.get(userId);

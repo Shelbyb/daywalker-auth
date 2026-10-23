@@ -33,6 +33,7 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `completeSecondFactorWithSecurityKey()` | Finishes a 2FA sign-in by touching a key |
 | `confirmWithSecurityKey()` | Confirms one sensitive change (add/remove a factor, turn 2FA off, new backup codes) with a key instead of a code, for two minutes |
 | `signUp({ email, password, firstName?, lastName? })` | Creates the account and signs in |
+| `setOrganizationTwoFactor(orgId, required)` | Admins: require two-step verification for an organization's members |
 | `signOut({ redirectUrl?, singleLogout? })` | Ends the session here and in other tabs. For a company SSO sign-in with single logout on, then goes via the identity provider to `redirectUrl`. Resolves `{ redirecting }` |
 | `getToken({ force? })` | A valid session token, or `null` |
 | `authFetch(url, init)` | `fetch` plus `Authorization: Bearer <token>` |
