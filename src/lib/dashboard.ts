@@ -3,6 +3,7 @@
  * user's ID and re-checks that they own the instance: the dashboard never trusts an
  * instance ID from the URL or a form.
  */
+import { createScimToken, revokeScimToken } from "./auth/scim";
 import { cookies } from "next/headers";
 import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { createLocalJWKSet, jwtVerify } from "jose";
@@ -417,6 +418,19 @@ export async function updateSsoConnection(userId: string, instanceId: string, id
   const c = await updateConnection(instanceId, id, raw);
   void record(instanceId, "sso_connection.updated", { actor: { type: "developer", id: userId }, target: id });
   return c;
+}
+
+export async function createScimTokenFor(userId: string, instanceId: string, id: string) {
+  await ownedInstance(userId, instanceId);
+  const r = await createScimToken(instanceId, id);
+  void record(instanceId, "scim_token.created", { actor: { type: "developer", id: userId }, target: id });
+  return r;
+}
+
+export async function revokeScimTokenFor(userId: string, instanceId: string, id: string) {
+  await ownedInstance(userId, instanceId);
+  await revokeScimToken(instanceId, id);
+  void record(instanceId, "scim_token.revoked", { actor: { type: "developer", id: userId }, target: id });
 }
 
 export async function deleteSsoConnection(userId: string, instanceId: string, id: string) {

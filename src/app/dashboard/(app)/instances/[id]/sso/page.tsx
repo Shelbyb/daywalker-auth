@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ssoFor } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
-import { createSsoAction, deleteSsoAction, requireSsoAction, toggleSsoAction } from "../../../actions";
+import { createScimTokenAction, createSsoAction, deleteSsoAction, requireSsoAction, revokeScimTokenAction, toggleSsoAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
 import { Badge, Card, CodeBlock, EmptyState, Field, PageHeader } from "../../../ui";
 import { inputCls } from "../../../styles";
@@ -32,6 +32,28 @@ export default async function SsoPage({ params }: { params: Promise<{ id: string
             </p>
             <div className="text-xs text-stone-500">
               Signing certificate{c.certificates.length > 1 ? "s" : ""}: {c.certificates.map((x) => <span key={x.fingerprint256} className="mr-3 inline-block">{x.subject.split("\n").find((l) => l.startsWith("CN=")) ?? "certificate"} · expires {new Date(x.validTo).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</span>)}
+            </div>
+            <div className="space-y-2 rounded-lg border border-stone-200 p-3">
+              <p className="text-sm font-medium">
+                User provisioning (SCIM) {c.scim.enabled ? <Badge tone="good">On</Badge> : <Badge>Off</Badge>}
+              </p>
+              <p className="text-xs text-stone-500">
+                Let the identity provider create, update and deactivate people here automatically. Give it this base URL and a token. See the <Link href="/docs/guides/enterprise-sso#automatic-provisioning-scim" className="font-medium underline decoration-dawn decoration-2 underline-offset-4">guide</Link>.
+              </p>
+              {c.scim.enabled && <CodeBlock label="SCIM base URL" value={c.scim.baseUrl} />}
+              {c.scim.enabled && c.scim.tokenPrefix && <p className="text-xs text-stone-500">Current token starts with <span className="font-mono">{c.scim.tokenPrefix}…</span></p>}
+              <div className="flex flex-wrap gap-2">
+                <ActionForm action={createScimTokenAction} submit={c.scim.enabled ? "Replace token" : "Turn on provisioning"} tone="ghost" secretLabel="SCIM token">
+                  <input type="hidden" name="instanceId" value={id} />
+                  <input type="hidden" name="connectionId" value={c.id} />
+                </ActionForm>
+                {c.scim.enabled && (
+                  <ConfirmAction action={revokeScimTokenAction} label="Turn off" confirmLabel="Yes, turn off" prompt="Turn off provisioning? The identity provider will stop being able to add or remove people.">
+                    <input type="hidden" name="instanceId" value={id} />
+                    <input type="hidden" name="connectionId" value={c.id} />
+                  </ConfirmAction>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <ActionForm action={toggleSsoAction} submit={c.enabled ? "Disable" : "Enable"} tone="ghost">

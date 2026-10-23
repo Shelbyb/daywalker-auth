@@ -445,10 +445,26 @@ export const samlConnections = pgTable(
     enabled: boolean("enabled").notNull().default(true),
     /** When true, people at this connection's domains can only sign in through the identity provider. */
     ssoRequired: boolean("sso_required").notNull().default(false),
+    /** SCIM provisioning bearer token: only its SHA-256 is stored. Null means provisioning is off. */
+    scimTokenHash: text("scim_token_hash"),
+    scimTokenPrefix: text("scim_token_prefix"),
+    scimTokenCreatedAt: timestamp("scim_token_created_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [index("saml_connections_instance_idx").on(t.instanceId)],
+);
+
+/** Users a connection's SCIM provisioning manages (created by it, or adopted from its domains). */
+export const scimUsers = pgTable(
+  "scim_users",
+  {
+    connectionId: text("connection_id").notNull().references(() => samlConnections.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    externalId: text("external_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("scim_users_connection_user_idx").on(t.connectionId, t.userId), index("scim_users_user_idx").on(t.userId)],
 );
 
 /** Each email domain routes to at most one connection per instance. */

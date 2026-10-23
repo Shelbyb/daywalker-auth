@@ -95,13 +95,19 @@ function view(c: Connection, domains: string[]) {
     domains,
     enabled: c.enabled,
     ssoRequired: c.ssoRequired,
+    scim: {
+      enabled: !!c.scimTokenHash,
+      tokenPrefix: c.scimTokenPrefix,
+      tokenCreatedAt: c.scimTokenCreatedAt,
+      baseUrl: `${env().APP_URL}/v1/scim/v2/${c.id}`,
+    },
     spEntityId: spEntityId(c.id),
     acsUrl: acsUrl(c.id),
     createdAt: c.createdAt,
   };
 }
 
-async function domainsOf(connectionId: string) {
+export async function domainsOf(connectionId: string) {
   return (await db().select({ d: schema.samlDomains.domain }).from(schema.samlDomains).where(eq(schema.samlDomains.connectionId, connectionId))).map((r) => r.d);
 }
 

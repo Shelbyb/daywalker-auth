@@ -19,7 +19,7 @@
     "test:recovery": "tsx scripts/recovery-e2e.ts",
     "test:oauth": "tsx scripts/oauth-e2e.ts",
     "test:mfa": "tsx scripts/mfa-e2e.ts",
-    "test:all": "tsx scripts/e2e.ts && tsx scripts/recovery-e2e.ts && tsx scripts/oauth-e2e.ts && tsx scripts/mfa-e2e.ts && tsx scripts/account-e2e.ts && tsx scripts/passkey-e2e.ts && tsx scripts/legal-e2e.ts && tsx scripts/orgs-e2e.ts && tsx scripts/webhooks-e2e.ts && tsx scripts/dashboard-e2e.ts && tsx scripts/keyrotation-e2e.ts && tsx scripts/masterkey-e2e.ts && tsx scripts/audit-e2e.ts && tsx scripts/emailcode-e2e.ts && tsx scripts/breach-e2e.ts && tsx scripts/templates-e2e.ts && tsx scripts/providers-e2e.ts && tsx scripts/saml-e2e.ts && tsx scripts/sms-e2e.ts && tsx scripts/securitykey-e2e.ts",
+    "test:all": "tsx scripts/e2e.ts && tsx scripts/recovery-e2e.ts && tsx scripts/oauth-e2e.ts && tsx scripts/mfa-e2e.ts && tsx scripts/account-e2e.ts && tsx scripts/passkey-e2e.ts && tsx scripts/legal-e2e.ts && tsx scripts/orgs-e2e.ts && tsx scripts/webhooks-e2e.ts && tsx scripts/dashboard-e2e.ts && tsx scripts/keyrotation-e2e.ts && tsx scripts/masterkey-e2e.ts && tsx scripts/audit-e2e.ts && tsx scripts/emailcode-e2e.ts && tsx scripts/breach-e2e.ts && tsx scripts/templates-e2e.ts && tsx scripts/providers-e2e.ts && tsx scripts/saml-e2e.ts && tsx scripts/sms-e2e.ts && tsx scripts/securitykey-e2e.ts && tsx scripts/scim-e2e.ts",
     "test:account": "tsx scripts/account-e2e.ts",
     "test:passkeys": "tsx scripts/passkey-e2e.ts",
     "test:legal": "tsx scripts/legal-e2e.ts",
@@ -34,7 +34,8 @@
     "test:emailcode": "tsx scripts/emailcode-e2e.ts",
     "test:audit": "tsx scripts/audit-e2e.ts",
     "test:keys": "tsx scripts/keyrotation-e2e.ts && tsx scripts/masterkey-e2e.ts",
-    "test:securitykeys": "tsx scripts/securitykey-e2e.ts"
+    "test:securitykeys": "tsx scripts/securitykey-e2e.ts",
+    "test:scim": "tsx scripts/scim-e2e.ts"
   },
   "dependencies": {
     "@daywalker/auth": "*",

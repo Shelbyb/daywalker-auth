@@ -63,6 +63,38 @@ People who are already signed in stay signed in until their session ends. To cut
 
 Enforcement uses each person's primary email address.
 
+## Automatic provisioning (SCIM)
+
+SSO lets people sign in. **SCIM** lets the company's identity provider also *create, update and deactivate* their accounts here, so new hires are ready on day one and leavers lose access straight away, without anyone touching your dashboard.
+
+**Turn it on**
+
+1. On the **SSO** tab, open the connection and press **Turn on provisioning**. You get a **SCIM base URL** and a **token**. Copy the token now: it's shown once and only a hash is kept.
+2. In the identity provider's SCIM settings, paste the base URL (it ends in `/v1/scim/v2/<connection id>`), choose **HTTP header / bearer token** authentication, and paste the token.
+3. Assign people to the app in the identity provider. Okta, Microsoft Entra ID and others do the rest.
+
+From your backend: `POST /v1/saml_connections/{id}/scim_token` makes or rotates the token and `DELETE` of the same URL turns provisioning off.
+
+**What it does**
+
+| The identity provider… | Here |
+| --- | --- |
+| creates a person | An account is made with a verified email, no password, and (if the connection has one) membership of its organization. They sign in through SSO. |
+| changes name or email | The account is updated. The email has to stay at one of the connection's domains. |
+| deactivates a person (`active: false`) | The account is suspended and **signed out everywhere**. Setting `active: true` restores it. |
+| deletes a person | The account is deleted. |
+| looks up an email it already knows | An existing account at the connection's domain is adopted, so people who signed up before SCIM aren't duplicated. |
+
+Pair it with **Require SSO** (above) so provisioned people can only ever sign in through the identity provider.
+
+**What it can't do**
+
+- It only manages people at **the connection's own domains**, and only accounts it created or adopted. Nobody else's account can be read, changed or deleted through it, even by guessing an ID.
+- If an adopted account's email was never verified (someone signed up with a password first), the password and any sessions are removed, the same protection SAML sign-in gives you.
+- Supported: `Users` with `userName`, `externalId`, `name`, `emails`, `active`; `GET`, `POST`, `PUT`, `PATCH`, `DELETE`; and `userName eq` / `externalId eq` filters. Groups, bulk requests and sorting aren't supported. The discovery endpoints (`/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`) say so.
+- Rotating the token cuts the old one off at once. Requests are limited to 600 a minute per connection.
+- Provisioning events are in the [audit log](/docs/guides/audit-logs) (`scim_user.created`, `scim_user.deactivated`, and so on).
+
 ## From your backend
 
 ```bash

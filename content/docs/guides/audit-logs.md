@@ -57,6 +57,7 @@ Each event looks like this:
 | User management | `user.banned`, `user.unbanned`, `user.deleted` |
 | Keys | `api_key.created`, `api_key.revoked`, `signing_key.rotated` |
 | Settings | `instance.settings_updated`, `instance.terms_updated`, `social_provider.saved`, `social_provider.enabled`, `social_provider.disabled` |
+| SSO | `sso_connection.created`, `sso_connection.updated`, `sso_connection.deleted`, `scim_token.created`, `scim_token.revoked`, `scim_user.created`, `scim_user.updated`, `scim_user.deactivated`, `scim_user.reactivated`, `scim_user.deleted` |
 | Webhooks | `webhook.created`, `webhook.updated`, `webhook.secret_rotated`, `webhook.deleted` |
 
 Failed password attempts are logged only for emails that belong to a real account, so typos and scanners don't flood the log.

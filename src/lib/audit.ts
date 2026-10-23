@@ -17,6 +17,8 @@ export const AUDIT_TYPES = [
   "instance.settings_updated", "instance.terms_updated",
   "social_provider.saved", "social_provider.enabled", "social_provider.disabled",
   "sso_connection.created", "sso_connection.updated", "sso_connection.deleted",
+  "scim_token.created", "scim_token.revoked",
+  "scim_user.created", "scim_user.updated", "scim_user.deactivated", "scim_user.reactivated", "scim_user.deleted",
   "email_template.updated", "email_template.reset", "email_template.test_sent",
   "webhook.created", "webhook.updated", "webhook.secret_rotated", "webhook.deleted",
 ] as const;
