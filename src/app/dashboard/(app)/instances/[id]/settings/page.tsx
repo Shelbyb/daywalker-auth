@@ -44,6 +44,9 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
               </span>
             </span>
           </label>
+          <Field label="SMS countries (optional)" hint="Country calling codes people may add a phone from, like 1 44 49 (US/Canada, UK, Germany). Leave empty to allow every country. Limiting this also guards against SMS toll fraud. People who already added a phone keep it.">
+            <input name="smsCountries" defaultValue={(inst.settings.smsCountries ?? []).join(" ")} maxLength={1000} placeholder="1 44 49" className={inputCls} />
+          </Field>
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="breachedPasswordCheck" defaultChecked={inst.settings.breachedPasswordCheck !== false} className="mt-0.5 size-4 accent-ink" />
             <span>

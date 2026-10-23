@@ -63,5 +63,38 @@ export function normalizePhone(raw: string) {
   return p;
 }
 
+// Country calling codes are prefix-free: no code starts another. So a number is in a country iff it
+// starts with "+" and that code. We accept only codes of a valid shape (checked against the leading
+// digits that real 1-, 2- and 3-digit codes use) so a typo like "4" can't quietly allow dozens of countries.
+const ONE = new Set(["1", "7"]);
+const TWO = new Set("20 27 30 31 32 33 34 36 39 40 41 43 44 45 46 47 48 49 51 52 53 54 55 56 57 58 60 61 62 63 64 65 66 81 82 84 86 90 91 92 93 94 95 98".split(" "));
+const THREE_LEAD = new Set("21 22 23 24 25 26 28 29 35 37 38 42 50 59 67 68 69 80 85 87 88 96 97 99".split(" "));
+
+export function validCallingCode(code: string) {
+  if (!/^\d{1,3}$/.test(code)) return false;
+  if (code.length === 1) return ONE.has(code);
+  if (code.length === 2) return TWO.has(code);
+  return THREE_LEAD.has(code.slice(0, 2));
+}
+
+/** Cleans "+1, 44  49" into ["1","44","49"], or throws a message for the first bad entry. */
+export function parseCallingCodes(raw: string[]) {
+  const out = new Set<string>();
+  for (const part of raw.flatMap((r) => r.split(/[\s,;]+/))) {
+    const c = part.replace(/^\+/, "");
+    if (!c) continue;
+    if (!validCallingCode(c)) throw new Error(`"${part}" isn't a country calling code. Use codes like 1, 44 or 49`);
+    out.add(c);
+  }
+  if (out.size > 100) throw new Error("Too many countries");
+  return [...out];
+}
+
+/** No list (or an empty one) means every country. */
+export function phoneInAllowedCountry(phone: string, codes: string[] | undefined) {
+  if (!codes?.length) return true;
+  return codes.some((c) => phone.startsWith(`+${c}`));
+}
+
 /** "•••• 4567": enough to recognise, not enough to reuse. */
 export const maskPhone = (p: string) => `•••• ${p.slice(-4)}`;

@@ -113,6 +113,7 @@ export async function updateSettingsAction(_prev: ActionState, fd: FormData): Pr
       emailCodeSignIn: fd.get("emailCodeSignIn") === "on",
       breachedPasswordCheck: fd.get("breachedPasswordCheck") === "on",
       smsSecondFactor: fd.get("smsSecondFactor") === "on",
+      smsCountries: str(fd, "smsCountries", 1000),
     });
     refresh(id);
     return { message: "Settings saved." };

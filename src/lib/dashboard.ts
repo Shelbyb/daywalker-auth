@@ -14,7 +14,7 @@ import { errors } from "./http";
 import { listAudit, record, type AuditQuery } from "./audit";
 import { SAMPLE_VARS, accentInput, composeEmail, isTemplateKind, listTemplates, resetTemplate, saveTemplate } from "./email-templates";
 import { sendMail } from "./mail";
-import { smsConfigured } from "./sms";
+import { smsConfigured, parseCallingCodes } from "./sms";
 import { createConnection, deleteConnection, listConnections, updateConnection } from "./auth/saml";
 import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
@@ -160,10 +160,18 @@ function origins(list: string[]) {
   return [...out];
 }
 
+function smsCountries(raw: string | undefined) {
+  try {
+    return parseCallingCodes([raw ?? ""]);
+  } catch (e) {
+    throw errors.badRequest("invalid_countries", (e as Error).message);
+  }
+}
+
 export async function updateSettings(
   userId: string,
   instanceId: string,
-  input: { name: string; allowedOrigins: string[]; passwordMinLength: number; sessionLifetimeDays: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; smsSecondFactor?: boolean },
+  input: { name: string; allowedOrigins: string[]; passwordMinLength: number; sessionLifetimeDays: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; smsSecondFactor?: boolean; smsCountries?: string },
 ) {
   const inst = await ownedInstance(userId, instanceId);
   const s = z
@@ -178,7 +186,7 @@ export async function updateSettings(
     .set({
       name: s.name,
       allowedOrigins: origins(input.allowedOrigins),
-      settings: { ...inst.settings, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true, breachedPasswordCheck: input.breachedPasswordCheck !== false, smsSecondFactor: input.smsSecondFactor === true },
+      settings: { ...inst.settings, passwordMinLength: s.passwordMinLength, sessionLifetimeDays: s.sessionLifetimeDays, emailCodeSignIn: input.emailCodeSignIn === true, breachedPasswordCheck: input.breachedPasswordCheck !== false, smsSecondFactor: input.smsSecondFactor === true, smsCountries: smsCountries(input.smsCountries) },
       updatedAt: new Date(),
     })
     .where(eq(schema.instances.id, instanceId));

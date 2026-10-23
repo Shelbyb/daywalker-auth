@@ -11,6 +11,7 @@ import { closeCache } from "../src/lib/cache";
 import { invalidateInstance } from "../src/lib/auth/instance";
 import { totpAt, currentCounter } from "../src/lib/auth/totp";
 import { listAudit } from "../src/lib/audit";
+import { parseCallingCodes, validCallingCode, phoneInAllowedCountry } from "../src/lib/sms";
 
 const AUTH = "http://localhost:3000";
 let failures = 0;
@@ -164,6 +165,31 @@ await u5.b.post("mfa/sms/verify", { code: lastCode(P5) });
 await u5.b.post("mfa/sms/send");
 const off = await u5.b.post("mfa/totp/disable", { code: lastCode(P5) });
 check("turning two-factor off with a texted code removes the phone too", off.status === 200 && (await u5.b.post("me/security", undefined, "GET")).body.smsPhone === null);
+
+// ---------- Country allow-list ----------
+check("calling codes: real ones are valid, typos aren't", ["1", "44", "49", "353", "971"].every(validCallingCode) && !["4", "", "0", "999999", "abc", "12", "3"].some(validCallingCode));
+check("calling codes: parsed from free text", JSON.stringify(parseCallingCodes(["+1, 44  49"])) === JSON.stringify(["1", "44", "49"]));
+check("calling codes: a bad entry is named", (() => { try { parseCallingCodes(["1 99999"]); return false; } catch (e) { return (e as Error).message.includes("99999"); } })());
+check("allow-list: matches by country prefix", phoneInAllowedCountry("+442071234567", ["44"]) && !phoneInAllowedCountry("+442071234567", ["1", "49"]) && phoneInAllowedCountry("+442071234567", []) && phoneInAllowedCountry("+442071234567", undefined));
+const setCountries = async (c: string[]) => {
+  await db().execute(sql`update instances set settings = settings || ${JSON.stringify({ smsSecondFactor: true, smsCountries: c })}::jsonb where id = ${seed.instanceId}`);
+  await invalidateInstance(seed.instanceId);
+};
+await setCountries(["1"]);
+const u6 = await newUser("fay");
+const sent0 = sent.length;
+const outR = await u6.b.post("mfa/sms", { phone: "+442071234567" });
+check("a number outside the allowed countries is refused, and nothing is texted", outR.body.error?.code === "sms_country_not_allowed" && sent.length === sent0, outR);
+const inR = await u6.b.post("mfa/sms", { phone: "+14155550166" });
+check("a number inside the allowed countries works", inR.status === 200 && sent.length === sent0 + 1, inR);
+await u6.b.post("mfa/sms/verify", { code: lastCode("+14155550166") });
+await setCountries(["44"]);
+const s6 = new Browser();
+await s6.post("sign_in", { email: u6.email, password: pw });
+await s6.post("sign_in/second_factor/sms");
+check("narrowing the list never locks out someone who already has a phone", (await s6.post("sign_in/second_factor", { code: lastCode("+14155550166"), method: "sms" })).body.status === "complete");
+await setCountries([]);
+check("an empty list allows every country", (await (await newUser("gus")).b.post("mfa/sms", { phone: "+442071234568" })).status === 200);
 
 await setSms(false);
 const sOff = new Browser();

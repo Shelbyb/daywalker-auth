@@ -9,7 +9,7 @@ import { errors } from "../http";
 import { newTotpSecret, matchTotp, otpauthUri } from "./totp";
 import type { Instance } from "../db/schema";
 import { rateLimit } from "../cache";
-import { checkSmsCode, maskPhone, normalizePhone, sendSmsCode, smsConfigured } from "../sms";
+import { checkSmsCode, maskPhone, normalizePhone, phoneInAllowedCountry, sendSmsCode, smsConfigured } from "../sms";
 
 const secretCtx = (userId: string) => `mfa_totp.secret:${userId}`;
 
@@ -188,6 +188,8 @@ export async function startSmsEnrollment(inst: Instance, userId: string, rawPhon
   if (!smsAllowed(inst)) throw errors.badRequest("sms_disabled", "SMS two-factor isn't available for this app");
   const phone = normalizePhone(rawPhone);
   if (!phone) throw errors.badRequest("invalid_phone", "Enter the number in international format, like +1 415 555 0100");
+  // Only for new numbers: people who already added a phone keep it, so narrowing the list never locks anyone out.
+  if (!phoneInAllowedCountry(phone, inst.settings.smsCountries)) throw errors.badRequest("sms_country_not_allowed", "Text messages aren't available for numbers in that country");
   if ((await smsPhone(userId)) !== null) throw errors.conflict("already_enabled", "A phone is already set up. Remove it first to use a different one");
   if ((await hasTwoFactor(userId)) && !(currentCode && (await verifySecondFactor(userId, currentCode))))
     throw errors.badRequest("code_required", "Enter a current two-factor code to add a phone");
