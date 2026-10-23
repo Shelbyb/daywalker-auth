@@ -6,6 +6,7 @@ import { completePendingSecondFactor, completePendingWithSecurityKey } from "@/l
 import { readCredential } from "@/lib/auth/webauthn-input";
 import { createSession, issueToken } from "@/lib/auth/sessions";
 import { getUser } from "@/lib/auth/users";
+import { linkAfterSecondFactor } from "@/lib/auth/saml-logout";
 
 export const OPTIONS = preflight;
 
@@ -23,6 +24,7 @@ export const POST = handler(async (req: Request) => {
     userId = await completePendingSecondFactor(ctx.inst.id, ctx.twoFactorToken, code, method);
   }
   const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
+  await linkAfterSecondFactor(ctx.twoFactorToken, s.id); // a SAML sign-in that needed 2FA
   const { jwt } = await issueToken(ctx.inst, s.refreshToken, ctx.origin);
   const res = ctx.clearTwoFactorCookie(ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt }));
   return ctx.setRefreshCookie(res, s.refreshToken, s.expiresAt);

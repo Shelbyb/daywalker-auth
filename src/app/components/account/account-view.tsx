@@ -87,8 +87,9 @@ export function AccountView({ pk, back }: { pk: string; back?: string }) {
         <Button
           variant="secondary"
           onClick={async () => {
-            await client.signOut();
-            window.location.assign(back ?? `/sign-in?pk=${encodeURIComponent(pk)}`);
+            const to = back ?? `/sign-in?pk=${encodeURIComponent(pk)}`;
+            const { redirecting } = await client.signOut({ redirectUrl: back ?? undefined });
+            if (!redirecting) window.location.assign(to);
           }}
         >
           Sign out

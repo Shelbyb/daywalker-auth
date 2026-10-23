@@ -2,6 +2,8 @@ import { handler } from "@/lib/http";
 import { frontendContext, preflight } from "@/lib/auth/frontend";
 import { resolveSession, endSession } from "@/lib/auth/sessions";
 import { getUser } from "@/lib/auth/users";
+import { safeRedirect } from "@/lib/auth/redirect";
+import { startSingleLogout } from "@/lib/auth/saml-logout";
 
 export const OPTIONS = preflight;
 
@@ -13,9 +15,19 @@ export const GET = handler(async (req: Request) => {
   return ctx.json({ session: { id: s.id, expiresAt: s.expiresAt }, user: await getUser(ctx.inst.id, s.userId) });
 });
 
-/** Sign out. */
+/**
+ * Sign out. If the session came from an SSO connection with single logout on, also returns
+ * `ssoLogoutUrl`: send the browser there to sign out at the identity provider too. It comes back
+ * to `redirectUrl` (relative path or an allowed origin) or the hosted sign-in page.
+ */
 export const DELETE = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
-  if (ctx.refreshToken) await endSession(ctx.inst.id, ctx.refreshToken);
-  return ctx.clearRefreshCookie(ctx.json({ ok: true }));
+  let ssoLogoutUrl: string | null = null;
+  if (ctx.refreshToken) {
+    const body = (await req.json().catch(() => null)) as { redirectUrl?: unknown } | null;
+    const redirect = typeof body?.redirectUrl === "string" ? safeRedirect(body.redirectUrl.slice(0, 2000), ctx.inst.allowedOrigins) : null;
+    ssoLogoutUrl = await startSingleLogout(ctx.inst.id, ctx.refreshToken, redirect).catch(() => null);
+    await endSession(ctx.inst.id, ctx.refreshToken);
+  }
+  return ctx.clearRefreshCookie(ctx.json({ ok: true, ...(ssoLogoutUrl ? { ssoLogoutUrl } : {}) }));
 });

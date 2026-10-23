@@ -49,6 +49,12 @@ GET  /v1/client/environment              → { name, oauthProviders, passwordMin
 
 When `required` is true, every other sign-in method for that address answers `403 sso_required`.
 
+```http
+DELETE /v1/client/session  { "redirectUrl"? } → { ok: true, ssoLogoutUrl? }
+```
+
+Signs out. `ssoLogoutUrl` is only there when the session came from an SSO connection with single logout on: send the browser there to sign out at the identity provider too. It comes back to `redirectUrl` (an allowed origin) or the hosted sign-in page.
+
 ## Two-factor setup (signed in)
 
 ```http

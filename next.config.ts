@@ -23,7 +23,7 @@ const config: NextConfig = {
   outputFileTracingRoot: path.resolve(import.meta.dirname),
   transpilePackages: ["@daywalker/auth"],
   // Native argon2 bindings must not be bundled.
-  serverExternalPackages: ["@node-rs/argon2"],
+  serverExternalPackages: ["@node-rs/argon2", "@peculiar/x509", "tsyringe", "reflect-metadata"],
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

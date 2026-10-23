@@ -451,6 +451,13 @@ export const samlConnections = pgTable(
     scimTokenCreatedAt: timestamp("scim_token_created_at", { withTimezone: true }),
     // SCIM group names (lowercased) whose members become admins of the connection's organization. Empty: roles are left alone.
     scimAdminGroups: jsonb("scim_admin_groups").$type<string[]>().notNull().default([]),
+    /** The identity provider's single logout URL (HTTP-Redirect). */
+    sloUrl: text("slo_url"),
+    /** When true, signing out of the app also signs the person out at the identity provider. */
+    singleLogout: boolean("single_logout").notNull().default(false),
+    /** Our signing key for logout messages, created on first use: private key encrypted, certificate public. */
+    spKeyEnc: text("sp_key_enc"),
+    spCert: text("sp_cert"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -467,6 +474,21 @@ export const scimUsers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("scim_users_connection_user_idx").on(t.connectionId, t.userId), index("scim_users_user_idx").on(t.userId)],
+);
+
+/** Which SAML sign-in a session came from, so either side can end it (single logout). NameID encrypted, blind-indexed. */
+export const samlSessions = pgTable(
+  "saml_sessions",
+  {
+    sessionId: text("session_id").primaryKey().references(() => sessions.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id").notNull().references(() => samlConnections.id, { onDelete: "cascade" }),
+    nameIdEnc: text("name_id_enc").notNull(),
+    nameIdIndex: text("name_id_index").notNull(),
+    nameIdFormat: text("name_id_format"),
+    sessionIndexEnc: text("session_index_enc"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("saml_sessions_name_idx").on(t.connectionId, t.nameIdIndex)],
 );
 
 /** Groups pushed by the identity provider (SCIM). Names are matched against a connection's admin groups. */

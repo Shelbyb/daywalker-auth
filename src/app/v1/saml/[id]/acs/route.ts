@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/http";
 import { completeSso, STATE_COOKIE, takeState } from "@/lib/auth/saml";
 import { getInstance, publishableKey } from "@/lib/auth/instance";
 import { finishRedirectSignIn } from "@/lib/auth/finish-redirect";
+import { linkSamlSession, stashForSecondFactor } from "@/lib/auth/saml-logout";
 import { env } from "@/lib/env";
 
 const SAFE_ERRORS = new Set(["oauth_failed", "email_unverified", "forbidden", "legal_required", "sso_not_configured"]);
@@ -39,8 +40,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return res;
   };
   try {
-    const userId = await completeSso(inst, id, pending, samlResponse);
-    return await finishRedirectSignIn(req, inst, userId, pending.redirect, "saml", clear);
+    const { userId, login } = await completeSso(inst, id, pending, samlResponse);
+    return await finishRedirectSignIn(req, inst, userId, pending.redirect, "saml", clear, {
+      onSession: (sessionId) => linkSamlSession(sessionId, login), // so single logout can find it later
+      onPending: (token) => stashForSecondFactor(token, login),
+    });
   } catch (e) {
     if (e instanceof ApiError) return back(e.code);
     console.error("SAML sign-in failed", (e as Error).message);

@@ -316,7 +316,7 @@ export async function createSsoAction(_prev: ActionState, fd: FormData): Promise
       organizationId: str(fd, "organizationId", 100) || null,
       ...(metadataXml.trim()
         ? { metadataXml }
-        : { idpEntityId: str(fd, "idpEntityId", 1000), ssoUrl: str(fd, "ssoUrl", 2000), certificates: cert ? [cert] : [] }),
+        : { idpEntityId: str(fd, "idpEntityId", 1000), ssoUrl: str(fd, "ssoUrl", 2000), certificates: cert ? [cert] : [], sloUrl: str(fd, "sloUrl", 2000) || null }),
     });
     refresh(id);
     return { message: "Connection created. Give your identity provider the details shown on the card." };
@@ -342,6 +342,18 @@ export async function requireSsoAction(_prev: ActionState, fd: FormData): Promis
     await updateSsoConnection(userId, id, str(fd, "connectionId", 100), { ssoRequired });
     refresh(id);
     return { message: ssoRequired ? "SSO is now required for these domains." : "People at these domains can sign in other ways again." };
+  });
+}
+
+export async function singleLogoutAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const sloUrl = str(fd, "sloUrl", 2000).trim() || null;
+    const singleLogout = fd.get("singleLogout") === "on" && !!sloUrl;
+    await updateSsoConnection(userId, id, str(fd, "connectionId", 100), { sloUrl, singleLogout });
+    refresh(id);
+    return { message: singleLogout ? "Signing out of the app now signs people out at the identity provider too." : "Logout settings saved." };
   });
 }
 

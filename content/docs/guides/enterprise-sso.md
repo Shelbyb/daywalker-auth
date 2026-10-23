@@ -105,6 +105,21 @@ If the connection has an organization, you can make some groups mean "admin". On
 - Rotating the token cuts the old one off at once. Requests are limited to 600 a minute per connection.
 - Provisioning events are in the [audit log](/docs/guides/audit-logs) (`scim_user.created`, `scim_user.deactivated`, and so on).
 
+## Single logout
+
+Signing out can reach across both sides.
+
+- **When the identity provider signs someone out** (an admin ends their session, or they sign out of the company portal), it sends a signed logout request to the **Single logout URL** shown on the connection. Every session that came from that person's SSO sign-ins ends here at once. Nothing to switch on: give the identity provider that URL, or let it read our metadata, which lists it with our signing certificate.
+- **When someone signs out of your app**, you can also sign them out at the identity provider. Add the identity provider's logout URL (it's read from its metadata automatically), then turn on **Sign out at the identity provider too**. `signOut()` then sends the browser to the identity provider and back:
+
+```ts
+await client.signOut({ redirectUrl: "/goodbye" }); // goes via the IdP when single logout is on
+```
+
+`redirectUrl` must be a relative path or one of your allowed origins. Pass `singleLogout: false` to sign out only here. `<UserButton>` and `<SignOutButton>` already do this, using their `afterSignOutUrl`.
+
+Logout messages are checked like sign-ins: they must be signed by the connection's certificate, come from its issuer, be addressed to us, be recent, and each one works once. A logout answer only sends the browser to a redirect we stored when the sign-out started. Our own logout messages are signed with a key made for each connection, stored encrypted.
+
 ## From your backend
 
 ```bash
@@ -113,12 +128,12 @@ curl -X POST https://users.daywalker.dev/v1/saml_connections \
   -d '{ "name": "Acme", "domains": ["acme.com"], "organizationId": "org_…", "metadataXml": "<EntityDescriptor …>" }'
 ```
 
-Also: `GET /v1/saml_connections`, `GET|PATCH|DELETE /v1/saml_connections/{id}`. Instead of `metadataXml` you can send `idpEntityId`, `ssoUrl` and `certificates` (PEM). `PATCH` with `{ "enabled": false }` pauses a connection, and `{ "ssoRequired": true }` makes SSO the only sign-in method for its domains. `{ "scimAdminGroups": ["Daywalker Admins"] }` sets the admin groups described above.
+Also: `GET /v1/saml_connections`, `GET|PATCH|DELETE /v1/saml_connections/{id}`. Instead of `metadataXml` you can send `idpEntityId`, `ssoUrl` and `certificates` (PEM). `PATCH` with `{ "enabled": false }` pauses a connection, and `{ "ssoRequired": true }` makes SSO the only sign-in method for its domains. `{ "scimAdminGroups": ["Daywalker Admins"] }` sets the admin groups described above, and `{ "sloUrl": "https://…", "singleLogout": true }` turns on single logout.
 
 ## How it's kept safe
 
 - **Signed assertions only.** Each assertion must be signed by one of the connection's certificates. Signature checks use the maintained `@node-saml/node-saml` library, which rejects signature-wrapping tricks.
-- **Must answer our request.** Every sign-in starts at Daywalker. The response has to answer that exact request, from the browser that started it. Replayed responses, responses to a different request, and unsolicited (IdP-initiated) responses are refused.
+- **Must answer our request.** Every sign-in starts at Daywalker. The response has to answer that exact request, from the browser that started it. Replayed responses, responses to a different request, and unsolicited (IdP-initiated) sign-in responses are refused. People start from your app's "Sign in with SSO" instead.
 - **Right audience, issuer, recipient and time.** Assertions for another app, from another issuer, sent to another URL, or expired are refused.
 - **The IdP can only vouch for its own domains.** An email is trusted only if it's at one of the connection's domains. A misconfigured or hostile IdP can't sign someone in as `ceo@another-company.com`.
 - **Existing accounts.** If someone already signed up with a password at that domain without verifying their email, the password is removed when SSO first links the account. This protects against someone pre-registering an employee's address.

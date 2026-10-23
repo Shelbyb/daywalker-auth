@@ -1,5 +1,5 @@
 /**
- * Enterprise SSO over SAML 2.0 (SP-initiated only).
+ * Enterprise SSO over SAML 2.0 (sign-in always starts here; single logout works both ways).
  *
  * The XML signature work is done by @node-saml/node-saml (xml-crypto underneath). On top of it:
  * - Every sign-in starts here: we create the AuthnRequest, and the response must answer that exact
@@ -9,9 +9,11 @@
  *   URL, within the allowed time window.
  * - The email is only trusted if its domain is one of the connection's domains, so an identity
  *   provider can't vouch for addresses it doesn't own.
+ * Single logout (both directions) lives in saml-logout.ts.
  */
+import "reflect-metadata"; // @peculiar/x509 (our logout signing certificate) needs it loaded first
 import { X509Certificate } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { DOMParser } from "@xmldom/xmldom";
 import { SAML, ValidateInResponseTo, type CacheProvider, type Profile } from "@node-saml/node-saml";
 import { z } from "zod";
@@ -31,8 +33,9 @@ const STATE_TTL = 600;
 
 export const spEntityId = (connectionId: string) => `${env().APP_URL}/v1/saml/${connectionId}/metadata`;
 export const acsUrl = (connectionId: string) => `${env().APP_URL}/v1/saml/${connectionId}/acs`;
+export const sloCallbackUrl = (connectionId: string) => `${env().APP_URL}/v1/saml/${connectionId}/slo`;
 
-type Connection = typeof schema.samlConnections.$inferSelect;
+export type Connection = typeof schema.samlConnections.$inferSelect;
 
 // ---------- Configuration ----------
 
@@ -63,6 +66,8 @@ export const connectionInput = z.object({
   enabled: z.boolean().default(true),
   ssoRequired: z.boolean().default(false),
   scimAdminGroups: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  sloUrl: z.string().trim().url().max(2000).refine(urlOk, "The logout URL must use https").nullish(),
+  singleLogout: z.boolean().default(false),
 });
 
 /** Reads entity ID, HTTP-Redirect SSO URL and signing certificates from IdP metadata XML. */
@@ -80,7 +85,13 @@ export function parseIdpMetadata(xml: string) {
     .flatMap((k) => Array.from(k.getElementsByTagNameNS("*", "X509Certificate")).map((c) => c.textContent ?? ""));
   if (!sso?.getAttribute("Location")) throw errors.badRequest("invalid_metadata", "The metadata has no HTTP-Redirect sign-in URL");
   if (!certs.length) throw errors.badRequest("invalid_metadata", "The metadata has no signing certificate");
-  return { idpEntityId: entity.getAttribute("entityID") ?? "", ssoUrl: sso.getAttribute("Location")!, certificates: [...new Set(certs)].slice(0, 3) };
+  const slo = Array.from(idp.getElementsByTagNameNS("*", "SingleLogoutService")).find((e) => e.getAttribute("Binding")?.endsWith("HTTP-Redirect"));
+  return {
+    idpEntityId: entity.getAttribute("entityID") ?? "",
+    ssoUrl: sso.getAttribute("Location")!,
+    certificates: [...new Set(certs)].slice(0, 3),
+    ...(slo?.getAttribute("Location") ? { sloUrl: slo.getAttribute("Location")! } : {}),
+  };
 }
 
 function view(c: Connection, domains: string[]) {
@@ -104,8 +115,11 @@ function view(c: Connection, domains: string[]) {
       tokenCreatedAt: c.scimTokenCreatedAt,
       baseUrl: `${env().APP_URL}/v1/scim/v2/${c.id}`,
     },
+    sloUrl: c.sloUrl,
+    singleLogout: c.singleLogout,
     spEntityId: spEntityId(c.id),
     acsUrl: acsUrl(c.id),
+    spSloUrl: sloCallbackUrl(c.id),
     createdAt: c.createdAt,
   };
 }
@@ -150,7 +164,7 @@ export async function createConnection(instanceId: string, raw: Record<string, u
   const orgId = await checkOrg(instanceId, input.organizationId);
   const id = newId("saml");
   await db().transaction(async (tx) => {
-    await tx.insert(schema.samlConnections).values({ id, instanceId, name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, scimAdminGroups: normalizeGroupNames(input.scimAdminGroups) });
+    await tx.insert(schema.samlConnections).values({ id, instanceId, name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, scimAdminGroups: normalizeGroupNames(input.scimAdminGroups), sloUrl: input.sloUrl ?? null, singleLogout: input.singleLogout });
     await writeDomains(tx, instanceId, id, input.domains);
   });
   return getConnection(instanceId, id);
@@ -158,11 +172,11 @@ export async function createConnection(instanceId: string, raw: Record<string, u
 
 export async function updateConnection(instanceId: string, id: string, raw: Record<string, unknown>) {
   const c = await load(instanceId, id);
-  const merged = { name: c.name, organizationId: c.orgId, idpEntityId: c.idpEntityId, ssoUrl: c.ssoUrl, certificates: c.certificates, domains: await domainsOf(id), enabled: c.enabled, ssoRequired: c.ssoRequired, scimAdminGroups: c.scimAdminGroups, ...raw };
+  const merged = { name: c.name, organizationId: c.orgId, idpEntityId: c.idpEntityId, ssoUrl: c.ssoUrl, certificates: c.certificates, domains: await domainsOf(id), enabled: c.enabled, ssoRequired: c.ssoRequired, scimAdminGroups: c.scimAdminGroups, sloUrl: c.sloUrl, singleLogout: c.singleLogout, ...raw };
   const input = resolveInput(merged);
   const orgId = await checkOrg(instanceId, input.organizationId);
   await db().transaction(async (tx) => {
-    await tx.update(schema.samlConnections).set({ name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, scimAdminGroups: normalizeGroupNames(input.scimAdminGroups), updatedAt: new Date() }).where(eq(schema.samlConnections.id, id));
+    await tx.update(schema.samlConnections).set({ name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, scimAdminGroups: normalizeGroupNames(input.scimAdminGroups), sloUrl: input.sloUrl ?? null, singleLogout: input.singleLogout, updatedAt: new Date() }).where(eq(schema.samlConnections.id, id));
     await writeDomains(tx, instanceId, id, input.domains);
   });
   // Turning enforcement on must not leave password-era sessions alive: end them so everyone re-enters through the IdP.
@@ -175,7 +189,8 @@ export async function updateConnection(instanceId: string, id: string, raw: Reco
 }
 
 /**
- * Revokes active sessions of users whose primary email is at one of these domains.
+ * Revokes active sessions of users whose primary email is at one of these domains, except ones
+ * that came from an SSO sign-in.
  * Emails are encrypted, so matching happens in code, in batches.
  */
 export async function endSessionsAtDomains(instanceId: string, domains: string[]) {
@@ -192,7 +207,13 @@ export async function endSessionsAtDomains(instanceId: string, domains: string[]
     const revoked = await db()
       .update(schema.sessions)
       .set({ status: "revoked" })
-      .where(and(eq(schema.sessions.instanceId, instanceId), inArray(schema.sessions.userId, userIds.slice(i, i + 200)), eq(schema.sessions.status, "active")))
+      .where(and(
+        eq(schema.sessions.instanceId, instanceId),
+        inArray(schema.sessions.userId, userIds.slice(i, i + 200)),
+        eq(schema.sessions.status, "active"),
+        // Sessions that came through the identity provider already satisfy the rule.
+        sql`not exists (select 1 from saml_sessions ss where ss.session_id = ${schema.sessions.id})`,
+      ))
       .returning({ h: schema.sessions.refreshTokenHash });
     if (revoked.length) await cache().del(...revoked.map((r) => `sess:${r.h}`));
     n += revoked.length;
@@ -253,9 +274,12 @@ function requestCache(expectedId?: string): CacheProvider {
   };
 }
 
-function samlFor(c: Connection, opts: { requestId?: string; expectedId?: string } = {}) {
+export function samlFor(c: Connection, opts: { requestId?: string; expectedId?: string; privateKey?: string } = {}) {
   return new SAML({
     entryPoint: c.ssoUrl,
+    logoutUrl: c.sloUrl ?? c.ssoUrl,
+    logoutCallbackUrl: sloCallbackUrl(c.id),
+    ...(opts.privateKey ? { privateKey: opts.privateKey } : {}),
     issuer: spEntityId(c.id),
     callbackUrl: acsUrl(c.id),
     audience: spEntityId(c.id),
@@ -276,8 +300,41 @@ function samlFor(c: Connection, opts: { requestId?: string; expectedId?: string 
   });
 }
 
-export function spMetadata(c: Connection) {
-  return samlFor(c).generateServiceProviderMetadata(null, null);
+/** Our metadata, with the certificate the identity provider uses to check our logout messages. */
+export async function spMetadata(c: Connection) {
+  const { cert, privateKey } = await ensureSpKey(c);
+  // The library only lists a signing certificate when it has the key. We sign logout messages, not sign-in requests.
+  return samlFor(c, { privateKey }).generateServiceProviderMetadata(null, cert).replace('AuthnRequestsSigned="true"', 'AuthnRequestsSigned="false"');
+}
+
+/**
+ * This connection's own signing key for logout messages (RSA 2048, self-signed, 10 years).
+ * Made on first use. The private key is stored encrypted and never leaves the server.
+ */
+export async function ensureSpKey(c: Connection): Promise<{ privateKey: string; cert: string }> {
+  const ctx = `saml_connections.sp_key:${c.id}`;
+  if (c.spKeyEnc && c.spCert) return { privateKey: decrypt(c.spKeyEnc, ctx), cert: c.spCert };
+  const x509 = await import("@peculiar/x509");
+  const { webcrypto } = await import("node:crypto");
+  x509.cryptoProvider.set(webcrypto as unknown as Crypto);
+  const alg = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256", publicExponent: new Uint8Array([1, 0, 1]), modulusLength: 2048 };
+  const keys = await webcrypto.subtle.generateKey(alg, true, ["sign", "verify"]);
+  const now = new Date();
+  const certObj = await x509.X509CertificateGenerator.createSelfSigned({
+    serialNumber: Buffer.from(newToken(12)).toString("hex").slice(0, 16),
+    name: `CN=Daywalker Auth SAML ${c.id}`,
+    notBefore: new Date(now.getTime() - 60_000),
+    notAfter: new Date(now.getTime() + 10 * 365 * 86_400_000),
+    signingAlgorithm: alg,
+    keys: keys as unknown as CryptoKeyPair,
+  });
+  const pkcs8 = Buffer.from(await webcrypto.subtle.exportKey("pkcs8", keys.privateKey)).toString("base64");
+  const privateKey = `-----BEGIN PRIVATE KEY-----\n${pkcs8.match(/.{1,64}/g)!.join("\n")}\n-----END PRIVATE KEY-----\n`;
+  const cert = certObj.toString("pem");
+  // Two requests at once: the first write wins, and everyone uses that one.
+  await db().update(schema.samlConnections).set({ spKeyEnc: encrypt(privateKey, ctx), spCert: cert }).where(and(eq(schema.samlConnections.id, c.id), isNull(schema.samlConnections.spKeyEnc)));
+  const [row] = await db().select({ k: schema.samlConnections.spKeyEnc, cert: schema.samlConnections.spCert }).from(schema.samlConnections).where(eq(schema.samlConnections.id, c.id));
+  return { privateKey: decrypt(row.k!, ctx), cert: row.cert! };
 }
 
 export async function connectionById(id: string) {
@@ -321,7 +378,9 @@ const attr = (p: Profile, names: string[]) => {
 };
 
 /** Step 2: validate the IdP's response and sign the user in. Returns the user ID. */
-export async function completeSso(inst: Instance, connectionId: string, pending: Pending, samlResponse: string) {
+export type SamlLogin = { connectionId: string; nameID: string; nameIDFormat: string | null; sessionIndex: string | null };
+
+export async function completeSso(inst: Instance, connectionId: string, pending: Pending, samlResponse: string): Promise<{ userId: string; login: SamlLogin }> {
   const c = await connectionById(connectionId);
   if (!c || !c.enabled || c.instanceId !== inst.id) throw errors.badRequest("sso_not_configured", "This SSO connection is no longer available");
   let profile: Profile | null;
@@ -351,5 +410,6 @@ export async function completeSso(inst: Instance, connectionId: string, pending:
     const role = await roleFromGroups({ id: c.id, instanceId: c.instanceId, orgId: c.orgId, scimAdminGroups: c.scimAdminGroups }, userId);
     await db().insert(schema.memberships).values({ orgId: c.orgId, userId, role }).onConflictDoNothing();
   }
-  return userId;
+  const login: SamlLogin = { connectionId: c.id, nameID: profile.nameID, nameIDFormat: profile.nameIDFormat ?? null, sessionIndex: typeof profile.sessionIndex === "string" ? profile.sessionIndex : null };
+  return { userId, login };
 }

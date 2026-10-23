@@ -120,6 +120,13 @@
       "when": 1792762504778,
       "tag": "0016_scim_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792767233083,
+      "tag": "0017_saml_logout",
+      "breakpoints": true
     }
   ]
 }

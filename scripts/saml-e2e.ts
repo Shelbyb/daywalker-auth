@@ -8,8 +8,8 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { inflateRawSync } from "node:zlib";
-import { randomBytes } from "node:crypto";
+import { deflateRawSync, inflateRawSync } from "node:zlib";
+import { createSign, createVerify, randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { SignedXml } from "xml-crypto";
 import { seedInstance } from "./seed";
@@ -17,6 +17,7 @@ import { db, closeDb } from "../src/lib/db";
 import { closeCache } from "../src/lib/cache";
 import { listAudit } from "../src/lib/audit";
 import { invalidateInstance } from "../src/lib/auth/instance";
+import { totpAt, currentCounter } from "../src/lib/auth/totp";
 
 const AUTH = "http://localhost:3000";
 const APP = "http://localhost:3001";
@@ -248,6 +249,147 @@ await api("PATCH", `saml_connections/${conn.id}`, { enabled: true });
 check("enabled again: refused", (await code(await cl("sign_in", { email: eveMail, password: PW }))) === "sso_required");
 await api("PATCH", `saml_connections/${conn.id}`, { ssoRequired: false });
 check("turn it off: password sign-in works again", (await cl("sign_in", { email: eveMail, password: PW })).status === 200);
+
+// ---------- Single logout ----------
+await api("PATCH", `saml_connections/${conn.id}`, { enabled: true, ssoRequired: false });
+const SLO = `${AUTH}/v1/saml/${conn.id}/slo`;
+const IDP_SLO = "https://idp.example.test/slo";
+const meta2 = await (await fetch(`${AUTH}/v1/saml/${conn.id}/metadata`)).text();
+const spCertB64 = meta2.match(/X509Certificate>([^<]+)<\/(?:ds:)?X509Certificate>/)?.[1]?.replace(/\s/g, "") ?? "";
+const spCertPem = `-----BEGIN CERTIFICATE-----\n${spCertB64.match(/.{1,64}/g)?.join("\n")}\n-----END CERTIFICATE-----\n`;
+check("metadata publishes our signing certificate", !!spCertB64 && /KeyDescriptor[^>]*use="signing"/.test(meta2), meta2.slice(0, 300));
+check("metadata lists the logout URL for both bindings", meta2.includes(`HTTP-Redirect" Location="${SLO}"`) && meta2.includes(`HTTP-POST" Location="${SLO}"`));
+const keyRow = (await db().execute(sql`select sp_key_enc as k from saml_connections where id = ${conn.id}`)) as unknown as { k: string }[];
+check("our private key is stored encrypted", !!keyRow[0]?.k && !keyRow[0].k.includes("PRIVATE KEY"));
+check("the metadata certificate stays the same", (await (await fetch(`${AUTH}/v1/saml/${conn.id}/metadata`)).text()).replace(/\s/g, "").includes(spCertB64));
+
+const signin = async (email: string) => {
+  const b = new Browser();
+  const s = await start(b, email);
+  await b.post(`${AUTH}/v1/saml/${conn.id}/acs`, { SAMLResponse: response(s.requestId, sign(assertion({ inResponseTo: s.requestId, nameId: email }))), RelayState: s.relayState });
+  return b;
+};
+const hex = () => randomBytes(8).toString("hex");
+const logoutRequest = (o: { nameId: string; id?: string; issuer?: string; destination?: string; instant?: string }) =>
+  `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="${o.id ?? `_l${hex()}`}" Version="2.0" IssueInstant="${o.instant ?? iso(0)}" Destination="${o.destination ?? SLO}"><saml:Issuer>${o.issuer ?? IDP_ENTITY}</saml:Issuer><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${o.nameId}</saml:NameID><samlp:SessionIndex>_s1</samlp:SessionIndex></samlp:LogoutRequest>`;
+const logoutResponse = (inResponseTo: string, o: { id?: string } = {}) =>
+  `<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="${o.id ?? `_lr${hex()}`}" Version="2.0" IssueInstant="${iso(0)}" Destination="${SLO}" InResponseTo="${inResponseTo}"><saml:Issuer>${IDP_ENTITY}</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status></samlp:LogoutResponse>`;
+const RSA256 = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
+const redirectQuery = (param: "SAMLRequest" | "SAMLResponse", xml: string, o: { key?: string; relay?: string; unsigned?: boolean } = {}) => {
+  let q = `${param}=${encodeURIComponent(deflateRawSync(Buffer.from(xml)).toString("base64"))}${o.relay ? `&RelayState=${encodeURIComponent(o.relay)}` : ""}`;
+  if (o.unsigned) return q;
+  q += `&SigAlg=${encodeURIComponent(RSA256)}`;
+  return `${q}&Signature=${encodeURIComponent(createSign("RSA-SHA256").update(q).sign(o.key ?? idp.key, "base64"))}`;
+};
+/** Checks one of OUR outgoing redirects: signed with the metadata certificate over the raw query. */
+const ourSignatureOk = (loc: string) => {
+  const q = loc.slice(loc.indexOf("?") + 1).split("&");
+  const pick = (k: string) => q.find((p) => p.startsWith(`${k}=`));
+  const signed = [pick("SAMLRequest") ?? pick("SAMLResponse"), pick("RelayState"), pick("SigAlg")].filter(Boolean).join("&");
+  const sig = decodeURIComponent(pick("Signature")?.slice(10) ?? "");
+  return !!sig && createVerify("RSA-SHA256").update(signed).verify(spCertPem, sig, "base64");
+};
+const inflateParam = (loc: string, k: string) => inflateRawSync(Buffer.from(new URL(loc).searchParams.get(k)!, "base64")).toString("utf8");
+
+// IdP-initiated
+const sloUser = `slo.${t}@acme.test`, bystander = `stay.${t}@acme.test`;
+const bA = await signin(sloUser), bA2 = await signin(sloUser), bB = await signin(bystander);
+const sloUserId = await bA.userId();
+const link = (await db().execute(sql`select s.name_id_enc as n from saml_sessions s join sessions x on x.id = s.session_id where x.user_id = ${sloUserId}`)) as unknown as { n: string }[];
+check("a SAML sign-in remembers which IdP session it came from (NameID encrypted)", link.length === 2 && !link[0].n.includes("@"), link.length);
+check("an unsigned logout request is refused", (await fetch(`${SLO}?${redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser }), { unsigned: true })}`, { redirect: "manual" })).status === 400);
+check("one signed by another key is refused", (await fetch(`${SLO}?${redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser }), { key: rogue.key })}`, { redirect: "manual" })).status === 400);
+check("one from another issuer is refused", (await fetch(`${SLO}?${redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser, issuer: "https://evil.test" }))}`, { redirect: "manual" })).status === 400);
+check("one for another destination is refused", (await fetch(`${SLO}?${redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser, destination: "https://elsewhere.test/slo" }))}`, { redirect: "manual" })).status === 400);
+check("an old one is refused", (await fetch(`${SLO}?${redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser, instant: iso(-3_600_000) }))}`, { redirect: "manual" })).status === 400);
+const tampered = redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser })).replace(/SAMLRequest=[^&]+/, `SAMLRequest=${encodeURIComponent(deflateRawSync(Buffer.from(logoutRequest({ nameId: bystander }))).toString("base64"))}`);
+check("swapping the message under a valid signature is refused", (await fetch(`${SLO}?${tampered}`, { redirect: "manual" })).status === 400);
+check("…and nobody was signed out by those", !!(await bA.userId()) && !!(await bB.userId()));
+
+const noSlo = await fetch(`${SLO}?${redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser }), { relay: "back here" })}`, { redirect: "manual" });
+check("a valid logout request with no IdP logout URL set: 200", noSlo.status === 200, noSlo.status);
+check("…ends every session from that person's SSO sign-ins", !(await bA.userId()) && !(await bA2.userId()));
+check("…and nobody else's", (await bB.userId()) === (await bB.userId()) && !!(await bB.userId()));
+
+await api("PATCH", `saml_connections/${conn.id}`, { sloUrl: IDP_SLO });
+const bC = await signin(sloUser);
+const reqId = `_l${hex()}`;
+const q1 = redirectQuery("SAMLRequest", logoutRequest({ nameId: sloUser, id: reqId }), { relay: "back here" });
+const lr = await fetch(`${SLO}?${q1}`, { redirect: "manual" });
+const lrLoc = lr.headers.get("location") ?? "";
+check("with an IdP logout URL, we answer with a redirect there", lr.status === 302 && lrLoc.startsWith(IDP_SLO), lrLoc.slice(0, 80));
+check("…carrying a signed LogoutResponse", ourSignatureOk(lrLoc) && new URL(lrLoc).searchParams.get("RelayState") === "back here");
+const lrXml = inflateParam(lrLoc, "SAMLResponse");
+check("…that answers that request with success", lrXml.includes(`InResponseTo="${reqId}"`) && lrXml.includes("status:Success"), lrXml.slice(0, 200));
+check("…and the session is gone", !(await bC.userId()));
+check("the same logout request can't be replayed", (await fetch(`${SLO}?${q1}`, { redirect: "manual" })).status === 400);
+
+// POST binding, signed XML
+const bD = await signin(sloUser);
+const signedLogout = (() => {
+  const x = new SignedXml({ privateKey: idp.key, canonicalizationAlgorithm: "http://www.w3.org/2001/10/xml-exc-c14n#", signatureAlgorithm: RSA256 });
+  x.addReference({ xpath: "//*[local-name(.)='LogoutRequest']", digestAlgorithm: "http://www.w3.org/2001/04/xmlenc#sha256", transforms: ["http://www.w3.org/2000/09/xmldsig#enveloped-signature", "http://www.w3.org/2001/10/xml-exc-c14n#"] });
+  x.computeSignature(logoutRequest({ nameId: sloUser }), { location: { reference: "//*[local-name(.)='Issuer']", action: "after" } });
+  return x.getSignedXml();
+})();
+check("an unsigned POST logout request is refused", (await new Browser().post(SLO, { SAMLRequest: Buffer.from(logoutRequest({ nameId: sloUser })).toString("base64") })).status === 400);
+const pr = await new Browser().post(SLO, { SAMLRequest: Buffer.from(signedLogout).toString("base64") });
+check("a signed POST logout request works too", pr.status === 302 && !(await bD.userId()), pr.status);
+
+// SP-initiated
+const signOutVia = (b: Browser, body: unknown) => fetch(`${AUTH}/v1/client/session?pk=${pk}`, { method: "DELETE", headers: { origin: APP, cookie: b.header(), "content-type": "application/json" }, body: JSON.stringify(body) });
+const bE = await signin(sloUser);
+const offOut = await (await signOutVia(bE, { redirectUrl: `${APP}/bye` })).json();
+check("with single logout off, sign-out doesn't go to the IdP", offOut.ok === true && !offOut.ssoLogoutUrl, offOut);
+await api("PATCH", `saml_connections/${conn.id}`, { singleLogout: true });
+const viewSlo = await (await api("GET", `saml_connections/${conn.id}`)).json();
+check("the connection shows single logout on, with both URLs", viewSlo.singleLogout === true && viewSlo.sloUrl === IDP_SLO && viewSlo.spSloUrl === SLO, viewSlo);
+const bF = await signin(sloUser);
+const outF = await (await signOutVia(bF, { redirectUrl: `${APP}/bye` })).json();
+const outLoc: string = outF.ssoLogoutUrl ?? "";
+check("with it on, sign-out returns the IdP logout URL", outLoc.startsWith(IDP_SLO) && ourSignatureOk(outLoc), outF);
+const outXml = outLoc ? inflateParam(outLoc, "SAMLRequest") : "";
+const outId = outXml.match(/ID="([^"]+)"/)?.[1] ?? "";
+check("…a signed LogoutRequest naming the person and their IdP session", outXml.includes(`>${sloUser}<`) && outXml.includes(">_s1<") && outXml.includes(`Destination="${IDP_SLO}"`), outXml.slice(0, 200));
+check("…and the session already ended here", !(await bF.userId()));
+const back1 = await fetch(`${SLO}?${redirectQuery("SAMLResponse", logoutResponse(outId))}`, { redirect: "manual" });
+check("the IdP's answer brings the browser to the app's redirect", back1.status === 302 && back1.headers.get("location") === `${APP}/bye`, back1.headers.get("location"));
+const back2 = await fetch(`${SLO}?${redirectQuery("SAMLResponse", logoutResponse(outId))}`, { redirect: "manual" });
+check("a replayed answer just goes to the sign-in page", back2.status === 302 && (back2.headers.get("location") ?? "").startsWith(`${AUTH}/sign-in`), back2.headers.get("location"));
+const forged = await fetch(`${SLO}?${redirectQuery("SAMLResponse", logoutResponse(outId), { key: rogue.key })}`, { redirect: "manual" });
+check("a forged answer goes to the sign-in page, never a stored redirect", forged.status === 302 && (forged.headers.get("location") ?? "").startsWith(`${AUTH}/sign-in`));
+const bG = await signin(sloUser);
+const evil = await (await signOutVia(bG, { redirectUrl: "https://evil.test/phish" })).json();
+const evilId = inflateParam(evil.ssoLogoutUrl, "SAMLRequest").match(/ID="([^"]+)"/)?.[1] ?? "";
+const evilBack = await fetch(`${SLO}?${redirectQuery("SAMLResponse", logoutResponse(evilId))}`, { redirect: "manual" });
+check("a redirect outside the allowed origins is dropped", (evilBack.headers.get("location") ?? "").startsWith(`${AUTH}/sign-in`), evilBack.headers.get("location"));
+const pwUser = `pw.${t}@other-place.test`;
+const pwB = new Browser();
+const su2 = await fetch(`${AUTH}/v1/client/sign_up?pk=${pk}`, { method: "POST", headers: { "content-type": "application/json", origin: APP }, body: JSON.stringify({ email: pwUser, password: "a long enough password" }) });
+pwB.absorb(su2);
+check("a password session never gets an IdP logout URL", !(await (await signOutVia(pwB, {})).json()).ssoLogoutUrl);
+
+// A SAML sign-in that needs two-factor is still linked (the session only starts after the second step)
+const tfUser = `twofa.${t}@acme.test`;
+const bT = await signin(tfUser);
+const client = (b: Browser, path: string, body?: unknown) => fetch(`${AUTH}/v1/client/${path}?pk=${pk}`, { method: "POST", headers: { origin: APP, cookie: b.header(), "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
+const { secret } = await (await client(bT, "mfa/totp")).json();
+const { backupCodes } = await (await client(bT, "mfa/totp/verify", { code: totpAt(secret, currentCounter()) })).json();
+const bT2 = new Browser();
+const sT = await start(bT2, tfUser);
+const toTwoFa = await bT2.post(`${AUTH}/v1/saml/${conn.id}/acs`, { SAMLResponse: response(sT.requestId, sign(assertion({ inResponseTo: sT.requestId, nameId: tfUser }))), RelayState: sT.relayState });
+check("setup: SSO sign-in with 2FA goes to the second step", (toTwoFa.headers.get("location") ?? "").includes("/second-factor"), toTwoFa.headers.get("location"));
+const fin = await fetch(`${AUTH}/v1/client/sign_in/second_factor?pk=${pk}`, { method: "POST", headers: { origin: APP, cookie: bT2.header(), "content-type": "application/json" }, body: JSON.stringify({ code: backupCodes[0] }) });
+bT2.absorb(fin);
+check("…and finishes with a backup code", fin.status === 200 && !!(await bT2.userId()));
+await fetch(`${SLO}?${redirectQuery("SAMLRequest", logoutRequest({ nameId: tfUser }))}`, { redirect: "manual" });
+check("an IdP logout ends that session too", !(await bT2.userId()) && !(await bT.userId()));
+
+// "SSO required" keeps sessions that came through the IdP
+const bH = await signin(sloUser);
+await api("PATCH", `saml_connections/${conn.id}`, { ssoRequired: true });
+check("turning on SSO required keeps sessions that came through the IdP", !!(await bH.userId()));
+await api("PATCH", `saml_connections/${conn.id}`, { ssoRequired: false, singleLogout: false });
 
 await new Promise((r) => setTimeout(r, 400));
 const audit = (await listAudit(instanceId, { limit: 200 })).data;

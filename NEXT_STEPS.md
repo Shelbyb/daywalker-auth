@@ -44,6 +44,18 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
   `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
 - Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
+## Just finished: SAML single logout (migration 0017)
+
+`/v1/saml/{id}/slo` (GET redirect + POST binding). IdP-initiated: signed LogoutRequest → revoke every session linked to that
+NameID on the connection (`saml_sessions`: NameID encrypted + blind index, also linked across the 2FA step), reply with
+a signed LogoutResponse to the IdP's `sloUrl` (or 200 if none). SP-initiated (opt-in `singleLogout`): `DELETE
+/v1/client/session {redirectUrl}` returns `ssoLogoutUrl` (signed LogoutRequest); IdP's answer → stored redirect only.
+Own checks in `saml-logout.ts`: signature required (node-saml accepts unsigned redirect messages, and Next re-encodes the
+query, so we verify decoded values under the common encodings), issuer, Destination, IssueInstant, one use per ID.
+Per-connection SP key (RSA 2048, @peculiar/x509, private key encrypted, cert in metadata; `reflect-metadata` imported
+first). "SSO required" now spares sessions that came through the IdP. SDK `signOut({ redirectUrl, singleLogout })`.
+Dashboard: logout URL + switch. ~40 new checks in saml-e2e (91 total).
+
 ## Just finished: docs catch-up and a CI fix
 
 API reference, SDK, error codes, security and overview docs now cover SMS, security keys (and key confirmation), SSO
@@ -102,7 +114,7 @@ redirect URL the form stayed on the 2FA step.
 ## Possible follow-ups (not started; ask Shelby)
 
 - Try SCIM (Users and Groups) against a real Okta or Entra ID trial; only simulated IdP calls are tested so far.
-- SAML single logout; IdP-initiated sign-in (currently refused on purpose).
+- IdP-initiated SAML sign-in stays refused on purpose (unsolicited assertions); revisit only if a customer needs it.
 
 ## Open items for Shelby (not blocking)
 

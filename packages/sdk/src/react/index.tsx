@@ -143,8 +143,8 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
       type="button"
       className={className}
       onClick={async () => {
-        await c.signOut();
-        if (afterSignOutUrl) window.location.assign(afterSignOutUrl);
+        const { redirecting } = await c.signOut({ redirectUrl: afterSignOutUrl });
+        if (afterSignOutUrl && !redirecting) window.location.assign(afterSignOutUrl);
       }}
     >
       {children}

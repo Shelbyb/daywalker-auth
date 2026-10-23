@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ssoFor } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
-import { createScimTokenAction, setScimAdminGroupsAction, createSsoAction, deleteSsoAction, requireSsoAction, revokeScimTokenAction, toggleSsoAction } from "../../../actions";
+import { createScimTokenAction, setScimAdminGroupsAction, singleLogoutAction, createSsoAction, deleteSsoAction, requireSsoAction, revokeScimTokenAction, toggleSsoAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
 import { Badge, Card, CodeBlock, EmptyState, Field, PageHeader } from "../../../ui";
 import { inputCls } from "../../../styles";
@@ -27,11 +27,30 @@ export default async function SsoPage({ params }: { params: Promise<{ id: string
             <p className="text-sm text-stone-600">Give these to the identity provider:</p>
             <CodeBlock label="ACS (reply) URL" value={c.acsUrl} />
             <CodeBlock label="Entity ID / Audience" value={c.spEntityId} />
+            <CodeBlock label="Single logout URL" value={c.spSloUrl} />
             <p className="text-xs text-stone-500">
               Or upload the metadata from <span className="font-mono">{c.spEntityId}</span>. The NameID or an <span className="font-mono">email</span> attribute must carry the user&apos;s email, and assertions must be signed.
             </p>
             <div className="text-xs text-stone-500">
               Signing certificate{c.certificates.length > 1 ? "s" : ""}: {c.certificates.map((x) => <span key={x.fingerprint256} className="mr-3 inline-block">{x.subject.split("\n").find((l) => l.startsWith("CN=")) ?? "certificate"} · expires {new Date(x.validTo).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</span>)}
+            </div>
+            <div className="space-y-2 rounded-lg border border-stone-200 p-3">
+              <p className="text-sm font-medium">
+                Single logout {c.singleLogout ? <Badge tone="good">On</Badge> : <Badge>Off</Badge>}
+              </p>
+              <p className="text-xs text-stone-500">
+                When the identity provider signs someone out, their sessions here end too (always on, once it knows the URL above). Turn the switch on to also sign people out at the identity provider when they sign out of your app.
+              </p>
+              <ActionForm action={singleLogoutAction} submit="Save logout settings" tone="ghost" className="space-y-2">
+                <input type="hidden" name="instanceId" value={id} />
+                <input type="hidden" name="connectionId" value={c.id} />
+                <Field label="Identity provider logout URL" hint="From its metadata, or its admin console (HTTP-Redirect).">
+                  <input name="sloUrl" type="url" defaultValue={c.sloUrl ?? ""} placeholder="https://" className={`${inputCls} font-mono`} />
+                </Field>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="singleLogout" defaultChecked={c.singleLogout} /> Sign out at the identity provider too
+                </label>
+              </ActionForm>
             </div>
             <div className="space-y-2 rounded-lg border border-stone-200 p-3">
               <p className="text-sm font-medium">
@@ -104,6 +123,7 @@ export default async function SsoPage({ params }: { params: Promise<{ id: string
             <div className="mt-3 space-y-4">
               <Field label="IdP entity ID (issuer)"><input name="idpEntityId" className={`${inputCls} font-mono`} /></Field>
               <Field label="IdP sign-in URL (HTTP-Redirect)"><input name="ssoUrl" type="url" placeholder="https://" className={`${inputCls} font-mono`} /></Field>
+              <Field label="IdP logout URL (optional)"><input name="sloUrl" type="url" placeholder="https://" className={`${inputCls} font-mono`} /></Field>
               <Field label="IdP signing certificate"><textarea name="certificate" rows={4} placeholder="-----BEGIN CERTIFICATE-----" className={`${inputCls} font-mono text-xs`} /></Field>
             </div>
           </details>

@@ -20,7 +20,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 | Sessions | HttpOnly refresh cookie + 60-second ES256 JWTs verified locally against per-instance JWKS; revoke and ban take effect within a minute |
 | Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
 | Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |
-| Enterprise SSO | SAML 2.0 connections per customer, routed by email domain, JIT organization membership, signed-assertion checks with replay and wrapping protection, optional "SSO required" per domain, SCIM 2.0 provisioning of users and groups (groups can grant organization admin) |
+| Enterprise SSO | SAML 2.0 connections per customer, routed by email domain, JIT organization membership, signed-assertion checks with replay and wrapping protection, optional "SSO required" per domain, single logout both ways, SCIM 2.0 provisioning of users and groups (groups can grant organization admin) |
 | Webhooks | HMAC-signed (Standard Webhooks format), retries with backoff, delivery log, SSRF protection |
 | Audit logs | Sign-ins, failed attempts, security, key and settings changes; encrypted details; 90-day retention; dashboard and API |
 | Terms | Optional required terms acceptance at sign-up, recorded per user and version |

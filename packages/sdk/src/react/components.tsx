@@ -466,9 +466,9 @@ export function UserButton({ afterSignOutUrl, appearance: a, className }: { afte
           {name !== email && <div className="dw-menu-email">{email}</div>}
           <a role="menuitem" className={cx(a, "menuItem", "dw-menu-item")} href={c.hostedUrl("account", window.location.href)}>Manage account</a>
           <button role="menuitem" type="button" className={cx(a, "menuItem", "dw-menu-item")} onClick={async () => {
-            await c.signOut();
+            const { redirecting } = await c.signOut({ redirectUrl: afterSignOutUrl });
             setOpen(false);
-            if (afterSignOutUrl) window.location.assign(afterSignOutUrl);
+            if (afterSignOutUrl && !redirecting) window.location.assign(afterSignOutUrl);
           }}>
             Sign out
           </button>

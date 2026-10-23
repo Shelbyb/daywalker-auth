@@ -307,10 +307,20 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return r.user;
   }
 
-  async function signOut() {
-    await request("session", { method: "DELETE" }).catch(() => undefined);
+  /**
+   * Sign out here and in other tabs. If the person signed in through company SSO and the connection
+   * has single logout on, the browser then goes to the identity provider to sign out there too, and
+   * comes back to `redirectUrl` (or the hosted sign-in page). Pass `singleLogout: false` to skip that.
+   */
+  async function signOut(opts: { redirectUrl?: string; singleLogout?: boolean } = {}) {
+    const r = await request<{ ssoLogoutUrl?: string }>("session", { method: "DELETE", body: JSON.stringify({ redirectUrl: opts.redirectUrl && typeof window !== "undefined" ? new URL(opts.redirectUrl, window.location.href).href : opts.redirectUrl }) }).catch(() => null);
     clearLocal();
     channel?.postMessage("signed-out"); // other tabs drop their in-memory token too
+    if (r?.ssoLogoutUrl && opts.singleLogout !== false && typeof window !== "undefined" && /^https?:\/\//.test(r.ssoLogoutUrl)) {
+      window.location.assign(r.ssoLogoutUrl);
+      return { redirecting: true };
+    }
+    return { redirecting: false };
   }
 
   channel?.addEventListener("message", (e) => {

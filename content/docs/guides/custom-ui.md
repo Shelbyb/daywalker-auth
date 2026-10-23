@@ -87,4 +87,5 @@ Then send new users through [email verification](/docs/guides/email-verification
 ```tsx
 const { signOut } = useAuth();
 await signOut(); // ends the session on the server and in every open tab
+// (for company SSO with single logout on, it also signs out at the identity provider; see Enterprise SSO)
 ```

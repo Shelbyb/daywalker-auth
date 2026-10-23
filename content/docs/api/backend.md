@@ -83,7 +83,7 @@ curl https://users.daywalker.dev/v1/users?limit=5 \
 | Endpoint | Description |
 | --- | --- |
 | `GET` / `POST /v1/saml_connections` | List or create SAML connections (`name`, `domains`, `organizationId?`, `metadataXml` or `idpEntityId` + `ssoUrl` + `certificates`) |
-| `GET` / `PATCH` / `DELETE /v1/saml_connections/{id}` | Read, update, delete. `PATCH` accepts `enabled`, `ssoRequired` and `scimAdminGroups` |
+| `GET` / `PATCH` / `DELETE /v1/saml_connections/{id}` | Read, update, delete. `PATCH` accepts `enabled`, `ssoRequired`, `scimAdminGroups`, `sloUrl` and `singleLogout` |
 | `POST /v1/saml_connections/{id}/scim_token` | Turn on SCIM provisioning. Returns the token **once**; calling again replaces it |
 | `DELETE /v1/saml_connections/{id}/scim_token` | Turn SCIM off and revoke the token |
 
