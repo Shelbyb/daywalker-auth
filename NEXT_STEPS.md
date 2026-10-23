@@ -101,7 +101,6 @@ redirect URL the form stayed on the 2FA step.
 
 ## Possible follow-ups (not started; ask Shelby)
 
-- Use the drop-in components for the hosted pages too (one UI to maintain).
 - Try SCIM (Users and Groups) against a real Okta or Entra ID trial; only simulated IdP calls are tested so far.
 - SAML single logout; IdP-initiated sign-in (currently refused on purpose).
 
