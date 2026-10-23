@@ -15,6 +15,7 @@ import { closeCache } from "../src/lib/cache";
 import { listAudit } from "../src/lib/audit";
 
 const AUTH = "http://localhost:3000";
+const SCHEMA_GROUP = "urn:ietf:params:scim:schemas:core:2.0:Group";
 let failures = 0;
 const check = (name: string, ok: boolean, detail?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${name}${ok ? "" : ` — ${JSON.stringify(detail)?.slice(0, 400)}`}`);
@@ -158,6 +159,70 @@ const gone = (await db().execute(sql`select count(*)::int as n from users where 
 check("…and the account is gone", gone[0].n === 0);
 check("deleting again → 404", (await call(TOKEN, "DELETE", `Users/${a!.id}`)).status === 404);
 
+// ---------- Groups -> organization roles ----------
+const org2 = `org_scimg${t}`;
+await db().execute(sql`insert into organizations (id, instance_id, name, slug) values (${org2}, ${instanceId}, 'Roles Inc', ${`roles-${t}`})`);
+const rc = await mk("Roles", "roles.test", org2);
+const RT: string = (await (await api("POST", `saml_connections/${rc.id}/scim_token`)).json()).token;
+const g = (method: string, path: string, body?: unknown) => call(RT, method, path, body, rc.id);
+const mkUser = async (n: string) => {
+  const email = `${n}.${t}@roles.test`;
+  return (await j(await g("POST", "Users", { userName: email, emails: [{ value: email, primary: true }], active: true })))!.id as string;
+};
+const [u1, u2, u3, u4] = [await mkUser("g1"), await mkUser("g2"), await mkUser("g3"), await mkUser("g4")];
+// A person the connection doesn't manage, who is already an admin of the organization.
+const bossEmail = `boss.${t}@elsewhere.test`;
+const boss = (await (await fetch(`${AUTH}/v1/client/sign_up?pk=${pk}`, { method: "POST", headers: { "content-type": "application/json", origin: AUTH }, body: JSON.stringify({ email: bossEmail, password: "a long enough password" }) })).json()).user.id as string;
+await db().execute(sql`insert into memberships (org_id, user_id, role) values (${org2}, ${boss}, 'admin'), (${org2}, ${u1}, 'member'), (${org2}, ${u2}, 'member'), (${org2}, ${u3}, 'member') on conflict do nothing`);
+const roleOf = async (uid: string) => ((await db().execute(sql`select role from memberships where org_id = ${org2} and user_id = ${uid}`)) as unknown as { role: string }[])[0]?.role ?? null;
+
+check("discovery lists the Group resource", (await (await call(TOKEN, "GET", "ResourceTypes")).text()).includes("/Groups"));
+const adm = await g("POST", "Groups", { schemas: [SCHEMA_GROUP], displayName: "Admins", externalId: "grp-1", members: [{ value: u1 }] });
+const admBody = (await j(adm))!;
+check("create a group → 201 with members", adm.status === 201 && /^sg_/.test(admBody?.id) && admBody.displayName === "Admins" && admBody.members?.[0]?.value === u1 && admBody.meta?.resourceType === "Group", admBody);
+const GID: string = admBody!.id;
+check("with no admin groups configured, roles are left alone", (await roleOf(u1)) === "member");
+check("a duplicate name (any case) is a 409", (await g("POST", "Groups", { displayName: "ADMINS" })).status === 409);
+check("only people this connection manages can be members", (await g("POST", "Groups", { displayName: "Bad", members: [{ value: boss }] })).status === 400);
+check("get one group", (await j(await g("GET", `Groups/${GID}`)))?.displayName === "Admins");
+check("filter by displayName", (await j(await g("GET", `Groups?filter=${encodeURIComponent('displayName eq "admins"')}`)))?.totalResults === 1);
+check("other filters are refused", (await g("GET", `Groups?filter=${encodeURIComponent('members eq "x"')}`)).status === 400);
+check("list", (await j(await g("GET", "Groups")))?.totalResults === 1);
+check("another connection's token can't see it", (await call(TOKEN, "GET", `Groups/${GID}`, undefined, rc.id)).status === 401 && (await call(TOKEN, "GET", `Groups/${GID}`)).status === 404);
+
+const cfg = await api("PATCH", `saml_connections/${rc.id}`, { scimAdminGroups: ["  ADMINS "] });
+const cfgBody = await cfg.json();
+check("set the admin group list (names are stored lowercase)", cfg.status === 200 && cfgBody.scim.adminGroups?.[0] === "admins", cfgBody);
+check("…members of that group become admins right away", (await roleOf(u1)) === "admin");
+check("…people the connection doesn't manage are untouched", (await roleOf(boss)) === "admin" && (await roleOf(u2)) === "member");
+
+await g("PATCH", `Groups/${GID}`, { Operations: [{ op: "add", path: "members", value: [{ value: u2 }] }] });
+check("Okta-style add: u2 becomes admin", (await roleOf(u2)) === "admin");
+await g("PATCH", `Groups/${GID}`, { Operations: [{ op: "remove", path: `members[value eq "${u2}"]` }] });
+check("Entra-style remove: u2 is a member again", (await roleOf(u2)) === "member");
+await g("PATCH", `Groups/${GID}`, { Operations: [{ op: "add", value: { members: [{ value: u4 }] } }] });
+check("an admin who isn't in the organization yet is added as admin", (await roleOf(u4)) === "admin");
+await g("PATCH", `Groups/${GID}`, { Operations: [{ op: "remove", path: "members", value: [{ value: u4 }] }] });
+check("remove with a value list works (u4 demoted)", (await roleOf(u4)) === "member");
+
+const ren = await g("PATCH", `Groups/${GID}`, { Operations: [{ op: "replace", path: "displayName", value: "Staff" }] });
+check("renaming the group takes its members out of the admin list", ren.status === 200 && (await roleOf(u1)) === "member");
+await g("PATCH", `Groups/${GID}`, { Operations: [{ op: "replace", value: { displayName: "admins" } }] });
+check("…and back in again (path-less replace)", (await roleOf(u1)) === "admin");
+
+const putG = await g("PUT", `Groups/${GID}`, { displayName: "Admins", members: [{ value: u3 }] });
+check("PUT replaces the members: u3 in, u1 out", putG.status === 200 && (await roleOf(u3)) === "admin" && (await roleOf(u1)) === "member");
+check("a user removed from the IdP drops out of its groups", (await g("DELETE", `Users/${u3}`)).status === 204 && ((await j(await g("GET", `Groups/${GID}`)))?.members ?? []).length === 0);
+
+await g("PATCH", `Groups/${GID}`, { Operations: [{ op: "add", path: "members", value: [{ value: u1 }] }] });
+await db().execute(sql`delete from memberships where org_id = ${org2} and user_id = ${boss}`);
+const delG = await g("DELETE", `Groups/${GID}`);
+check("deleting the group → 204", delG.status === 204 && (await g("GET", `Groups/${GID}`)).status === 404);
+check("the organization's last admin is never demoted", (await roleOf(u1)) === "admin");
+
+const off2 = await api("PATCH", `saml_connections/${rc.id}`, { scimAdminGroups: [] });
+check("an empty list turns role management off", off2.status === 200 && (await roleOf(u1)) === "admin");
+
 // ---------- Rotating and revoking ----------
 const rotated = (await (await api("POST", `saml_connections/${conn.id}/scim_token`)).json()).token as string;
 check("a new token works", (await call(rotated, "GET", "Users")).status === 200);
@@ -170,7 +235,7 @@ check("deleting a connection removes its provisioning", del2.status === 200);
 await new Promise((r) => setTimeout(r, 400));
 const audit = (await listAudit(instanceId, { limit: 200 })).data;
 const has = (type: string) => audit.some((e) => e.type === type);
-check("audit log: tokens, creates, deactivate, reactivate, delete", ["scim_token.created", "scim_token.revoked", "scim_user.created", "scim_user.updated", "scim_user.deactivated", "scim_user.reactivated", "scim_user.deleted"].every(has), audit.map((e) => e.type));
+check("audit log: tokens, creates, deactivate, reactivate, delete", ["scim_token.created", "scim_token.revoked", "scim_user.created", "scim_user.updated", "scim_user.deactivated", "scim_user.reactivated", "scim_user.deleted", "scim_group.created", "scim_group.updated", "scim_group.deleted", "scim_role.changed"].every(has), audit.map((e) => e.type));
 
 await closeDb();
 await closeCache();

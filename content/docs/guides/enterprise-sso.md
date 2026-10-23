@@ -87,11 +87,21 @@ From your backend: `POST /v1/saml_connections/{id}/scim_token` makes or rotates 
 
 Pair it with **Require SSO** (above) so provisioned people can only ever sign in through the identity provider.
 
+**Groups become organization roles (optional)**
+
+If the connection has an organization, you can make some groups mean "admin". On the SSO page, under provisioning, list the **admin groups** (names pushed by your identity provider, one per line, not case-sensitive). Then:
+
+- Members of those groups are **admins** of the organization. Everyone else the connection manages stays a **member**.
+- It updates as soon as the identity provider adds or removes someone, renames or deletes a group, or you change the list. People who sign in through SSO for the first time get the right role straight away.
+- The organization's **last admin is never demoted**, so a mistaken group push can't lock everyone out.
+- Only people the connection manages are changed. Admins you added yourself are left alone.
+- Leave the list empty and roles stay under your control, as before.
+
 **What it can't do**
 
 - It only manages people at **the connection's own domains**, and only accounts it created or adopted. Nobody else's account can be read, changed or deleted through it, even by guessing an ID.
 - If an adopted account's email was never verified (someone signed up with a password first), the password and any sessions are removed, the same protection SAML sign-in gives you.
-- Supported: `Users` with `userName`, `externalId`, `name`, `emails`, `active`; `GET`, `POST`, `PUT`, `PATCH`, `DELETE`; and `userName eq` / `externalId eq` filters. Groups, bulk requests and sorting aren't supported. The discovery endpoints (`/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`) say so.
+- Supported: `Users` with `userName`, `externalId`, `name`, `emails`, `active`; `GET`, `POST`, `PUT`, `PATCH`, `DELETE`; and `userName eq` / `externalId eq` filters. `Groups` (create, read, replace, patch members and name, delete, `displayName eq` filter) are supported too. Bulk requests and sorting aren't. The discovery endpoints (`/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`) say so.
 - Rotating the token cuts the old one off at once. Requests are limited to 600 a minute per connection.
 - Provisioning events are in the [audit log](/docs/guides/audit-logs) (`scim_user.created`, `scim_user.deactivated`, and so on).
 
@@ -103,7 +113,7 @@ curl -X POST https://users.daywalker.dev/v1/saml_connections \
   -d '{ "name": "Acme", "domains": ["acme.com"], "organizationId": "org_…", "metadataXml": "<EntityDescriptor …>" }'
 ```
 
-Also: `GET /v1/saml_connections`, `GET|PATCH|DELETE /v1/saml_connections/{id}`. Instead of `metadataXml` you can send `idpEntityId`, `ssoUrl` and `certificates` (PEM). `PATCH` with `{ "enabled": false }` pauses a connection, and `{ "ssoRequired": true }` makes SSO the only sign-in method for its domains.
+Also: `GET /v1/saml_connections`, `GET|PATCH|DELETE /v1/saml_connections/{id}`. Instead of `metadataXml` you can send `idpEntityId`, `ssoUrl` and `certificates` (PEM). `PATCH` with `{ "enabled": false }` pauses a connection, and `{ "ssoRequired": true }` makes SSO the only sign-in method for its domains. `{ "scimAdminGroups": ["Daywalker Admins"] }` sets the admin groups described above.
 
 ## How it's kept safe
 

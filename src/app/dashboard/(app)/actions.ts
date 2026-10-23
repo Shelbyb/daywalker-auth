@@ -345,6 +345,17 @@ export async function requireSsoAction(_prev: ActionState, fd: FormData): Promis
   });
 }
 
+export async function setScimAdminGroupsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const scimAdminGroups = str(fd, "groups", 4000).split(/[\n,]+/).map((g) => g.trim()).filter(Boolean);
+    await updateSsoConnection(userId, id, str(fd, "connectionId", 100), { scimAdminGroups });
+    refresh(id);
+    return { message: scimAdminGroups.length ? "Admin groups saved. Roles were updated." : "Roles are no longer managed by groups." };
+  });
+}
+
 export async function createScimTokenAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   return run(async () => {
     const { userId } = await requireDashboardUser();

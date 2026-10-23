@@ -24,6 +24,7 @@ import { newId, newToken, sha256 } from "../ids";
 import { record } from "../audit";
 import type { Instance } from "../db/schema";
 import { linkOrCreate } from "./oauth";
+import { managedUserIds, normalizeGroupNames, roleFromGroups, syncRoles } from "./scim-roles";
 
 export const STATE_COOKIE = "__dw_saml";
 const STATE_TTL = 600;
@@ -61,6 +62,7 @@ export const connectionInput = z.object({
   domains: z.array(z.string().trim().toLowerCase().regex(domainRe, "Enter domains like example.com")).min(1).max(20),
   enabled: z.boolean().default(true),
   ssoRequired: z.boolean().default(false),
+  scimAdminGroups: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
 });
 
 /** Reads entity ID, HTTP-Redirect SSO URL and signing certificates from IdP metadata XML. */
@@ -96,6 +98,7 @@ function view(c: Connection, domains: string[]) {
     enabled: c.enabled,
     ssoRequired: c.ssoRequired,
     scim: {
+      adminGroups: c.scimAdminGroups,
       enabled: !!c.scimTokenHash,
       tokenPrefix: c.scimTokenPrefix,
       tokenCreatedAt: c.scimTokenCreatedAt,
@@ -147,7 +150,7 @@ export async function createConnection(instanceId: string, raw: Record<string, u
   const orgId = await checkOrg(instanceId, input.organizationId);
   const id = newId("saml");
   await db().transaction(async (tx) => {
-    await tx.insert(schema.samlConnections).values({ id, instanceId, name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired });
+    await tx.insert(schema.samlConnections).values({ id, instanceId, name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, scimAdminGroups: normalizeGroupNames(input.scimAdminGroups) });
     await writeDomains(tx, instanceId, id, input.domains);
   });
   return getConnection(instanceId, id);
@@ -155,15 +158,19 @@ export async function createConnection(instanceId: string, raw: Record<string, u
 
 export async function updateConnection(instanceId: string, id: string, raw: Record<string, unknown>) {
   const c = await load(instanceId, id);
-  const merged = { name: c.name, organizationId: c.orgId, idpEntityId: c.idpEntityId, ssoUrl: c.ssoUrl, certificates: c.certificates, domains: await domainsOf(id), enabled: c.enabled, ssoRequired: c.ssoRequired, ...raw };
+  const merged = { name: c.name, organizationId: c.orgId, idpEntityId: c.idpEntityId, ssoUrl: c.ssoUrl, certificates: c.certificates, domains: await domainsOf(id), enabled: c.enabled, ssoRequired: c.ssoRequired, scimAdminGroups: c.scimAdminGroups, ...raw };
   const input = resolveInput(merged);
   const orgId = await checkOrg(instanceId, input.organizationId);
   await db().transaction(async (tx) => {
-    await tx.update(schema.samlConnections).set({ name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, updatedAt: new Date() }).where(eq(schema.samlConnections.id, id));
+    await tx.update(schema.samlConnections).set({ name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, scimAdminGroups: normalizeGroupNames(input.scimAdminGroups), updatedAt: new Date() }).where(eq(schema.samlConnections.id, id));
     await writeDomains(tx, instanceId, id, input.domains);
   });
   // Turning enforcement on must not leave password-era sessions alive: end them so everyone re-enters through the IdP.
   if (input.ssoRequired && input.enabled && !(c.ssoRequired && c.enabled)) await endSessionsAtDomains(instanceId, input.domains);
+  // New admin-group list: re-apply roles to everyone this connection manages.
+  if (JSON.stringify(normalizeGroupNames(input.scimAdminGroups)) !== JSON.stringify(c.scimAdminGroups)) {
+    await syncRoles({ id, instanceId, orgId, scimAdminGroups: normalizeGroupNames(input.scimAdminGroups) }, await managedUserIds(id));
+  }
   return getConnection(instanceId, id);
 }
 
@@ -341,7 +348,8 @@ export async function completeSso(inst: Instance, connectionId: string, pending:
   );
   if (c.orgId) {
     // Just-in-time membership in the connection's organization.
-    await db().insert(schema.memberships).values({ orgId: c.orgId, userId, role: "member" }).onConflictDoNothing();
+    const role = await roleFromGroups({ id: c.id, instanceId: c.instanceId, orgId: c.orgId, scimAdminGroups: c.scimAdminGroups }, userId);
+    await db().insert(schema.memberships).values({ orgId: c.orgId, userId, role }).onConflictDoNothing();
   }
   return userId;
 }

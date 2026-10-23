@@ -449,6 +449,8 @@ export const samlConnections = pgTable(
     scimTokenHash: text("scim_token_hash"),
     scimTokenPrefix: text("scim_token_prefix"),
     scimTokenCreatedAt: timestamp("scim_token_created_at", { withTimezone: true }),
+    // SCIM group names (lowercased) whose members become admins of the connection's organization. Empty: roles are left alone.
+    scimAdminGroups: jsonb("scim_admin_groups").$type<string[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -465,6 +467,28 @@ export const scimUsers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("scim_users_connection_user_idx").on(t.connectionId, t.userId), index("scim_users_user_idx").on(t.userId)],
+);
+
+/** Groups pushed by the identity provider (SCIM). Names are matched against a connection's admin groups. */
+export const scimGroups = pgTable(
+  "scim_groups",
+  {
+    id: id(),
+    connectionId: text("connection_id").notNull().references(() => samlConnections.id, { onDelete: "cascade" }),
+    displayName: text("display_name").notNull(),
+    externalId: text("external_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("scim_groups_connection_name_idx").on(t.connectionId, t.displayName)],
+);
+
+export const scimGroupMembers = pgTable(
+  "scim_group_members",
+  {
+    groupId: text("group_id").notNull().references(() => scimGroups.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index("scim_group_members_user_idx").on(t.userId)],
 );
 
 /** Each email domain routes to at most one connection per instance. */

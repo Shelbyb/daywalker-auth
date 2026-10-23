@@ -26,6 +26,7 @@ import type { Instance } from "../db/schema";
 
 export const SCHEMAS = {
   user: "urn:ietf:params:scim:schemas:core:2.0:User",
+  group: "urn:ietf:params:scim:schemas:core:2.0:Group",
   list: "urn:ietf:params:scim:api:messages:2.0:ListResponse",
   error: "urn:ietf:params:scim:api:messages:2.0:Error",
   patch: "urn:ietf:params:scim:api:messages:2.0:PatchOp",
@@ -363,9 +364,11 @@ export const serviceProviderConfig = (connectionId: string) => ({
 });
 
 export const resourceTypes = (connectionId: string) => [
+  { schemas: ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"], id: "Group", name: "Group", endpoint: "/Groups", schema: SCHEMAS.group, meta: { resourceType: "ResourceType", location: `${scimBaseUrl(connectionId)}/ResourceTypes/Group` } },
   { schemas: ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"], id: "User", name: "User", endpoint: "/Users", schema: SCHEMAS.user, meta: { resourceType: "ResourceType", location: `${scimBaseUrl(connectionId)}/ResourceTypes/User` } },
 ];
 
 export const schemasDoc = (connectionId: string) => [
+  { id: SCHEMAS.group, name: "Group", description: "Group of users", attributes: [], meta: { resourceType: "Schema", location: `${scimBaseUrl(connectionId)}/Schemas/${SCHEMAS.group}` } },
   { id: SCHEMAS.user, name: "User", description: "User account", attributes: [], meta: { resourceType: "Schema", location: `${scimBaseUrl(connectionId)}/Schemas/${SCHEMAS.user}` } },
 ];

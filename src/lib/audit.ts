@@ -18,6 +18,7 @@ export const AUDIT_TYPES = [
   "social_provider.saved", "social_provider.enabled", "social_provider.disabled",
   "sso_connection.created", "sso_connection.updated", "sso_connection.deleted",
   "scim_token.created", "scim_token.revoked",
+  "scim_group.created", "scim_group.updated", "scim_group.deleted", "scim_role.changed",
   "scim_user.created", "scim_user.updated", "scim_user.deactivated", "scim_user.reactivated", "scim_user.deleted",
   "email_template.updated", "email_template.reset", "email_template.test_sent",
   "webhook.created", "webhook.updated", "webhook.secret_rotated", "webhook.deleted",

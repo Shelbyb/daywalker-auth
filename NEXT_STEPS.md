@@ -44,6 +44,14 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
   `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
 - Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
+## Just finished: SCIM Groups -> organization roles (migration 0016)
+
+`/v1/scim/v2/{id}/Groups[/{gid}]` (create/get/list with `displayName eq`/PUT/PATCH members+name/DELETE; members must be users
+the connection manages). Opt-in per connection: `scimAdminGroups` (lowercased names; dashboard SSO tab + backend PATCH).
+Members of those groups become org admins, everyone else managed stays member; last admin never demoted; unmanaged people
+untouched; SAML JIT uses the group role. Logic in `src/lib/auth/scim-roles.ts` + `scim-groups.ts`. New audit types
+`scim_group.*`, `scim_role.changed`. ~30 new checks in scim-e2e.
+
 ## Just finished: security key confirms account changes
 
 `mfa/security_keys/confirm/options` + `confirm`: a key touch stores `stepup:<sessionId>` (120 s, single use, bound to the
@@ -87,7 +95,7 @@ redirect URL the form stayed on the 2FA step.
 ## Possible follow-ups (not started; ask Shelby)
 
 - Use the drop-in components for the hosted pages too (one UI to maintain).
-- SCIM Groups (map groups to organization roles); try SCIM against a real Okta or Entra ID trial.
+- Try SCIM (Users and Groups) against a real Okta or Entra ID trial; only simulated IdP calls are tested so far.
 - SAML single logout; IdP-initiated sign-in (currently refused on purpose).
 
 ## Open items for Shelby (not blocking)

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ssoFor } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
-import { createScimTokenAction, createSsoAction, deleteSsoAction, requireSsoAction, revokeScimTokenAction, toggleSsoAction } from "../../../actions";
+import { createScimTokenAction, setScimAdminGroupsAction, createSsoAction, deleteSsoAction, requireSsoAction, revokeScimTokenAction, toggleSsoAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
 import { Badge, Card, CodeBlock, EmptyState, Field, PageHeader } from "../../../ui";
 import { inputCls } from "../../../styles";
@@ -42,6 +42,15 @@ export default async function SsoPage({ params }: { params: Promise<{ id: string
               </p>
               {c.scim.enabled && <CodeBlock label="SCIM base URL" value={c.scim.baseUrl} />}
               {c.scim.enabled && c.scim.tokenPrefix && <p className="text-xs text-stone-500">Current token starts with <span className="font-mono">{c.scim.tokenPrefix}…</span></p>}
+              {c.scim.enabled && c.organizationId && (
+                <ActionForm action={setScimAdminGroupsAction} submit="Save admin groups" tone="ghost" className="space-y-2">
+                  <input type="hidden" name="instanceId" value={id} />
+                  <input type="hidden" name="connectionId" value={c.id} />
+                  <Field label="Admin groups (optional)" hint="Names of groups pushed by the identity provider, one per line. Their members become admins of the organization; everyone else stays a member. Leave empty to manage roles here.">
+                    <textarea name="groups" rows={2} defaultValue={c.scim.adminGroups.join("\n")} placeholder="Daywalker Admins" className={inputCls} />
+                  </Field>
+                </ActionForm>
+              )}
               <div className="flex flex-wrap gap-2">
                 <ActionForm action={createScimTokenAction} submit={c.scim.enabled ? "Replace token" : "Turn on provisioning"} tone="ghost" secretLabel="SCIM token">
                   <input type="hidden" name="instanceId" value={id} />
