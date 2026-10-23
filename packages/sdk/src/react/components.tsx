@@ -23,7 +23,7 @@ type Part =
 
 const cx = (appearance: Appearance | undefined, part: Part, base: string) => [base, appearance?.classNames?.[part]].filter(Boolean).join(" ");
 
-type Env = {
+export type EnvironmentInfo = {
   name: string;
   oauthProviders: OAuthProvider[];
   oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
@@ -33,11 +33,12 @@ type Env = {
   legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null };
 };
 
-function useEnvironment() {
+function useEnvironment(initial?: EnvironmentInfo) {
   const c = useAuthClient();
-  const [env, setEnv] = useState<Env | null>(null);
+  const [env, setEnv] = useState<EnvironmentInfo | null>(initial ?? null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    if (initial) return; // already known (the hosted pages pass it in)
     let live = true;
     c.getEnvironment()
       .then((e) => live && setEnv(e))
@@ -49,6 +50,19 @@ function useEnvironment() {
   return { env, failed };
 }
 
+// Fixed messages for the codes the OAuth/SSO redirects put in the URL: nothing from the URL is ever shown as-is.
+const REDIRECT_ERRORS: Record<string, string> = {
+  oauth_cancelled: "Sign-in was cancelled.",
+  oauth_failed: "We couldn't sign you in with that provider. Please try again.",
+  email_unverified: "That account has no verified email address. Verify it with the provider, or sign in with email.",
+  provider_disabled: "That sign-in option isn't available for this app.",
+  forbidden: "This account is suspended.",
+  sso_required: "Your company requires single sign-on. Use “Sign in with SSO” instead.",
+  sso_not_configured: "Single sign-on isn't set up for that email domain.",
+  legal_required: "Please accept the terms to create an account.",
+};
+const redirectError = (code?: string) => (code ? (REDIRECT_ERRORS[code] ?? null) : null);
+
 const message = (e: unknown) => (e instanceof AuthError ? e.message : "Network error. Check your connection and try again.");
 const displayName = (u: User) => [u.firstName, u.lastName].filter(Boolean).join(" ") || u.emailAddresses[0]?.email || "";
 
@@ -59,6 +73,12 @@ function finish(redirectUrl: string | undefined, onDone: ((u: User) => void) | u
 }
 
 type CommonProps = {
+  /** Settings already fetched on the server, to skip the request (and the loading flash). */
+  initialEnvironment?: EnvironmentInfo;
+  /** An error code from a redirect back (?error=...). Shown as a fixed message; unknown codes are ignored. */
+  initialError?: string;
+  /** Show the "signed in" state straight away, e.g. after returning from a provider. */
+  signedIn?: boolean;
   /** Where to go after signing in. Ignored when `onSignedIn` is given. */
   redirectUrl?: string;
   onSignedIn?: (user: User) => void;
@@ -109,7 +129,7 @@ function Shell({ a, title, subtitle, children, footer }: { a?: Appearance; title
   );
 }
 
-function Providers({ a, env, redirectUrl, legalAccepted, disabled }: { a?: Appearance; env: Env; redirectUrl?: string; legalAccepted?: boolean; disabled?: boolean }) {
+function Providers({ a, env, redirectUrl, legalAccepted, disabled }: { a?: Appearance; env: EnvironmentInfo; redirectUrl?: string; legalAccepted?: boolean; disabled?: boolean }) {
   const c = useAuthClient();
   if (!env.oauthProviders.length) return null;
   return (
@@ -190,12 +210,12 @@ function SecondFactor({ a, onUser }: { a?: Appearance; onUser: (u: User) => void
 
 // ---------- <SignIn /> ----------
 
-export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl }: CommonProps & { /** Link for "No account yet?". */ signUpUrl?: string }) {
+export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "No account yet?". */ signUpUrl?: string }) {
   const c = useAuthClient();
-  const { env, failed } = useEnvironment();
-  const [step, setStep] = useState<"password" | "email-code" | "code-sent" | "second-factor" | "done">("password");
+  const { env, failed } = useEnvironment(initialEnvironment);
+  const [step, setStep] = useState<"password" | "email-code" | "code-sent" | "second-factor" | "done">(signedIn ? "done" : "password");
   const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(redirectError(initialError));
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [doneUser, setDoneUser] = useState<User | null>(null);
@@ -300,12 +320,12 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl }: Co
 
 // ---------- <SignUp /> ----------
 
-export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl }: CommonProps & { /** Link for "Already have an account?". */ signInUrl?: string }) {
+export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "Already have an account?". */ signInUrl?: string }) {
   const c = useAuthClient();
-  const { env, failed } = useEnvironment();
-  const [step, setStep] = useState<"form" | "verify" | "done">("form");
+  const { env, failed } = useEnvironment(initialEnvironment);
+  const [step, setStep] = useState<"form" | "verify" | "done">(signedIn ? "done" : "form");
   const [accepted, setAccepted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(redirectError(initialError));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [user, setUser] = useState<User | null>(null);

@@ -9,11 +9,12 @@ const Ctx = createContext<AuthClient | null>(null);
  * Wrap your app once (e.g. in app/layout.tsx). Reads config from props or from
  * NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY / NEXT_PUBLIC_DAYWALKER_AUTH_URL.
  */
-export function AuthProvider(props: { children: ReactNode; publishableKey?: string; frontendApi?: string }) {
+export function AuthProvider(props: { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean }) {
   const [client] = useState(() =>
     createAuthClient({
       publishableKey: props.publishableKey ?? process.env.NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY!,
       frontendApi: props.frontendApi ?? process.env.NEXT_PUBLIC_DAYWALKER_AUTH_URL!,
+      ...(props.syncCookie === false ? { syncCookie: false } : {}),
     }),
   );
   useEffect(() => {
@@ -152,4 +153,4 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
 }
 
 export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
-export { SignIn, SignUp, UserButton, OrganizationSwitcher, type Appearance } from "./components";
+export { SignIn, SignUp, UserButton, OrganizationSwitcher, type Appearance, type EnvironmentInfo } from "./components";

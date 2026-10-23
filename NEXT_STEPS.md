@@ -44,6 +44,15 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
   `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
 - Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
+## Just finished: hosted sign-in / sign-up use the drop-in components
+
+`/sign-in` and `/sign-up` now render `<SignIn />` / `<SignUp />` (`src/app/components/hosted-auth.tsx`), so there is one
+UI to maintain. The server validates the redirect against the instance allow-list and passes the settings
+(`publicEnvironment`, shared with `/v1/client/environment`) so there is no loading flash. Error codes in the URL map to
+fixed messages only. `AuthProvider` gained `syncCookie={false}` (hosted origin sets no app cookie); components gained
+`initialEnvironment`, `initialError`, `signedIn`. Removed auth-form/email-code/verify-email. Verified with
+`scripts/browser/securitykey.py` and the full e2e suites.
+
 ## Just finished: drop-in React components (roadmap #8)
 
 `<SignIn />`, `<SignUp />`, `<UserButton />`, `<OrganizationSwitcher />` in `@daywalker/auth/react`

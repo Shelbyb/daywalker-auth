@@ -1,3 +1,5 @@
+import "@daywalker/auth/styles.css";
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-gradient-to-b from-stone-100 to-stone-200 px-4">

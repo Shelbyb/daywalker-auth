@@ -1,8 +1,8 @@
-import { AuthForm } from "@/app/components/auth-form";
+import { HostedAuth } from "@/app/components/hosted-auth";
 import { parsePublishableKey, getInstance } from "@/lib/auth/instance";
 import { safeRedirect } from "@/lib/auth/redirect";
-import { enabledProviders } from "@/lib/auth/oauth";
-import { legalOf } from "@/lib/auth/legal";
+import { publicEnvironment } from "@/lib/auth/environment";
+import { env } from "@/lib/env";
 
 export const metadata = { title: "Create your account" };
 
@@ -11,20 +11,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const id = parsePublishableKey(pk);
   const inst = id ? await getInstance(id) : null;
   if (!pk || !inst) return <p className="text-center text-sm text-stone-500">Missing or invalid publishable key.</p>;
+  const redirect = safeRedirect(redirect_url, inst.allowedOrigins) ?? undefined;
+  const q = (extra: Record<string, string>) => new URLSearchParams({ pk, ...(redirect ? { redirect_url: redirect } : {}), ...extra }).toString();
   return (
-    <>
-      <div className="mb-6 h-1 w-10 rounded-full bg-gradient-to-r from-dawn to-ember" />
-      <h1 className="mb-1 text-xl font-semibold">Create your account</h1>
-      <p className="mb-6 text-sm text-stone-500">to continue to {inst.name}</p>
-      <AuthForm
-        mode="sign-up"
-        pk={pk}
-        redirect={safeRedirect(redirect_url, inst.allowedOrigins) ?? undefined}
-        providers={await enabledProviders(inst.id)}
-        initialError={error}
-        signedIn={status === "signed_in"}
-        legal={legalOf(inst)}
-      />
-    </>
+    <HostedAuth
+      mode="sign-up"
+      pk={pk}
+      origin={env().APP_URL}
+      redirect={redirect}
+      returnTo={`${env().APP_URL}/sign-up?${q({ status: "signed_in" })}`}
+      otherUrl={`/sign-in?${q({})}`}
+      environment={await publicEnvironment(inst)}
+      error={error}
+      signedIn={status === "signed_in"}
+    />
   );
 }
