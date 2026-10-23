@@ -49,6 +49,7 @@ const stored = await rows(sql`select private_key_enc from signing_keys where id 
 check("private key is encrypted at rest", String(stored[0].private_key_enc).startsWith("v1."));
 
 // Purge: only retired keys past the grace period; never an active key.
+await purgeRetiredKeys(); // clear keys other test instances left behind long ago; the purge is global
 check("a freshly retired key is not purged", (await purgeRetiredKeys()) === 0 && (await jwks()).length === 2);
 await db().execute(sql`update signing_keys set retired_at = now() - interval '25 hours' where id = ${kid1}`);
 await cache().del(`jwks:${instanceId}`);

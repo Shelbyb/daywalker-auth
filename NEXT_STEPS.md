@@ -5,9 +5,31 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
 
 ## Current state
 
-- `main` is green: 20 end-to-end suites pass (plus the components browser walkthrough) (`npm run test:all` with the service on :3000; see README "Tests").
-- Done in this round: signing-key rotation, `MASTER_KEY` rotation, audit logs, email codes and magic links,
-  breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), SMS two-factor.
+- `main` is green: 22 end-to-end suites pass (`npm run test:all` with the service on :3000; see README "Tests"), plus two
+  Chromium walkthroughs: `scripts/browser/components.py` and `scripts/browser/securitykey.py` (virtual FIDO2 key).
+- Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, email codes and magic links, breached-password check,
+  custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), SMS two-factor, and
+  the four follow-ups below ("SSO required", SMS country allow-list, security keys, SCIM).
+
+## Just finished: follow-ups (after the roadmap)
+
+- **"SSO required"** (migration 0013). `saml_connections.sso_required`; `src/lib/auth/sso-policy.ts` refuses password,
+  sign-up, email code/magic link, password reset, passkey and social sign-in for addresses at an enforced domain
+  (`403 sso_required`). Backstop: `createSession` refuses any session that isn't `method: "saml"`. A disabled connection
+  doesn't enforce (no lockout). Uses the primary email. Existing sessions are NOT revoked when it's switched on.
+  Tests: end of `scripts/saml-e2e.ts`.
+- **SMS country allow-list.** `settings.smsCountries` (calling codes like `1 44 49`), validated in `src/lib/sms.ts`
+  (`parseCallingCodes`), enforced when a phone is *added* only (existing phones keep working). Dashboard Settings field.
+- **Security keys as a second factor** (migration 0014). `mfa_security_keys` (separate from `passkeys`, so a key can never
+  sign in alone), `src/lib/auth/security-keys.ts`, wrappers in `mfa.ts`, routes `mfa/security_keys/*` and
+  `sign_in/second_factor/security_key`, SDK `addSecurityKey` etc., hosted and component UI. Adding/removing needs a current
+  code (a key-only user uses a backup code). `scripts/soft-authenticator.ts` is the shared software authenticator;
+  `scripts/securitykey-e2e.ts` (45 checks).
+- **SCIM 2.0 provisioning** (migration 0015). Per SSO connection: bearer token (hash only, shown once, rotate/revoke),
+  `/v1/scim/v2/{connectionId}/Users` (GET/POST/PUT/PATCH/DELETE, `userName`/`externalId` filters), discovery docs;
+  `src/lib/auth/scim.ts`, `src/lib/scim-http.ts`. Manages only users it created or adopted, only at the connection's
+  domains. `active:false` suspends + signs out. Backend `POST|DELETE /v1/saml_connections/{id}/scim_token`, dashboard card.
+  `scripts/scim-e2e.ts` (58 checks). Tested with simulated Okta/Entra-style calls, not a real IdP yet.
 
 ## Just finished: more social providers (roadmap #7)
 
@@ -47,20 +69,22 @@ Adding any second factor to an account that already has one requires a current c
 `scripts/sms-e2e.ts` (32 checks, mock Twilio on :3995). Also fixed a hosted sign-in bug: after 2FA with no
 redirect URL the form stayed on the 2FA step.
 
-## All roadmap items are done. Possible follow-ups (not started; ask Shelby)
+## Possible follow-ups (not started; ask Shelby)
 
-- "SSO required" per domain (block password sign-in for SSO domains); SCIM user provisioning.
 - Use the drop-in components for the hosted pages too (one UI to maintain).
-- WebAuthn as a second factor (security keys) in addition to passkey sign-in.
-- Per-country SMS allow-list in the dashboard (Twilio Verify geo permissions cover this today).
-- Run the Docker image and the CI workflow for real; verify DigitalOcean binding names.
+- Revoke existing sessions of an SSO-required domain when the switch is turned on.
+- SCIM Groups (map groups to organization roles); try SCIM against a real Okta or Entra ID trial.
+- Let a security key confirm account changes (today those need a code or backup code).
+- SAML single logout; IdP-initiated sign-in (currently refused on purpose).
 
 ## Open items for Shelby (not blocking)
 
-- Docker image untested; DigitalOcean binding names in `.do/app.yaml` (`${db.CA_CERT}`, `${cache.DATABASE_URL}`)
-  unverified.
-- Decide `PASSKEY_RP_ID` before launch (`daywalker.dev` suggested).
-- CI workflow hasn't run on GitHub yet.
+- Docker image: the sandbox has no Docker daemon, so the image itself is still unbuilt. What I could check without it
+  passed: the bundled `migrate.mjs` runs, and the standalone server starts and answers `/healthz`.
+- DigitalOcean `.do/app.yaml`: `${db.DATABASE_URL}`, `${db.CA_CERT}`, `${cache.DATABASE_URL}` and `engine: VALKEY` match
+  DigitalOcean's docs. A first real deploy is still the proof.
+- Decide `PASSKEY_RP_ID` before launch (`daywalker.dev` suggested). Security keys use the same RP ID as passkeys.
+- CI workflow hasn't run on GitHub yet (it now includes the security-key and SCIM suites).
 - Commits show "Unverified" on GitHub because they aren't signed; set up SSH/GPG signing to get "Verified".
 - Old SHAs from the earlier history rewrite may linger on GitHub (only GitHub support can purge them).
 - Delete the leftover branches `wip/social-providers`, `wip/components`, `wip/saml` and `wip/sms` on GitHub (same commit as main; this session isn't allowed to delete branches).
@@ -73,6 +97,7 @@ npm ci && npm run db:migrate && npm run build
 #   PWNED_PASSWORDS_TEST_URL=http://localhost:3997 TWILIO_TEST_BASE_URL=http://localhost:3995 \
 #   TWILIO_ACCOUNT_SID=AC000… TWILIO_AUTH_TOKEN=… TWILIO_VERIFY_SERVICE_SID=VA000… (see ci.yml) node .next/standalone/server.js  (or next start)
 npm run test:all
+# test notes: Python Playwright is needed for scripts/browser/*.py; run `npx tsx scripts/browser/seed-pk.ts` for a fresh publishable key.
 ```
 
 Commits: author Shelbyb `<Shelbyb@users.noreply.github.com>`, no co-author or attribution trailers.

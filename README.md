@@ -16,11 +16,11 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 
 | Area | Highlights |
 |---|---|
-| Sign-in | Email + password (argon2id, breached passwords blocked via k-anonymity), email verification, password reset, passwordless email codes and magic links, Google, GitHub, Microsoft, Apple, Discord, GitLab and any OpenID Connect provider, passkeys (WebAuthn), TOTP and SMS (Twilio) two-factor with backup codes |
+| Sign-in | Email + password (argon2id, breached passwords blocked via k-anonymity), email verification, password reset, passwordless email codes and magic links, Google, GitHub, Microsoft, Apple, Discord, GitLab and any OpenID Connect provider, passkeys (WebAuthn), TOTP, SMS (Twilio) and security-key two-factor with backup codes |
 | Sessions | HttpOnly refresh cookie + 60-second ES256 JWTs verified locally against per-instance JWKS; revoke and ban take effect within a minute |
 | Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
 | Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |
-| Enterprise SSO | SAML 2.0 connections per customer, routed by email domain, JIT organization membership, signed-assertion checks with replay and wrapping protection |
+| Enterprise SSO | SAML 2.0 connections per customer, routed by email domain, JIT organization membership, signed-assertion checks with replay and wrapping protection, optional "SSO required" per domain, SCIM 2.0 user provisioning |
 | Webhooks | HMAC-signed (Standard Webhooks format), retries with backoff, delivery log, SSRF protection |
 | Audit logs | Sign-ins, failed attempts, security, key and settings changes; encrypted details; 90-day retention; dashboard and API |
 | Terms | Optional required terms acceptance at sign-up, recorded per user and version |
@@ -55,7 +55,7 @@ cd examples/nextjs && npm run dev         # http://localhost:3001
 Build and start the service (`npm run build`, then `next start` with `ALLOW_INSECURE_TRANSPORT=1 WEBHOOK_ALLOW_PRIVATE=1 OAUTH_TEST_BASE_URL=http://localhost:3999`) and run:
 
 ```bash
-npm run test:all     # service, recovery, OAuth, two-factor, account, passkeys, terms, organizations, webhooks, dashboard
+npm run test:all     # every end-to-end suite: service, recovery, OAuth, two-factor, account, passkeys, SSO, SCIM, SMS, security keys, and more
 npm run test:sdk     # needs examples/nextjs running on :3001 with its keys in the environment
 ```
 
@@ -122,4 +122,4 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 
 Working notes and current status: [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), and SMS two-factor (Twilio). Every roadmap item is built; see [`content/docs/roadmap.md`](content/docs/roadmap.md) and possible follow-ups in `NEXT_STEPS.md`.
+Done: signing-key rotation, `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), and SMS two-factor (Twilio), plus follow-ups: "SSO required", SCIM provisioning, an SMS country allow-list and security-key two-factor. Every roadmap item is built; see [`content/docs/roadmap.md`](content/docs/roadmap.md) and possible follow-ups in `NEXT_STEPS.md`.
