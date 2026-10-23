@@ -44,6 +44,13 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
   `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
 - Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
+## Just finished: docs catch-up and a CI fix
+
+API reference, SDK, error codes, security and overview docs now cover SMS, security keys (and key confirmation), SSO
+required, SCIM, hosted components. CI fix: the job sets `WEBHOOK_ALLOW_PRIVATE` for the service, but the test process
+must not have it (the webhook SSRF checks fail otherwise), so the suite loop runs `env -u WEBHOOK_ALLOW_PRIVATE`.
+`npm audit --omit=dev` is clean. CI still hasn't run on GitHub.
+
 ## Just finished: SCIM Groups -> organization roles (migration 0016)
 
 `/v1/scim/v2/{id}/Groups[/{gid}]` (create/get/list with `displayName eq`/PUT/PATCH members+name/DELETE; members must be users
