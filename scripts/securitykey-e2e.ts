@@ -201,6 +201,52 @@ check("an account can hold 5 keys", (await dee.b.get("me/security")).body.securi
 const sixth = await dee.b.post("mfa/security_keys/register/options", { code: deeCodes.shift() });
 check("a 6th key is refused", sixth.status === 400 && code(sixth) === "too_many_keys", sixth.body);
 
+// ---------- A key can confirm account changes (no code needed) ----------
+const kay = await newUser("kay");
+const keyK = new SoftAuthenticator();
+const kayReg = await register(kay, keyK, "Kay's key");
+const confirmKey = async (u: typeof kay, key: SoftAuthenticator) => {
+  const o = await u.b.post("mfa/security_keys/confirm/options");
+  if (o.status !== 200) return { options: o, confirm: null };
+  return { options: o, confirm: await u.b.post("mfa/security_keys/confirm", { response: key.assert(o.body.challenge, { uv: false }) }) };
+};
+check("setup: key registered", kayReg.verify?.status === 201);
+check("confirming needs a signed-in session", (await new Browser().post("mfa/security_keys/confirm/options")).status === 401);
+check("a user with no keys can't ask for a key confirmation", code(await (await newUser("lee")).b.post("mfa/security_keys/confirm/options")) === "no_security_key");
+check("without a confirmation, adding a key still needs a code", code(await kay.b.post("mfa/security_keys/register/options", {})) === "code_required");
+
+const forged = await kay.b.post("mfa/security_keys/confirm/options");
+const stranger = new SoftAuthenticator();
+check("an answer from some other key is refused", (await kay.b.post("mfa/security_keys/confirm", { response: stranger.assert(forged.body.challenge, { uv: false }) })).status === 400);
+check("…and opens nothing", code(await kay.b.post("mfa/security_keys/register/options", {})) === "code_required");
+
+const c1 = await confirmKey(kay, keyK);
+check("a touch of the key confirms", c1.confirm?.status === 200 && c1.confirm.body.confirmed === true, c1.confirm?.body);
+const keyK2 = new SoftAuthenticator();
+const addK2 = await register(kay, keyK2, "Second");
+check("…so a second key can be added with no code", addK2.verify?.status === 201, addK2.verify?.body ?? addK2.options.body);
+check("the confirmation is single use", code(await kay.b.post("mfa/security_keys/register/options", {})) === "code_required");
+
+// Tied to the session that made it.
+const kayOther = new Browser();
+const sk = await kayOther.post("sign_in", { email: kay.email, password: pw });
+const skCh = await kayOther.post("sign_in/second_factor/security_key");
+await kayOther.post("sign_in/second_factor", { response: keyK.assert(skCh.body.challenge, { uv: false }) });
+void sk;
+await confirmKey(kay, keyK);
+const kayKeys = (await kay.b.get("me/security")).body.securityKeys as { id: string }[];
+check("another session can't use it", (await kayOther.post(`mfa/security_keys/${kayKeys[1].id}/remove`, {})).status === 400);
+check("a missing code with no confirmation is refused", code(await kayOther.post("mfa/backup_codes", {})) === "invalid_code");
+const fresh = await kay.b.post("mfa/backup_codes", {});
+check("the confirming session can make new backup codes", fresh.status === 200 && fresh.body.backupCodes.length === 10, fresh.body);
+await confirmKey(kay, keyK);
+const rmK = await kay.b.post(`mfa/security_keys/${kayKeys[1].id}/remove`, {});
+check("…or remove a key", rmK.status === 200 && (await kay.b.get("me/security")).body.securityKeys.length === 1, rmK.body);
+await confirmKey(kay, keyK);
+const offK = await kay.b.post("mfa/totp/disable", {});
+check("…or turn two-factor off", offK.status === 200 && (await kay.b.get("me/security")).body.twoFactorEnabled === false, offK.body);
+check("a wrong typed code still fails when no confirmation exists", code(await kay.b.post("mfa/totp/disable", { code: "000000" })) !== undefined);
+
 await new Promise((r) => setTimeout(r, 400));
 const audit = (await listAudit(seed.instanceId, { limit: 200 })).data;
 check("audit log: keys added and removed", audit.some((e) => e.type === "user.two_factor_enabled" && e.data?.method === "security_key") && audit.some((e) => e.type === "user.two_factor_disabled" && e.data?.method === "security_key"));

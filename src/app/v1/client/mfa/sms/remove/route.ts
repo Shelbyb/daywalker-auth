@@ -12,6 +12,6 @@ export const POST = handler(async (req: Request) => {
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   await ctx.limit("mfa_disable", 10, 900);
   const { code } = z.object({ code: z.string().trim().max(20).default("") }).parse(await req.json());
-  await removeSms(s.userId, code);
+  await removeSms(s.userId, code, s.id);
   return ctx.json({ removed: true });
 });

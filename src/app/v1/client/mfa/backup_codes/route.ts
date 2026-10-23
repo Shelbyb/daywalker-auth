@@ -11,6 +11,6 @@ export const POST = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   await ctx.limit("mfa_rotate", 10, 900);
-  const { code } = z.object({ code: z.string().trim() }).parse(await req.json());
-  return ctx.json({ backupCodes: await rotateBackupCodes(s.userId, code) });
+  const { code } = z.object({ code: z.string().trim().max(20).default("") }).parse(await req.json());
+  return ctx.json({ backupCodes: await rotateBackupCodes(s.userId, code, s.id) });
 });

@@ -11,7 +11,7 @@ export const POST = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   await ctx.limit("mfa_disable", 10, 900);
-  const { code } = z.object({ code: z.string().trim() }).parse(await req.json());
-  await disableTwoFactor(s.userId, code);
+  const { code } = z.object({ code: z.string().trim().max(20).optional() }).parse(await req.json());
+  await disableTwoFactor(s.userId, code, s.id);
   return ctx.json({ enabled: false });
 });

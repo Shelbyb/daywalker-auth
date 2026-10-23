@@ -54,6 +54,29 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
     }
   };
 
+  /** Runs the pending sensitive action. No code means a security key was just touched (see the key button). */
+  async function perform(code?: string) {
+    if (step.kind !== "confirm") return;
+    const action = step.action;
+    if (action === "add-app") return void startApp(code);
+    if (action === "add-phone") return void setStep({ kind: "phone", currentCode: code });
+    if (action === "add-key") return void setStep({ kind: "key-name", currentCode: code });
+    if (action === "remove-key") {
+      await client.removeSecurityKey(step.keyId ?? "", code);
+      return done([], "Security key removed.");
+    }
+    if (action === "disable") {
+      await client.disableTwoFactor(code);
+      return done([], "Two-step verification is off.");
+    }
+    if (action === "remove-phone") {
+      await client.removeSmsPhone(code);
+      return done([], "Phone removed.");
+    }
+    setStep({ kind: "codes", codes: await client.regenerateBackupCodes(code) });
+    onChanged();
+  }
+
   return (
     <Card title="Two-step verification" description="Ask for a second step when you sign in: a code from an authenticator app, a text message, or a security key.">
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -214,26 +237,7 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
           onSubmit={(e) => {
             e.preventDefault();
             const code = String(new FormData(e.currentTarget).get("code") ?? "");
-            const action = step.action;
-            a.run(async () => {
-              if (action === "add-app") return void startApp(code);
-              if (action === "add-phone") return void setStep({ kind: "phone", currentCode: code });
-              if (action === "add-key") return void setStep({ kind: "key-name", currentCode: code });
-              if (action === "remove-key") {
-                await client.removeSecurityKey(step.keyId ?? "", code);
-                return done([], "Security key removed.");
-              }
-              if (action === "disable") {
-                await client.disableTwoFactor(code);
-                return done([], "Two-step verification is off.");
-              }
-              if (action === "remove-phone") {
-                await client.removeSmsPhone(code);
-                return done([], "Phone removed.");
-              }
-              setStep({ kind: "codes", codes: await client.regenerateBackupCodes(code) });
-              onChanged();
-            });
+            a.run(() => perform(code));
           }}
         >
           <p className="text-sm text-stone-600">
@@ -247,6 +251,15 @@ export function TwoFactorSection({ pk, security, onChanged }: { pk: string; secu
               onClick={() => a.run(async () => setTexted((await client.sendSmsCode()).phone))}
             >
               {texted ? `Code sent to ${texted}. Send another` : `Text a code to ${security.smsPhone}`}
+            </button>
+          )}
+          {security.securityKeys.length > 0 && (
+            <button
+              type="button"
+              className="block text-sm text-stone-500 underline underline-offset-4 hover:text-ink"
+              onClick={() => a.run(async () => { await client.confirmWithSecurityKey(); await perform(); })}
+            >
+              Use a security key instead
             </button>
           )}
           {a.error && <Notice tone="error">{a.error}</Notice>}

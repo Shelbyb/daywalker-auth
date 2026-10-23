@@ -44,6 +44,12 @@ Microsoft, Apple, Discord, GitLab (incl. self-hosted) and generic OpenID Connect
   `SameSite=None` state cookie on HTTPS and a per-request ES256 client secret.
 - Provider JWKS cached 10 min; refetched on unknown key / bad signature, at most every 30 s.
 
+## Just finished: security key confirms account changes
+
+`mfa/security_keys/confirm/options` + `confirm`: a key touch stores `stepup:<sessionId>` (120 s, single use, bound to the
+session). Add/remove factor, disable 2FA and new backup codes accept no code when that proof exists (`confirmed()` in
+`mfa.ts`). SDK `confirmWithSecurityKey()`; account page "Use a security key instead". 20 new checks in securitykey-e2e.
+
 ## Just finished: hosted sign-in / sign-up use the drop-in components
 
 `/sign-in` and `/sign-up` now render `<SignIn />` / `<SignUp />` (`src/app/components/hosted-auth.tsx`), so there is one
@@ -82,7 +88,6 @@ redirect URL the form stayed on the 2FA step.
 
 - Use the drop-in components for the hosted pages too (one UI to maintain).
 - SCIM Groups (map groups to organization roles); try SCIM against a real Okta or Entra ID trial.
-- Let a security key confirm account changes (today those need a code or backup code).
 - SAML single logout; IdP-initiated sign-in (currently refused on purpose).
 
 ## Open items for Shelby (not blocking)

@@ -255,7 +255,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** Remove the two-factor phone. Needs a current code (authenticator, texted or backup). */
-  async function removeSmsPhone(code: string) {
+  async function removeSmsPhone(code?: string) {
     await request("mfa/sms/remove", { method: "POST", body: JSON.stringify({ code }) });
   }
 
@@ -271,14 +271,30 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return r.backupCodes;
   }
 
-  /** Turn 2FA off. Needs a current authenticator or backup code. */
-  async function disableTwoFactor(code: string) {
+  /**
+   * Confirm with a security key instead of typing a code. The browser asks the person to touch it. For the next two
+   * minutes, ONE sensitive change (adding or removing a factor, turning two-factor off, new backup codes) can then be
+   * made by calling it without a code.
+   */
+  async function confirmWithSecurityKey() {
+    const optionsJSON = await request<Parameters<typeof startAuthentication>[0]["optionsJSON"]>("mfa/security_keys/confirm/options", { method: "POST" });
+    let response;
+    try {
+      response = await startAuthentication({ optionsJSON });
+    } catch (e) {
+      securityKeyError(e);
+    }
+    await request("mfa/security_keys/confirm", { method: "POST", body: JSON.stringify({ response }) });
+  }
+
+  /** Turn 2FA off. Needs a current authenticator or backup code (or call `confirmWithSecurityKey()` first and pass none). */
+  async function disableTwoFactor(code?: string) {
     await request("mfa/totp/disable", { method: "POST", body: JSON.stringify({ code }) });
     if (state.user) setState({ user: { ...state.user, twoFactorEnabled: false } });
   }
 
   /** Replace all backup codes. Needs a current code. */
-  async function regenerateBackupCodes(code: string) {
+  async function regenerateBackupCodes(code?: string) {
     return (await request<{ backupCodes: string[] }>("mfa/backup_codes", { method: "POST", body: JSON.stringify({ code }) })).backupCodes;
   }
 
@@ -476,7 +492,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** Remove a security key. Needs a current code (authenticator, texted or backup). */
-  async function removeSecurityKey(id: string, code: string) {
+  async function removeSecurityKey(id: string, code?: string) {
     await request(`mfa/security_keys/${encodeURIComponent(id)}/remove`, { method: "POST", body: JSON.stringify({ code }) });
   }
 
@@ -609,6 +625,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     renameSecurityKey,
     removeSecurityKey,
     completeSecondFactorWithSecurityKey,
+    confirmWithSecurityKey,
     startTotpSetup,
     confirmTotpSetup,
     disableTwoFactor,

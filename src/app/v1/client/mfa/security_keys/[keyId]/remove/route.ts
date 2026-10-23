@@ -12,6 +12,6 @@ export const POST = handler(async (req: Request, { params }: { params: Promise<{
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   await ctx.limit("mfa_disable", 10, 900);
   const { code } = z.object({ code: z.string().trim().max(20).default("") }).parse(await req.json());
-  await removeSecurityKey(s.userId, (await params).keyId, code);
+  await removeSecurityKey(s.userId, (await params).keyId, code, s.id);
   return ctx.json({ removed: true });
 });

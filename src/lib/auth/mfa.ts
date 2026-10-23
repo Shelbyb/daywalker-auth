@@ -13,6 +13,7 @@ import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simp
 import {
   countSecurityKeys,
   deleteSecurityKeyRow,
+  securityKeyAuthenticationOptions,
   securityKeyRegistrationOptions,
   verifySecurityKeyAuthentication,
   verifySecurityKeyRegistration,
@@ -54,12 +55,12 @@ export async function twoFactorMethods(userId: string) {
 // ---------- Enrollment ----------
 
 /** Step 1: create (or replace an unconfirmed) secret. Returns what the authenticator app needs. */
-export async function startTotpEnrollment(inst: Instance, userId: string, accountLabel: string, currentCode?: string) {
+export async function startTotpEnrollment(inst: Instance, userId: string, accountLabel: string, currentCode?: string, sessionId?: string) {
   if (await totpOn(userId)) throw errors.conflict("already_enabled", "An authenticator app is already set up");
   // Adding a factor to an account that already has one needs a current code: otherwise a stolen
   // session could add the attacker's own authenticator and keep access.
-  if ((await hasTwoFactor(userId)) && !(currentCode && (await verifySecondFactor(userId, currentCode))))
-    throw errors.badRequest("code_required", "Enter a current two-factor code to add an authenticator app");
+  if ((await hasTwoFactor(userId)) && !(await confirmed(userId, sessionId, currentCode)))
+    throw errors.badRequest("code_required", "Confirm with a current two-factor code or a security key to add an authenticator app");
   const secret = newTotpSecret();
   const secretEnc = encrypt(secret, secretCtx(userId));
   await db()
@@ -86,8 +87,8 @@ export async function confirmTotpEnrollment(userId: string, code: string) {
 }
 
 /** Turning 2FA off (or new backup codes) requires a current code: a stolen session alone isn't enough. */
-export async function disableTwoFactor(userId: string, code: string) {
-  if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
+export async function disableTwoFactor(userId: string, code: string | undefined, sessionId?: string) {
+  if (!(await confirmed(userId, sessionId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
   await db().delete(schema.mfaTotp).where(eq(schema.mfaTotp.userId, userId));
   await db().delete(schema.mfaSms).where(eq(schema.mfaSms.userId, userId));
   await db().delete(schema.mfaSecurityKeys).where(eq(schema.mfaSecurityKeys.userId, userId));
@@ -95,9 +96,9 @@ export async function disableTwoFactor(userId: string, code: string) {
   void recordForUser(userId, "user.two_factor_disabled");
 }
 
-export async function rotateBackupCodes(userId: string, code: string) {
+export async function rotateBackupCodes(userId: string, code: string | undefined, sessionId?: string) {
   if (!(await hasTwoFactor(userId))) throw errors.badRequest("not_enabled", "Two-factor authentication is off");
-  if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
+  if (!(await confirmed(userId, sessionId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
   return regenerateBackupCodes(userId);
 }
 
@@ -159,6 +160,28 @@ async function consumeTotp(userId: string, secret: string, code: string) {
 }
 
 /**
+ * Confirms a sensitive change: a current code, or (no code) a security key touch made earlier in
+ * this same session. The key proof is stored for two minutes, tied to the session, and used once.
+ */
+async function confirmed(userId: string, sessionId: string | undefined, code?: string) {
+  if (code) return verifySecondFactor(userId, code);
+  if (!sessionId) return false;
+  return (await cache().getdel(`stepup:${sessionId}`)) === userId;
+}
+
+/** Step 1 of confirming with a key: the browser prompt options (only this person's keys can answer). */
+export const startKeyConfirmation = (userId: string) => securityKeyAuthenticationOptions(userId);
+
+/** Step 2: a valid answer opens a two-minute, one-use window for this session. */
+export async function confirmWithSecurityKey(inst: Instance, userId: string, sessionId: string, response: AuthenticationResponseJSON) {
+  if (!(await verifySecurityKeyAuthentication(inst, userId, response))) {
+    void record(inst.id, "user.two_factor_failed", { target: userId, data: { method: "security_key", purpose: "confirm" } });
+    throw errors.badRequest("security_key_invalid", "That security key couldn't be verified");
+  }
+  await cache().set(`stepup:${sessionId}`, userId, "EX", 120);
+}
+
+/**
  * Accepts a 6-digit authenticator code, a texted code, or a backup code. A 6-digit code is checked
  * against the authenticator app unless `method` is "sms" (or the user has only SMS set up).
  */
@@ -194,15 +217,15 @@ async function smsLimit(inst: Instance, userId: string, phone: string) {
 }
 
 /** Step 1 of adding a phone: text a code to it. If two-factor is already on, a current code is required. */
-export async function startSmsEnrollment(inst: Instance, userId: string, rawPhone: string, currentCode?: string) {
+export async function startSmsEnrollment(inst: Instance, userId: string, rawPhone: string, currentCode?: string, sessionId?: string) {
   if (!smsAllowed(inst)) throw errors.badRequest("sms_disabled", "SMS two-factor isn't available for this app");
   const phone = normalizePhone(rawPhone);
   if (!phone) throw errors.badRequest("invalid_phone", "Enter the number in international format, like +1 415 555 0100");
   // Only for new numbers: people who already added a phone keep it, so narrowing the list never locks anyone out.
   if (!phoneInAllowedCountry(phone, inst.settings.smsCountries)) throw errors.badRequest("sms_country_not_allowed", "Text messages aren't available for numbers in that country");
   if ((await smsPhone(userId)) !== null) throw errors.conflict("already_enabled", "A phone is already set up. Remove it first to use a different one");
-  if ((await hasTwoFactor(userId)) && !(currentCode && (await verifySecondFactor(userId, currentCode))))
-    throw errors.badRequest("code_required", "Enter a current two-factor code to add a phone");
+  if ((await hasTwoFactor(userId)) && !(await confirmed(userId, sessionId, currentCode)))
+    throw errors.badRequest("code_required", "Confirm with a current two-factor code or a security key to add a phone");
   const phoneIndex = await smsLimit(inst, userId, phone);
   const phoneEnc = encrypt(phone, phoneCtx(userId));
   await db().insert(schema.mfaSms).values({ userId, phoneEnc, phoneIndex }).onConflictDoUpdate({ target: schema.mfaSms.userId, set: { phoneEnc, phoneIndex, verifiedAt: null } });
@@ -233,10 +256,10 @@ export async function sendSmsChallenge(inst: Instance, userId: string) {
 }
 
 /** Removing the phone needs a current code. If it was the only factor, two-factor turns off. */
-export async function removeSms(userId: string, code: string) {
+export async function removeSms(userId: string, code: string | undefined, sessionId?: string) {
   if ((await smsPhone(userId)) === null && (await smsPhone(userId, false)) === null) throw errors.notFound("No phone is set up");
   if (await hasTwoFactor(userId)) {
-    if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
+    if (!(await confirmed(userId, sessionId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
   }
   await db().delete(schema.mfaSms).where(eq(schema.mfaSms.userId, userId));
   if (!(await hasTwoFactor(userId))) await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
@@ -247,8 +270,8 @@ export async function removeSms(userId: string, code: string) {
 
 /** Step 1 of adding a key. If two-factor is already on, a current code is required (same rule as every other factor). */
 export async function startSecurityKeyEnrollment(inst: Instance, userId: string, sessionId: string, currentCode?: string) {
-  if ((await hasTwoFactor(userId)) && !(currentCode && (await verifySecondFactor(userId, currentCode))))
-    throw errors.badRequest("code_required", "Enter a current two-factor code to add a security key");
+  if ((await hasTwoFactor(userId)) && !(await confirmed(userId, sessionId, currentCode)))
+    throw errors.badRequest("code_required", "Confirm with a current two-factor code or a security key to add a security key");
   return securityKeyRegistrationOptions(inst, userId, sessionId);
 }
 
@@ -261,8 +284,8 @@ export async function confirmSecurityKeyEnrollment(inst: Instance, userId: strin
 }
 
 /** Removing a key needs a current code. If it was the last factor, two-factor turns off. */
-export async function removeSecurityKey(userId: string, id: string, code: string) {
-  if (!(await verifySecondFactor(userId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
+export async function removeSecurityKey(userId: string, id: string, code: string | undefined, sessionId?: string) {
+  if (!(await confirmed(userId, sessionId, code))) throw errors.badRequest("invalid_code", "That code is incorrect");
   await deleteSecurityKeyRow(userId, id);
   if (!(await hasTwoFactor(userId))) await db().delete(schema.backupCodes).where(eq(schema.backupCodes.userId, userId));
   void recordForUser(userId, "user.two_factor_disabled", { data: { method: "security_key", keyId: id } });

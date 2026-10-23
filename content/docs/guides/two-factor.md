@@ -191,6 +191,7 @@ await auth.completeSecondFactorWithSecurityKey();            // the browser asks
 
 **Good to know**
 
+- **A key can confirm account changes too.** Adding or removing a factor, turning two-factor off and making new backup codes normally need a current code. If the person has a security key, they can touch it instead (the account page shows **Use a security key instead**). In code, call `confirmWithSecurityKey()` and then the action with no code, e.g. `await client.confirmWithSecurityKey(); await client.disableTwoFactor();`. The confirmation lasts two minutes, works for one change, and only for the session that made it.
 - **A security key is only a second factor.** It can never sign anyone in by itself. That's what [passkeys](/docs/guides/passkeys) are for, and they're stored separately.
 - Adding or removing a key needs a **current code**, like every other factor. If a key is someone's only factor, they use a backup code for that, so keep the backup codes safe.
 - The key's answer is checked against a one-time challenge for that sign-in. Replayed, forged and cloned keys (a signature counter that goes backwards) are refused, and five wrong tries void the sign-in.

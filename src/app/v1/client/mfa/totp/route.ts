@@ -15,5 +15,5 @@ export const POST = handler(async (req: Request) => {
   const label = user?.emailAddresses.find((e) => e.primary)?.email ?? s.userId;
   // A current code is required when another second factor (e.g. SMS) is already on.
   const { code } = z.object({ code: z.string().trim().max(20).optional() }).parse(await req.json().catch(() => ({})));
-  return ctx.json(await startTotpEnrollment(ctx.inst, s.userId, label, code));
+  return ctx.json(await startTotpEnrollment(ctx.inst, s.userId, label, code, s.id));
 });
