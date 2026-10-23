@@ -419,6 +419,8 @@ export const samlConnections = pgTable(
     ssoUrl: text("sso_url").notNull(),
     certificates: jsonb("certificates").$type<string[]>().notNull(),
     enabled: boolean("enabled").notNull().default(true),
+    /** When true, people at this connection's domains can only sign in through the identity provider. */
+    ssoRequired: boolean("sso_required").notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

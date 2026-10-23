@@ -10,6 +10,7 @@ import { errors } from "../http";
 import { getInstance } from "./instance";
 import type { Instance } from "../db/schema";
 import { legalOf, acceptanceRow } from "./legal";
+import { assertSsoNotRequired } from "./sso-policy";
 
 export { PROVIDERS, isProvider, labelFor, type ProviderName, type ProviderSettings } from "./oauth-providers";
 
@@ -155,6 +156,7 @@ export async function linkOrCreate(inst: Instance, provider: ProviderName | "sam
   if (!p.email || !p.emailVerified)
     throw errors.badRequest("email_unverified", provider === "saml" ? "Your company sign-in didn't provide an email address at an approved domain" : `Your ${labelFor(provider)} account has no verified email address`);
 
+  if (provider !== "saml") await assertSsoNotRequired(inst.id, p.email); // company addresses must use the identity provider
   const emailIndex = blindIndex(p.email, `email:${inst.id}`);
   const revokedHashes: string[] = [];
   const userId = await db().transaction(async (tx) => {

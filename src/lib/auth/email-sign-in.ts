@@ -22,6 +22,7 @@ import { composeEmail } from "../email-templates";
 import { record } from "../audit";
 import { publishableKey } from "./instance";
 import type { Instance } from "../db/schema";
+import { assertSsoNotRequired, assertSsoNotRequiredForUser } from "./sso-policy";
 
 const TTL = 600;
 const MAX_ATTEMPTS = 5;
@@ -52,6 +53,7 @@ async function accountFor(instanceId: string, idx: string) {
 /** Sends the code and link if the address has an account. Resolves the same way either way. */
 export async function sendSignInEmail(inst: Instance, email: string, redirect: string | null) {
   assertEnabled(inst);
+  await assertSsoNotRequired(inst.id, email); // depends on the domain only, so it reveals nothing about accounts
   const idx = emailIndex(inst.id, email);
   if ((await rateLimit(`${inst.id}:esi_send:${idx}`, 5, 3600)) < 0) return;
   const acct = await accountFor(inst.id, idx);
@@ -76,6 +78,7 @@ async function finish(inst: Instance, idx: string, method: "email_code" | "magic
   if ((await cache().del(k)) !== 1) throw errors.badRequest("invalid_code", "That code is incorrect or has expired");
   const acct = await accountFor(inst.id, idx);
   if (!acct) throw errors.badRequest("invalid_code", "That code is incorrect or has expired");
+  await assertSsoNotRequiredForUser(inst.id, acct.userId);
   if (acct.banned) {
     void record(inst.id, "user.sign_in_blocked", { target: acct.userId, data: { reason: "suspended", method } });
     throw errors.forbidden("This account is suspended");

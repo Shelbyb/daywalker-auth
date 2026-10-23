@@ -9,6 +9,7 @@ import { encryptNullable } from "../crypto";
 import { roleIn } from "./orgs";
 import type { Instance } from "../db/schema";
 import { emit } from "../webhooks";
+import { assertSsoNotRequiredForUser } from "./sso-policy";
 
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
@@ -21,6 +22,8 @@ export async function createSession(
   userId: string,
   meta: { userAgent?: string | null; ip?: string | null; method?: string },
 ) {
+  // Backstop for every sign-in path: only the identity provider may open a session for an SSO-required address.
+  if (meta.method !== "saml") await assertSsoNotRequiredForUser(inst.id, userId);
   const refreshToken = newToken();
   const expiresAt = new Date(Date.now() + inst.settings.sessionLifetimeDays * 86_400_000);
   const id = newId("sess");

@@ -11,5 +11,5 @@ export const POST = handler(async (req: Request) => {
   await ctx.limit("sso_check", 60, 300);
   const { email } = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).parse(await req.json());
   const c = await connectionForEmail(ctx.inst.id, email);
-  return ctx.json({ sso: !!c, connectionName: c?.name ?? null });
+  return ctx.json({ sso: !!c, connectionName: c?.name ?? null, required: !!c?.ssoRequired });
 });

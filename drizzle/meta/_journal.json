@@ -92,6 +92,13 @@
       "when": 1792682928860,
       "tag": "0012_sms_two_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792758678509,
+      "tag": "0013_sso_required",
+      "breakpoints": true
     }
   ]
 }

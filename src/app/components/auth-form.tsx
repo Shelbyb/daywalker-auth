@@ -35,6 +35,7 @@ const OAUTH_ERRORS: Record<string, string> = {
   email_unverified: "That account has no verified email address. Verify it with the provider, or sign in with email.",
   provider_disabled: "That sign-in option isn't available for this app.",
   forbidden: "This account is suspended.",
+  sso_required: "Your company requires single sign-on. Use “Sign in with SSO” instead.",
   sso_not_configured: "Single sign-on isn't set up for that email domain.",
   legal_required: "Please accept the terms to create an account.",
 };

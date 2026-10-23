@@ -60,6 +60,7 @@ export const connectionInput = z.object({
   certificates: z.array(z.string().max(20000)).min(1).max(3),
   domains: z.array(z.string().trim().toLowerCase().regex(domainRe, "Enter domains like example.com")).min(1).max(20),
   enabled: z.boolean().default(true),
+  ssoRequired: z.boolean().default(false),
 });
 
 /** Reads entity ID, HTTP-Redirect SSO URL and signing certificates from IdP metadata XML. */
@@ -93,6 +94,7 @@ function view(c: Connection, domains: string[]) {
     }),
     domains,
     enabled: c.enabled,
+    ssoRequired: c.ssoRequired,
     spEntityId: spEntityId(c.id),
     acsUrl: acsUrl(c.id),
     createdAt: c.createdAt,
@@ -139,7 +141,7 @@ export async function createConnection(instanceId: string, raw: Record<string, u
   const orgId = await checkOrg(instanceId, input.organizationId);
   const id = newId("saml");
   await db().transaction(async (tx) => {
-    await tx.insert(schema.samlConnections).values({ id, instanceId, name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled });
+    await tx.insert(schema.samlConnections).values({ id, instanceId, name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired });
     await writeDomains(tx, instanceId, id, input.domains);
   });
   return getConnection(instanceId, id);
@@ -147,11 +149,11 @@ export async function createConnection(instanceId: string, raw: Record<string, u
 
 export async function updateConnection(instanceId: string, id: string, raw: Record<string, unknown>) {
   const c = await load(instanceId, id);
-  const merged = { name: c.name, organizationId: c.orgId, idpEntityId: c.idpEntityId, ssoUrl: c.ssoUrl, certificates: c.certificates, domains: await domainsOf(id), enabled: c.enabled, ...raw };
+  const merged = { name: c.name, organizationId: c.orgId, idpEntityId: c.idpEntityId, ssoUrl: c.ssoUrl, certificates: c.certificates, domains: await domainsOf(id), enabled: c.enabled, ssoRequired: c.ssoRequired, ...raw };
   const input = resolveInput(merged);
   const orgId = await checkOrg(instanceId, input.organizationId);
   await db().transaction(async (tx) => {
-    await tx.update(schema.samlConnections).set({ name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, updatedAt: new Date() }).where(eq(schema.samlConnections.id, id));
+    await tx.update(schema.samlConnections).set({ name: input.name, orgId, idpEntityId: input.idpEntityId, ssoUrl: input.ssoUrl, certificates: input.certificates, enabled: input.enabled, ssoRequired: input.ssoRequired, updatedAt: new Date() }).where(eq(schema.samlConnections.id, id));
     await writeDomains(tx, instanceId, id, input.domains);
   });
   return getConnection(instanceId, id);

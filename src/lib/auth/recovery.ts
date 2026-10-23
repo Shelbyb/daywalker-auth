@@ -10,6 +10,7 @@ import { errors } from "../http";
 import { sendMail } from "../mail";
 import { issueCode, consumeCode } from "./codes";
 import type { Instance } from "../db/schema";
+import { assertSsoNotRequired } from "./sso-policy";
 
 const emailIndex = (instanceId: string, email: string) => blindIndex(email, `email:${instanceId}`);
 const normEmail = z.string().trim().toLowerCase().email().max(254);
@@ -48,6 +49,7 @@ export async function verifyEmail(inst: Instance, userId: string, code: string) 
  * can't be used to discover registered emails. Throttled per address and silently.
  */
 export async function forgotPassword(inst: Instance, email: string) {
+  await assertSsoNotRequired(inst.id, email);
   const idx = emailIndex(inst.id, email);
   if ((await rateLimit(`${inst.id}:reset_send:${idx}`, 5, 3600)) < 0) return;
   const [row] = await db()
@@ -68,6 +70,7 @@ export async function resetPassword(inst: Instance, input: z.infer<typeof resetI
     throw errors.badRequest("password_too_short", `Password must be at least ${inst.settings.passwordMinLength} characters`);
   // Before the code is used up, so picking a breached password doesn't cost the user their code.
   await assertNotBreached(inst, input.password);
+  await assertSsoNotRequired(inst.id, input.email);
   const idx = emailIndex(inst.id, input.email);
   if (!(await consumeCode("reset_password", idx, input.code)))
     throw errors.badRequest("invalid_code", "That code is incorrect or has expired");

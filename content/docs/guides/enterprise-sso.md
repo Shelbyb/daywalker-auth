@@ -47,6 +47,22 @@ if (sso) auth.signInWithSSO(email, "https://app.example.com/dashboard"); // full
 
 If the user has two-factor turned on in your app, they're still asked for it after SSO.
 
+## Require SSO
+
+By default people at a connection's domains can still use a password or any other sign-in method. To make SSO the only way in, open the connection on the **SSO** tab and press **Require SSO** (or send `{ "ssoRequired": true }`).
+
+Then, for addresses at those domains:
+
+- Password sign-in, sign-up, email codes, magic links, passkeys, social sign-in and password reset are all refused with the error code `sso_required`.
+- Only the identity provider can open a session. This is enforced where sessions are created, so no sign-in route can skip it.
+- `checkSSO(email)` returns `required: true`, so your own form can hide the password field.
+- Other domains are unaffected.
+- Pausing the connection (`enabled: false`) also pauses the rule, so a broken identity provider never locks everyone out.
+
+People who are already signed in stay signed in until their session ends. To cut them off now, revoke their sessions from the dashboard or the backend API.
+
+Enforcement uses each person's primary email address.
+
 ## From your backend
 
 ```bash
@@ -55,7 +71,7 @@ curl -X POST https://users.daywalker.dev/v1/saml_connections \
   -d '{ "name": "Acme", "domains": ["acme.com"], "organizationId": "org_…", "metadataXml": "<EntityDescriptor …>" }'
 ```
 
-Also: `GET /v1/saml_connections`, `GET|PATCH|DELETE /v1/saml_connections/{id}`. Instead of `metadataXml` you can send `idpEntityId`, `ssoUrl` and `certificates` (PEM). `PATCH` with `{ "enabled": false }` pauses a connection.
+Also: `GET /v1/saml_connections`, `GET|PATCH|DELETE /v1/saml_connections/{id}`. Instead of `metadataXml` you can send `idpEntityId`, `ssoUrl` and `certificates` (PEM). `PATCH` with `{ "enabled": false }` pauses a connection, and `{ "ssoRequired": true }` makes SSO the only sign-in method for its domains.
 
 ## How it's kept safe
 

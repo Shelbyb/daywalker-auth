@@ -16,6 +16,7 @@ import { seedInstance } from "./seed";
 import { db, closeDb } from "../src/lib/db";
 import { closeCache } from "../src/lib/cache";
 import { listAudit } from "../src/lib/audit";
+import { invalidateInstance } from "../src/lib/auth/instance";
 
 const AUTH = "http://localhost:3000";
 const APP = "http://localhost:3001";
@@ -199,6 +200,47 @@ await b4.post(`${AUTH}/v1/saml/${conn.id}/acs`, { SAMLResponse: response(s4.requ
 check("an existing account at the domain is linked, not duplicated", (await b4.userId()) === bobId);
 const pw = (await db().execute(sql`select count(*)::int as n from passwords where user_id = ${bobId}`)) as unknown as { n: number }[];
 check("…and its unverified password is removed (pre-registration takeover guard)", pw[0].n === 0);
+
+// ---------- "SSO required" ----------
+const PW = "a long enough password";
+const cl = (path: string, body: unknown, method = "POST") =>
+  fetch(`${AUTH}/v1/client/${path}?pk=${pk}`, { method, headers: { "content-type": "application/json", origin: APP }, body: JSON.stringify(body) });
+const carol = `carol.${t}@acme.test`, eveMail = `eve.${t}@acme.test`, dave = `dave.${t}@other.test`;
+for (const e of [carol, eveMail, dave]) await cl("sign_up", { email: e, password: PW });
+await db().execute(sql`update instances set settings = settings || '{"emailCodeSignIn": true}'::jsonb where id = ${instanceId}`);
+await invalidateInstance(instanceId);
+check("before enforcing, a password sign-in at the domain works", (await cl("sign_in", { email: carol, password: PW })).status === 200);
+
+check("a connection starts with SSO not required", conn.ssoRequired === false);
+const req = await (await api("PATCH", `saml_connections/${conn.id}`, { ssoRequired: true })).json();
+check("turn on SSO required", req.ssoRequired === true);
+const code = async (r: Response) => (await r.json())?.error?.code;
+const pwIn = await cl("sign_in", { email: carol, password: PW });
+check("password sign-in is refused for the domain, even with the right password", pwIn.status === 403 && (await code(pwIn)) === "sso_required");
+check("…and with a wrong one (no hint about the password)", (await code(await cl("sign_in", { email: carol, password: "wrong wrong wrong" }))) === "sso_required");
+const before = (await db().execute(sql`select count(*)::int as n from email_addresses where instance_id = ${instanceId}`)) as unknown as { n: number }[];
+check("sign-up at the domain is refused", (await code(await cl("sign_up", { email: `new.${t}@acme.test`, password: PW }))) === "sso_required");
+const after = (await db().execute(sql`select count(*)::int as n from email_addresses where instance_id = ${instanceId}`)) as unknown as { n: number }[];
+check("…and creates no account", before[0].n === after[0].n);
+check("an email sign-in code can't be requested", (await code(await cl("sign_in/email_code", { email: carol }))) === "sso_required");
+check("a password reset can't be requested", (await code(await cl("password/forgot", { email: carol }))) === "sso_required");
+check("a password reset can't be completed either", (await code(await cl("password/reset", { email: carol, code: "123456", password: PW }))) === "sso_required");
+check("other domains are unaffected", (await cl("sign_in", { email: dave, password: PW })).status === 200);
+const sc = await (await cl("sso/check", { email: carol })).json();
+check("the SSO check says it's required, so a form can hide the password", sc.sso === true && sc.required === true, sc);
+check("…and not for a domain without SSO", (await (await cl("sso/check", { email: dave })).json()).sso === false);
+
+const bc = new Browser();
+const sx = await start(bc, carol);
+await bc.post(`${AUTH}/v1/saml/${conn.id}/acs`, { SAMLResponse: response(sx.requestId, sign(assertion({ inResponseTo: sx.requestId, nameId: carol }))), RelayState: sx.relayState });
+check("the identity provider still signs the same person in", !!(await bc.userId()));
+
+await api("PATCH", `saml_connections/${conn.id}`, { enabled: false });
+check("a disabled connection doesn't lock anyone out", (await cl("sign_in", { email: eveMail, password: PW })).status === 200);
+await api("PATCH", `saml_connections/${conn.id}`, { enabled: true });
+check("enabled again: refused", (await code(await cl("sign_in", { email: eveMail, password: PW }))) === "sso_required");
+await api("PATCH", `saml_connections/${conn.id}`, { ssoRequired: false });
+check("turn it off: password sign-in works again", (await cl("sign_in", { email: eveMail, password: PW })).status === 200);
 
 await new Promise((r) => setTimeout(r, 400));
 const audit = (await listAudit(instanceId, { limit: 200 })).data;

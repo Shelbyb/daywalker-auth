@@ -1,0 +1,1 @@
+ALTER TABLE "saml_connections" ADD COLUMN "sso_required" boolean DEFAULT false NOT NULL;

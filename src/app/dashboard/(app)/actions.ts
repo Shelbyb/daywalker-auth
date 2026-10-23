@@ -333,6 +333,17 @@ export async function toggleSsoAction(_prev: ActionState, fd: FormData): Promise
   });
 }
 
+export async function requireSsoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const ssoRequired = fd.get("ssoRequired") === "true";
+    await updateSsoConnection(userId, id, str(fd, "connectionId", 100), { ssoRequired });
+    refresh(id);
+    return { message: ssoRequired ? "SSO is now required for these domains." : "People at these domains can sign in other ways again." };
+  });
+}
+
 export async function deleteSsoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   return run(async () => {
     const { userId } = await requireDashboardUser();

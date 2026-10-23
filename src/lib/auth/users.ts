@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { assertNotBreached } from "./breach";
 import { record } from "../audit";
+import { assertSsoNotRequired } from "./sso-policy";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { hashPassword, verifyPassword, dummyHash, encrypt, decrypt, encryptNullable, decryptNullable, blindIndex } from "../crypto";
@@ -27,6 +28,7 @@ const emailIndex = (instanceId: string, email: string) => blindIndex(email, `ema
 export const signInInput = z.object({ email, password: z.string().max(256) });
 
 export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>) {
+  await assertSsoNotRequired(inst.id, input.email);
   if (input.password.length < inst.settings.passwordMinLength)
     throw errors.badRequest("password_too_short", `Password must be at least ${inst.settings.passwordMinLength} characters`);
 
@@ -68,6 +70,7 @@ export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>)
 }
 
 export async function signIn(inst: Instance, input: z.infer<typeof signInInput>) {
+  await assertSsoNotRequired(inst.id, input.email);
   const [row] = await db()
     .select({ userId: schema.users.id, banned: schema.users.banned, hash: schema.passwords.hash })
     .from(schema.emailAddresses)

@@ -9,7 +9,7 @@ import { publishableKey } from "@/lib/auth/instance";
 import { env } from "@/lib/env";
 
 // Only these codes ever reach the URL; the sign-in page maps them to fixed messages.
-const SAFE_ERRORS = new Set(["oauth_cancelled", "oauth_failed", "email_unverified", "provider_disabled", "forbidden", "legal_required"]);
+const SAFE_ERRORS = new Set(["oauth_cancelled", "oauth_failed", "email_unverified", "provider_disabled", "forbidden", "legal_required", "sso_required"]);
 
 /** Most providers redirect here with ?code&state. */
 export async function GET(req: Request, ctx: { params: Promise<{ provider: string }> }) {

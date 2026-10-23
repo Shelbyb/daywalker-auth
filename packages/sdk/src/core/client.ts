@@ -206,7 +206,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
 
   /** Does this email's domain sign in through the company's identity provider (SAML SSO)? */
   async function checkSSO(email: string) {
-    return request<{ sso: boolean; connectionName: string | null }>("sso/check", { method: "POST", body: JSON.stringify({ email }) });
+    return request<{ sso: boolean; connectionName: string | null; required: boolean }>("sso/check", { method: "POST", body: JSON.stringify({ email }) });
   }
 
   /** Full-page redirect to the company's sign-in page, then back to `redirectUrl` (default: current page). */

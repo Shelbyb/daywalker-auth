@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ssoFor } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
-import { createSsoAction, deleteSsoAction, toggleSsoAction } from "../../../actions";
+import { createSsoAction, deleteSsoAction, requireSsoAction, toggleSsoAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
 import { Badge, Card, CodeBlock, EmptyState, Field, PageHeader } from "../../../ui";
 import { inputCls } from "../../../styles";
@@ -22,7 +22,7 @@ export default async function SsoPage({ params }: { params: Promise<{ id: string
       />
       {connections.length === 0 && <EmptyState title="No SSO connections yet">Add one below for each company that wants single sign-on.</EmptyState>}
       {connections.map((c) => (
-        <Card key={c.id} title={c.name} description={<>{c.enabled ? <Badge tone="good">Enabled</Badge> : <Badge>Disabled</Badge>} <span className="ml-2 text-stone-600">{c.domains.join(", ")}</span>{c.organizationId && <span className="ml-2 text-stone-600">→ joins {orgName(c.organizationId) ?? "an organization"}</span>}</>}>
+        <Card key={c.id} title={c.name} description={<>{c.enabled ? <Badge tone="good">Enabled</Badge> : <Badge>Disabled</Badge>}{c.ssoRequired && <> <Badge tone="good">SSO required</Badge></>} <span className="ml-2 text-stone-600">{c.domains.join(", ")}</span>{c.organizationId && <span className="ml-2 text-stone-600">→ joins {orgName(c.organizationId) ?? "an organization"}</span>}</>}>
           <div className="space-y-3">
             <p className="text-sm text-stone-600">Give these to the identity provider:</p>
             <CodeBlock label="ACS (reply) URL" value={c.acsUrl} />
@@ -38,6 +38,11 @@ export default async function SsoPage({ params }: { params: Promise<{ id: string
                 <input type="hidden" name="instanceId" value={id} />
                 <input type="hidden" name="connectionId" value={c.id} />
                 <input type="hidden" name="enabled" value={c.enabled ? "false" : "true"} />
+              </ActionForm>
+              <ActionForm action={requireSsoAction} submit={c.ssoRequired ? "Allow other sign-in methods" : "Require SSO"} tone="ghost">
+                <input type="hidden" name="instanceId" value={id} />
+                <input type="hidden" name="connectionId" value={c.id} />
+                <input type="hidden" name="ssoRequired" value={c.ssoRequired ? "false" : "true"} />
               </ActionForm>
               <ConfirmAction action={deleteSsoAction} label="Delete" confirmLabel="Yes, delete" prompt="Delete this connection? People at these domains won't be able to use SSO until you add it again.">
                 <input type="hidden" name="instanceId" value={id} />
