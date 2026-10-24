@@ -22,6 +22,6 @@ export async function publicEnvironment(inst: Instance) {
     smsSecondFactor: await smsAllowed(inst),
     captcha: captchaInfo(inst),
     organizations: orgSettings(inst),
-    sessions: (({ multiSession, inactivityTimeoutMinutes }) => ({ multiSession, inactivityTimeoutMinutes }))(sessionSettings(inst)),
+    sessions: (({ multiSession, inactivityTimeoutMinutes, deviceBinding }) => ({ multiSession, inactivityTimeoutMinutes, deviceBinding }))(sessionSettings(inst)),
   };
 }

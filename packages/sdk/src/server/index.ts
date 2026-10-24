@@ -7,7 +7,7 @@ if (typeof window !== "undefined") {
   throw new Error("@daywalker/auth/server must only be imported on the server");
 }
 
-export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: string; /** Permissions of `orgRole` in the active organization, e.g. "org:billing:manage". */ orgPermissions?: string[]; /** Custom claims set in the dashboard. */ claims?: Record<string, unknown> };
+export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: string; /** Permissions of `orgRole` in the active organization, e.g. "org:billing:manage". */ orgPermissions?: string[]; /** Custom claims set in the dashboard. */ claims?: Record<string, unknown>; /** Thumbprint of the device key this session is bound to (DPoP `cnf.jkt`); undefined when unbound. */ deviceKey?: string };
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -44,7 +44,7 @@ export async function verifyToken(token: string | null | undefined, opts: Verify
     const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
     const orgRole = typeof payload.org_role === "string" ? payload.org_role : undefined;
     const orgPermissions = Array.isArray(payload.org_permissions) ? payload.org_permissions.filter((p): p is string => typeof p === "string") : orgId ? [] : undefined;
-    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole, orgPermissions, claims: customClaims(payload) };
+    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole, orgPermissions, claims: customClaims(payload), deviceKey: (payload.cnf as { jkt?: unknown } | undefined)?.jkt && typeof (payload.cnf as { jkt: unknown }).jkt === "string" ? (payload.cnf as { jkt: string }).jkt : undefined };
   } catch (e) {
     if (e instanceof joseErrors.JOSEError) return null;
     throw e; // network/JWKS outages surface instead of looking like "signed out"
@@ -277,7 +277,7 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
   };
 }
 
-const STD = new Set(["sub", "sid", "exp", "iat", "nbf", "iss", "aud", "jti", "azp", "org_id", "org_role", "org_permissions"]);
+const STD = new Set(["sub", "sid", "exp", "iat", "nbf", "iss", "aud", "jti", "azp", "org_id", "org_role", "org_permissions", "cnf"]);
 function customClaims(payload: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(payload).filter(([k]) => !STD.has(k)));
 }

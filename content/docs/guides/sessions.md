@@ -12,6 +12,7 @@ In the dashboard, open your instance, then **Configure → User & authentication
 | Inactivity timeout | Ends a session after this many idle minutes (blank = never) |
 | Multi-session | When off, signing in ends the user's other sessions |
 | Token lifetime | Seconds a session token is valid (30 to 600) |
+| Device binding | Tie sessions to a key held in the browser, see [Device-bound sessions](/docs/guides/device-binding) |
 | Custom claims | Extra claims added to the session token |
 
 ## Custom claims <span class="plan-badge">Pro</span>
@@ -22,7 +23,7 @@ Enter JSON mapping a claim name to a template, for example:
 { "email": "{{user.email}}", "plan": "{{org.role}}" }
 ```
 
-Variables: `user.id`, `user.email`, `user.first_name`, `user.last_name`, `org.id`, `org.role`. Unknown values become empty strings. Reserved names (`sub`, `iss`, `aud`, `exp`, `nbf`, `iat`, `jti`, `sid`, `azp`, `org_id`, `org_role`) are refused, as are more than 10 claims or more than 1 KB in total.
+Variables: `user.id`, `user.email`, `user.first_name`, `user.last_name`, `org.id`, `org.role`. Unknown values become empty strings. Reserved names (`sub`, `iss`, `aud`, `exp`, `nbf`, `iat`, `jti`, `sid`, `azp`, `org_id`, `org_role`, `org_permissions`, `cnf`) are refused, as are more than 10 claims or more than 1 KB in total.
 
 Claims are readable by the user, so never put secrets in them.
 

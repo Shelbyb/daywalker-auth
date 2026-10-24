@@ -1,8 +1,9 @@
 import { handler } from "@/lib/http";
 import { frontendContext, preflight } from "@/lib/auth/frontend";
-import { resolveSession, endSession } from "@/lib/auth/sessions";
+import { resolveSession, endSession, BIND_WINDOW_MS } from "@/lib/auth/sessions";
 import { getUser } from "@/lib/auth/users";
 import { safeRedirect } from "@/lib/auth/redirect";
+import { sessionSettings } from "@/lib/session-settings";
 import { startSingleLogout } from "@/lib/auth/saml-logout";
 
 export const OPTIONS = preflight;
@@ -12,7 +13,7 @@ export const GET = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   const s = ctx.refreshToken ? await resolveSession(ctx.inst.id, ctx.refreshToken) : null;
   if (!s) return ctx.json({ session: null, user: null });
-  return ctx.json({ session: { id: s.id, expiresAt: s.expiresAt }, user: await getUser(ctx.inst.id, s.userId) });
+  return ctx.json({ session: { id: s.id, expiresAt: s.expiresAt, deviceBound: !!s.dpopJkt, deviceBindable: !s.dpopJkt && !!s.createdAt && Date.now() - new Date(s.createdAt).getTime() <= BIND_WINDOW_MS, deviceBinding: sessionSettings(ctx.inst).deviceBinding }, user: await getUser(ctx.inst.id, s.userId) });
 });
 
 /**

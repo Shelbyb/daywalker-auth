@@ -208,6 +208,7 @@ export async function updateSessionSettingsAction(_prev: ActionState, fd: FormDa
       multiSession: flag(fd, "multiSession"),
       tokenTtlSeconds: str(fd, "tokenTtlSeconds", 10),
       customClaims: str(fd, "customClaims", 2000),
+      deviceBinding: str(fd, "deviceBinding", 20),
     });
     refresh(id);
     return { message: "Session settings saved." };

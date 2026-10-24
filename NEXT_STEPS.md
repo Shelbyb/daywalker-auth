@@ -21,6 +21,15 @@ Order of work, one commit per feature, each with migration, API, UI, SDK, docs p
 3. [x] SDK `<CreateOrganization/>` and `<OrganizationProfile/>` + hosted `/organization` and `/create-organization` (`packages/sdk/src/react/components.tsx`, `src/app/components/hosted-org.tsx`, `scripts/orgui-e2e.ts`, browser walkthrough `scripts/browser/organization.py` run locally with Chromium). Also made the hosted embed use the dark palette (titles were dark-on-dark on the hosted pages)
 4. [x] Self-service account deletion + data export (migration 0024, `auth/account-deletion.ts`, `scripts/accountdeletion-e2e.ts`; `guides/account-deletion.md`). Re-auth by password / 2FA code / emailed code, grace period (default 14 days, instance setting), sign-in blocked while pending (backstop in `createSession`), single-use cancel link, purge job in `instrumentation.ts`, export rate limited 3/hour and audited. Not done: a dashboard control for the grace period (backend API `instance/account_deletion` only); purge job tested by calling it directly, not by waiting for the timer.
 
+## In progress: security batch 2 (resume here)
+
+One commit per feature, each with migration, API, UI, SDK, docs and an e2e suite (in `test:all`, its own script, CI).
+
+1. [x] Device-bound sessions, DPoP RFC 9449 (migration 0025 `sessions.dpop_jkt`, `auth/dpop.ts`, enforcement in `auth/sessions.ts` via the request kept in `currentRequest` (AsyncLocalStorage set by `handler()`), `POST /v1/client/session/bind`, `GET|PATCH /v1/instance/device_binding`, dashboard Sessions select, SDK `core/dpop.ts` + `deviceKeyStore`, `authProxy` refresh page signs proofs; `guides/device-binding.md`, `scripts/binding-e2e.ts`). Redirect sign-ins (OAuth, SSO, magic link) start unbound and the SDK binds them within 2 minutes via `session/bind`. Not tested: a real browser's IndexedDB/WebCrypto (the SDK is exercised with an in-memory key store and Node WebCrypto); platform impersonation sessions are exempt by design. Migration `when` values in the journal are synthetic and ahead of the sandbox clock (use previous + 100000), otherwise drizzle skips the migration.
+2. [ ] Step-up auth (`fva` claim, `requireRecentAuth`, React reverification)
+3. [ ] Tamper-evident audit log (hash chain, verify, NDJSON export, S3-compatible push)
+4. [ ] Passkey-first sign-up and conditional UI
+
 New-device sign-in alerts were dropped on purpose (not wanted).
 
 Notes: lockout is deliberately not configurable yet (5 failures / 15 min, 5 min to 24 h). Existing mfa and securitykey

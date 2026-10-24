@@ -61,6 +61,8 @@ POST /v1/users/{userId}/cancel_deletion
 
 Stops a [self-service deletion](/docs/guides/account-deletion). `200` → `{ id, canceled }`. `GET`/`PATCH /v1/instance/account_deletion` read and set `{ enabled, graceDays }`.
 
+`GET`/`PATCH /v1/instance/device_binding` read and set `{ mode }` (`off`, `optional`, `required`) for [device-bound sessions](/docs/guides/device-binding).
+
 ## Organization roles, members and domains
 
 | Request | What it does |

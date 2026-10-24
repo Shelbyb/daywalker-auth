@@ -78,6 +78,13 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `verification_failed` | 400 | DNS record not found yet | Wait for DNS, then retry |
 | `account_locked` | 429 | Too many wrong passwords or codes; the account is locked for a while (same response for unknown emails) | Tell the user to wait or use the emailed unlock link |
 | `account_pending_deletion` | 403 | Account is scheduled for deletion; sign-in refused | Use the cancel link from the email |
+| `device_key_required` | 400 | The app requires device-bound sessions and the request had no DPoP proof | Use the SDK, or send a `DPoP` header |
+| `device_proof_required` | 401 | The session is bound to a device key and the request had no proof | Send a DPoP proof signed by the session's key |
+| `invalid_dpop_proof` | 401 | Bad, stale, replayed or wrong-key DPoP proof | Make a new proof for this method and URL |
+| `device_binding_required` | 401 | The app requires device binding and this session isn't bound | Sign in again |
+| `already_bound` | 409 | The session already has a device key | None; keys are never replaced |
+| `bind_window_closed` | 403 | Too long since sign-in to bind this session | Sign in again |
+| `device_binding_off` | 400 | Binding is not enabled for this app | None |
 | `account_deletion_disabled` | 403 | The app turned off self-service deletion | Contact the app |
 | `sole_org_admin` | 409 | Only admin of an organization that has other members | Promote another admin or delete the organization |
 | `invalid_cancel_link` | 400 | Cancel link used or expired | Ask support, or sign in if already canceled |

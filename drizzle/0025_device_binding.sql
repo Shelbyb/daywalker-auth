@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "dpop_jkt" text;

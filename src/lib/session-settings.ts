@@ -1,4 +1,5 @@
 import type { Instance } from "./db/schema";
+import { DEVICE_BINDING_MODES, type DeviceBindingMode } from "./auth/dpop";
 
 export type SessionSettings = {
   /** When off, sessions don't expire by age (they still end at the 90-day hard cap). */
@@ -9,11 +10,13 @@ export type SessionSettings = {
   multiSession: boolean;
   /** Extra token claims: name -> template such as "{{user.email}}". */
   customClaims: Record<string, string>;
+  /** Bind sessions to a device key (DPoP): off, optional (bound when the client has a key) or required. */
+  deviceBinding: DeviceBindingMode;
 };
 
-export const SESSION_SETTINGS_DEFAULTS: SessionSettings = { maxLifetimeEnabled: true, inactivityTimeoutMinutes: null, multiSession: true, customClaims: {} };
+export const SESSION_SETTINGS_DEFAULTS: SessionSettings = { maxLifetimeEnabled: true, inactivityTimeoutMinutes: null, multiSession: true, customClaims: {}, deviceBinding: "off" };
 
-export const RESERVED_CLAIMS = ["sub", "iss", "aud", "exp", "nbf", "iat", "jti", "sid", "azp", "org_id", "org_role", "org_permissions"];
+export const RESERVED_CLAIMS = ["sub", "iss", "aud", "exp", "nbf", "iat", "jti", "sid", "azp", "org_id", "org_role", "org_permissions", "cnf"];
 export const MAX_CLAIMS = 10;
 export const MAX_CLAIMS_BYTES = 1024;
 export const HARD_CAP_DAYS = 90;
@@ -44,6 +47,7 @@ export function sessionSettings(inst: Pick<Instance, "settings">): SessionSettin
     inactivityTimeoutMinutes: typeof t === "number" && Number.isInteger(t) && t >= 1 ? t : null,
     multiSession: typeof s.multiSession === "boolean" ? s.multiSession : true,
     customClaims: claims,
+    deviceBinding: (DEVICE_BINDING_MODES as readonly string[]).includes(s.deviceBinding as string) ? (s.deviceBinding as DeviceBindingMode) : "off",
   };
 }
 

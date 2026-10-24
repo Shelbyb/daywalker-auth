@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
@@ -30,10 +31,13 @@ export const errors = {
  */
 export const corsHeadersFor = new WeakMap<Request, Record<string, string>>();
 
+/** The request being handled, for code deep in the stack that must look at its headers (DPoP session binding). */
+export const currentRequest = new AsyncLocalStorage<Request>();
+
 export function handler<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {
     try {
-      return await fn(...args);
+      return await (args[0] instanceof Request ? currentRequest.run(args[0], () => fn(...args)) : fn(...args));
     } catch (e) {
       const headers = args[0] instanceof Request ? (corsHeadersFor.get(args[0]) ?? {}) : {};
       if (e instanceof ApiError)

@@ -1,4 +1,5 @@
 import { ACTIVE_COOKIE, SESSION_COOKIE, instanceIdFromKey, normalizeOrigin, type Config } from "./keys";
+import { createDpopProof, deviceKeysSupported, generateDeviceKey, indexedDbKeyStore, type DeviceKey, type DeviceKeyStore } from "./dpop";
 import { startRegistration, startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 
 export type EmailAddress = { id: string; email: string; primary: boolean; verified: boolean };
@@ -105,7 +106,7 @@ function decodeExp(jwt: string) {
 export type Reauth = { password?: string; code?: string; emailCode?: string };
 export type ReauthRequirements = { password: boolean; twoFactor: boolean; emailCode: boolean };
 
-export function createAuthClient(config: Config & { /** Mirror the JWT into a cookie on your domain (default true) */ syncCookie?: boolean }) {
+export function createAuthClient(config: Config & { /** Mirror the JWT into a cookie on your domain (default true) */ syncCookie?: boolean; /** Where the device key for session binding is kept (default: IndexedDB). Mostly for tests. */ deviceKeyStore?: DeviceKeyStore }) {
   instanceIdFromKey(config.publishableKey); // fail fast on a bad key
   const base = normalizeOrigin(config.frontendApi);
   const syncCookie = config.syncCookie ?? true;
@@ -135,14 +136,40 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     }
   }
 
+  // Device binding (DPoP): a non-extractable key per browser and instance, created only when the app turns binding on.
+  const instanceId = instanceIdFromKey(config.publishableKey);
+  const keyStore = config.deviceKeyStore ?? (deviceKeysSupported() ? indexedDbKeyStore : null);
+  let deviceKey: Promise<DeviceKey | undefined> | undefined;
+  let bindingMode: Promise<"off" | "optional" | "required"> | undefined;
+  const CREATES_SESSION = /^(sign_in|sign_up|passkeys\/authenticate\/verify|session\/bind)/;
+
+  function existingDeviceKey() {
+    return (deviceKey ??= keyStore ? keyStore.get(instanceId).catch(() => undefined) : Promise.resolve(undefined));
+  }
+
+  /** The proof header for this call, or null. Makes the key the first time a session is about to open and the app wants binding. */
+  async function proofFor(method: string, path: string, url: string): Promise<string | null> {
+    let key = await existingDeviceKey();
+    if (!key && keyStore && CREATES_SESSION.test(path)) {
+      bindingMode ??= request<{ sessions?: { deviceBinding?: "off" | "optional" | "required" } }>("environment", { method: "GET" }).then((e) => e.sessions?.deviceBinding ?? "off").catch(() => "off" as const);
+      if ((await bindingMode) !== "off") {
+        key = await generateDeviceKey();
+        await keyStore.put(instanceId, key).catch(() => undefined);
+        deviceKey = Promise.resolve(key);
+      }
+    }
+    return key ? createDpopProof(key, method, url) : null;
+  }
+
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     // The key also goes in the query string: browsers don't send custom headers on CORS preflight
     // requests, and the server needs the key to know which origins this instance allows.
     const url = `${base}/v1/client/${path}${path.includes("?") ? "&" : "?"}pk=${encodeURIComponent(config.publishableKey)}`;
+    const proof = await proofFor((init.method ?? "GET").toUpperCase(), path, url);
     const res = await fetch(url, {
       ...init,
       credentials: "include",
-      headers: { "content-type": "application/json", "x-publishable-key": config.publishableKey },
+      headers: { "content-type": "application/json", "x-publishable-key": config.publishableKey, ...(proof ? { dpop: proof } : {}) },
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -190,13 +217,16 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   async function load() {
-    const r = await request<{ session: { id: string } | null; user: User | null }>("session", { method: "GET" }).catch(
+    const r = await request<{ session: { id: string; deviceBound?: boolean; deviceBinding?: "off" | "optional" | "required"; deviceBindable?: boolean } | null; user: User | null }>("session", { method: "GET" }).catch(
       () => ({ session: null, user: null }),
     );
     if (!r.session) {
       clearLocal();
       return state;
     }
+    // A sign-in that came back through a redirect (social, SSO, link) couldn't carry a proof: bind it now.
+    if (r.session.deviceBinding && r.session.deviceBinding !== "off" && !r.session.deviceBound && r.session.deviceBindable)
+      await request("session/bind", { method: "POST" }).catch(() => undefined);
     setState({ isLoaded: true, user: r.user, sessionId: r.session.id });
     await getToken({ force: true });
     return state;

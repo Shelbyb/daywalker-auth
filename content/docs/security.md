@@ -31,6 +31,7 @@ description: What's protected, how, and what's still your responsibility.
 ## Sessions
 
 - **Refresh token:** `HttpOnly`, `Secure`, scoped to `/v1/client`. Page scripts can never read it.
+- **Device binding (optional):** sessions can be tied to a non-extractable browser key with DPoP (RFC 9449), so a stolen refresh cookie is rejected without a fresh proof from that key. See [Device-bound sessions](/docs/guides/device-binding).
 - **Session token:** lives 60 seconds, so sign-out, revocation, bans, deletions and password resets take effect everywhere within a minute.
 - **Password reset** revokes every session.
 

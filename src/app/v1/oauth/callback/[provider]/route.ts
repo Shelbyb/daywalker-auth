@@ -75,7 +75,7 @@ async function handle(req: Request, provider: string, q: URLSearchParams) {
       res.cookies.set(STATE_COOKIE, "", { path: "/v1/oauth", maxAge: 0 });
       return setTwoFactorCookie(res, pending.inst.id, token, maxAge);
     }
-    const s = await createSession(pending.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
+    const s = await createSession(pending.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req), redirectFlow: true });
     const dest = pending.redirect
       ? new URL(pending.redirect, base)
       : new URL(`${base}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`);

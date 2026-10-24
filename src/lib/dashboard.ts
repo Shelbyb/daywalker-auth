@@ -3,6 +3,7 @@
  * user's ID and re-checks that they own the instance: the dashboard never trusts an
  * instance ID from the URL or a form.
  */
+import { DEVICE_BINDING_MODES, type DeviceBindingMode } from "./auth/dpop";
 import { cancelDeletion } from "./auth/account-deletion";
 import { requireFeature } from "./plans";
 import { protectionView, updateProtection } from "./auth/instance-policy";
@@ -271,7 +272,7 @@ export async function updateOrgSettings(
 export async function updateSessionSettings(
   userId: string,
   instanceId: string,
-  input: { maxLifetimeEnabled: boolean; inactivityTimeoutMinutes: string; multiSession: boolean; tokenTtlSeconds: string; customClaims: string },
+  input: { maxLifetimeEnabled: boolean; inactivityTimeoutMinutes: string; multiSession: boolean; tokenTtlSeconds: string; customClaims: string; deviceBinding: string },
 ) {
   const inst = await ownedInstance(userId, instanceId);
   if (input.inactivityTimeoutMinutes.trim() !== "" || (input.customClaims.trim() && input.customClaims.trim() !== "{}")) await requireFeature(inst.accountId, "session_customization");
@@ -293,7 +294,8 @@ export async function updateSessionSettings(
   }
   const bad = validateClaims(claims as Record<string, unknown>);
   if (bad) throw errors.badRequest("invalid_claims", bad);
-  const sessions = { maxLifetimeEnabled: input.maxLifetimeEnabled, inactivityTimeoutMinutes, multiSession: input.multiSession, customClaims: claims as Record<string, string> };
+  if (!(DEVICE_BINDING_MODES as readonly string[]).includes(input.deviceBinding)) throw errors.badRequest("invalid_device_binding", "Device binding must be off, optional or required");
+  const sessions = { maxLifetimeEnabled: input.maxLifetimeEnabled, inactivityTimeoutMinutes, multiSession: input.multiSession, customClaims: claims as Record<string, string>, deviceBinding: input.deviceBinding as DeviceBindingMode };
   await db().update(schema.instances).set({ settings: { ...inst.settings, tokenTtlSeconds: ttl, sessions }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
   await invalidateInstance(instanceId);
   void record(instanceId, "instance.sessions_updated", { actor: { type: "developer", id: userId }, data: { ...sessions, tokenTtlSeconds: ttl } });

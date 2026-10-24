@@ -67,7 +67,7 @@ export const instances = pgTable(
         /** Organization rules (see lib/org-settings.ts for defaults). */
         organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: string; defaultRole?: string; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean };
         /** Session rules (see lib/session-settings.ts). */
-        sessions?: { maxLifetimeEnabled?: boolean; inactivityTimeoutMinutes?: number | null; multiSession?: boolean; customClaims?: Record<string, string> } }>()
+        sessions?: { maxLifetimeEnabled?: boolean; inactivityTimeoutMinutes?: number | null; multiSession?: boolean; customClaims?: Record<string, string>; deviceBinding?: "off" | "optional" | "required" } }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.
@@ -180,6 +180,8 @@ export const sessions = pgTable(
     activeOrgId: text("active_org_id"), // carried in the JWT as org_id/org_role
     /** Set when a platform staff member opened this session by impersonating the user (a platform-instance user ID). */
     impersonatorId: text("impersonator_id"),
+    /** RFC 7638 thumbprint of the device key (DPoP) this session is bound to. A public-key hash, not a secret. Null = unbound. */
+    dpopJkt: text("dpop_jkt"),
     userAgentEnc: text("user_agent_enc"),
     ipAddressEnc: text("ip_address_enc"),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),

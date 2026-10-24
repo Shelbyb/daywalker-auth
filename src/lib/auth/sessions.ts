@@ -1,11 +1,13 @@
 import { permissionsOf } from "./org-roles";
 import { autoJoinByDomain } from "./org-domains";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { record } from "../audit";
 import { db, schema } from "../db";
 import { cache } from "../cache";
 import { newId, newToken, sha256 } from "../ids";
-import { errors } from "../http";
+import { ApiError, currentRequest, errors } from "../http";
+import { requestProof } from "./dpop";
+import { getInstance } from "./instance";
 import { mintSessionToken } from "./keys";
 import { encryptNullable } from "../crypto";
 import { roleIn } from "./orgs";
@@ -18,13 +20,16 @@ import { appRequiresSetup, orgAllowed, setupRequiredError } from "./two-factor-p
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
 
-type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string; activeOrgId?: string | null; impersonatorId?: string | null };
+type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string; activeOrgId?: string | null; impersonatorId?: string | null; dpopJkt?: string | null };
 const sessKey = (refreshHash: string) => `sess:${refreshHash}`;
+
+/** How long after sign-in a session may still be bound to a device key (for redirect sign-ins that can't carry a proof). */
+export const BIND_WINDOW_MS = 120_000;
 
 export async function createSession(
   inst: Instance,
   userId: string,
-  meta: { userAgent?: string | null; ip?: string | null; method?: string; impersonatorId?: string; lifetimeMs?: number },
+  meta: { userAgent?: string | null; ip?: string | null; method?: string; impersonatorId?: string; lifetimeMs?: number; /** Social/SSO/magic-link style sign-in that returns through a browser redirect: no DPoP proof is possible, the SDK binds right after. */ redirectFlow?: boolean },
 ) {
   // Backstop for every sign-in path: only the identity provider may open a session for an SSO-required address.
   // Platform impersonation (see lib/platform.ts) is not a sign-in by the user, so it is exempt.
@@ -34,8 +39,17 @@ export async function createSession(
     const [pend] = await db().select({ at: schema.users.deletionScheduledAt }).from(schema.users).where(eq(schema.users.id, userId));
     if (pend?.at) throw errors.forbidden(`This account is scheduled for deletion on ${pend.at.toISOString().slice(0, 10)}. Use the cancel link in the confirmation email to keep it`).withCode("account_pending_deletion");
   }
-  const refreshToken = newToken();
   const ss = sessionSettings(inst);
+  // Device binding (DPoP): a proof on the request that opens the session ties it to that key.
+  let dpopJkt: string | null = null;
+  if (!meta.impersonatorId && ss.deviceBinding !== "off") {
+    const req = currentRequest.getStore();
+    const proof = req ? await requestProof(req, inst.id) : null;
+    if (proof) dpopJkt = proof.jkt;
+    else if (ss.deviceBinding === "required" && !meta.redirectFlow)
+      throw errors.badRequest("device_key_required", "This app requires sessions to be bound to a device key. Send a DPoP proof header (the SDK does this for you)");
+  }
+  const refreshToken = newToken();
   const expiresAt = new Date(Date.now() + (meta.lifetimeMs ?? (ss.maxLifetimeEnabled ? inst.settings.sessionLifetimeDays : HARD_CAP_DAYS) * 86_400_000));
   const id = newId("sess");
   await db().insert(schema.sessions).values({
@@ -46,6 +60,7 @@ export async function createSession(
     userAgentEnc: encryptNullable(meta.userAgent?.slice(0, 512), `sessions.user_agent:${id}`),
     ipAddressEnc: encryptNullable(meta.ip, `sessions.ip_address:${id}`),
     impersonatorId: meta.impersonatorId ?? null,
+    dpopJkt,
     expiresAt,
   });
   // Impersonation is recorded only in the platform audit log: the customer and the user never see it.
@@ -61,8 +76,62 @@ export async function createSession(
   await db().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, userId));
   void autoJoinByDomain(inst, userId); // verified-domain enrollment (never throws, off the request path)
   void emit(inst.id, "session.created", { sessionId: id, userId });
-  void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null, ...(meta.method ? { method: meta.method } : {}) } });
+  void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, deviceBound: !!dpopJkt, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null, ...(meta.method ? { method: meta.method } : {}) } });
   return { id, refreshToken, expiresAt };
+}
+
+const UNBOUND_OK_PATHS = ["/v1/client/session/bind"];
+
+/**
+ * Device binding (DPoP). A bound session needs a proof signed by its key on every request that
+ * uses the refresh cookie. When the instance requires binding, a session that is still unbound
+ * may only be bound (or looked at) during the short window after sign-in, then it stops working.
+ * Impersonation sessions (platform support) are exempt.
+ */
+async function enforceBinding(instanceId: string, s: CachedSession) {
+  if (s.impersonatorId) return;
+  const req = currentRequest.getStore();
+  if (s.dpopJkt) {
+    const proof = req ? await requestProof(req, instanceId) : null;
+    if (!proof) throw new ApiError(401, "device_proof_required", "This session is bound to a device key: send a DPoP proof");
+    if (proof.jkt !== s.dpopJkt) throw new ApiError(401, "invalid_dpop_proof", "Invalid DPoP proof: not the key this session is bound to");
+    return;
+  }
+  const inst = await getInstance(instanceId);
+  if (!inst || sessionSettings(inst).deviceBinding !== "required") return;
+  const path = req ? new URL(req.url).pathname : "";
+  const allowed = UNBOUND_OK_PATHS.includes(path) || (req?.method === "GET" && path === "/v1/client/session");
+  const young = !!s.createdAt && Date.now() - new Date(s.createdAt).getTime() <= BIND_WINDOW_MS;
+  if (!(allowed && young)) throw new ApiError(401, "device_binding_required", "This app requires sessions to be bound to a device key: sign in again");
+}
+
+/**
+ * Binds an unbound session to the device key proven by this request. Only within BIND_WINDOW_MS of
+ * sign-in and only once: a session that already has a key can never be re-bound.
+ */
+export async function bindSession(inst: Instance, refreshToken: string | undefined) {
+  if (!refreshToken) throw errors.unauthorized();
+  if (sessionSettings(inst).deviceBinding === "off") throw errors.badRequest("device_binding_off", "Device binding is not enabled for this app");
+  const req = currentRequest.getStore();
+  const proof = req ? await requestProof(req, inst.id) : null;
+  if (!proof) throw new ApiError(401, "device_proof_required", "Send a DPoP proof");
+  const h = sha256(refreshToken);
+  const [row] = await db()
+    .select({ id: schema.sessions.id, userId: schema.sessions.userId, status: schema.sessions.status, expiresAt: schema.sessions.expiresAt, createdAt: schema.sessions.createdAt, jkt: schema.sessions.dpopJkt, imp: schema.sessions.impersonatorId })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.refreshTokenHash, h), eq(schema.sessions.instanceId, inst.id)));
+  if (!row || row.status !== "active" || row.expiresAt <= new Date() || row.imp) throw errors.unauthorized("Session is no longer active");
+  if (row.jkt) throw errors.conflict("already_bound", "This session is already bound to a device key");
+  if (Date.now() - row.createdAt.getTime() > BIND_WINDOW_MS) throw errors.forbidden("The window for binding this session has closed: sign in again").withCode("bind_window_closed");
+  const done = await db()
+    .update(schema.sessions)
+    .set({ dpopJkt: proof.jkt })
+    .where(and(eq(schema.sessions.id, row.id), isNull(schema.sessions.dpopJkt)))
+    .returning({ id: schema.sessions.id });
+  if (!done.length) throw errors.conflict("already_bound", "This session is already bound to a device key");
+  await cache().del(sessKey(h));
+  void record(inst.id, "session.device_bound", { actor: { type: "user", id: row.userId }, target: row.userId, data: { sessionId: row.id } });
+  return { sessionId: row.id };
 }
 
 /**
@@ -75,7 +144,7 @@ export async function resolveSession(instanceId: string, refreshToken: string, o
   const hit = await cache().get(sessKey(h));
   if (hit) s = JSON.parse(hit);
   // Entries cached before createdAt was tracked are re-read once from Postgres.
-  if (!s?.createdAt) {
+  if (!s?.createdAt || s.dpopJkt === undefined) {
     const [row] = await db()
       .select({
         id: schema.sessions.id,
@@ -85,6 +154,7 @@ export async function resolveSession(instanceId: string, refreshToken: string, o
         createdAt: schema.sessions.createdAt,
         activeOrgId: schema.sessions.activeOrgId,
         impersonatorId: schema.sessions.impersonatorId,
+        dpopJkt: schema.sessions.dpopJkt,
         banned: schema.users.banned,
       })
       .from(schema.sessions)
@@ -100,11 +170,13 @@ export async function resolveSession(instanceId: string, refreshToken: string, o
         createdAt: row.createdAt.toISOString(),
         activeOrgId: row.activeOrgId,
         impersonatorId: row.impersonatorId,
+        dpopJkt: row.dpopJkt,
       };
       await cache().set(sessKey(h), JSON.stringify(s), "EX", 300);
     }
   }
   if (!s || s.status !== "active" || new Date(s.expiresAt) <= new Date()) return null;
+  await enforceBinding(instanceId, s);
   if (opts.inactivityMinutes) {
     const [r] = await db().select({ at: schema.sessions.lastActiveAt }).from(schema.sessions).where(eq(schema.sessions.id, s.id));
     if (r && Date.now() - r.at.getTime() > opts.inactivityMinutes * 60_000) {
@@ -142,7 +214,7 @@ export async function issueToken(inst: Instance, refreshToken: string | undefine
     }
     custom = renderClaims(ss.customClaims, ctx);
   }
-  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org, custom }, inst.settings.tokenTtlSeconds);
+  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org, custom, dpopJkt: s.dpopJkt ?? undefined }, inst.settings.tokenTtlSeconds);
   return { jwt, sessionId: s.id, userId: s.userId, orgId: org?.org_id ?? null, orgRole: org?.org_role ?? null };
 }
 

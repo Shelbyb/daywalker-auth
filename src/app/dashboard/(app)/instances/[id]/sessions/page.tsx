@@ -29,6 +29,13 @@ export default async function SessionsPage({ params }: { params: Promise<{ id: s
             <fieldset disabled={locked} className="disabled:opacity-60"><input name="inactivityTimeoutMinutes" inputMode="numeric" defaultValue={s.inactivityTimeoutMinutes ?? ""} placeholder="Never" className={inputCls} /></fieldset>
           </Field>
           <Toggle name="multiSession" defaultChecked={s.multiSession} label="Multi-session" description="When off, signing in ends the user's other sessions." />
+          <Field label="Device binding" hint="Ties each session to a key that never leaves the browser (DPoP), so a stolen cookie can't be used elsewhere. Optional binds sessions whose browser supports it; Required signs out everyone who can't prove a key, including sessions that exist now.">
+            <select name="deviceBinding" defaultValue={s.deviceBinding} className={inputCls}>
+              <option value="off">Off</option>
+              <option value="optional">Optional</option>
+              <option value="required">Required</option>
+            </select>
+          </Field>
           <Field label="Token lifetime (seconds)" hint="30 to 600.">
             <input name="tokenTtlSeconds" inputMode="numeric" defaultValue={inst.settings.tokenTtlSeconds} className={inputCls} />
           </Field>

@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken, createBackendClient, has, protect, ForbiddenError, type SessionClaims } from "../server";
 export { ForbiddenError };
-import { SESSION_COOKIE, ACTIVE_COOKIE, type Config } from "../core/keys";
+import { SESSION_COOKIE, ACTIVE_COOKIE, instanceIdFromKey, type Config } from "../core/keys";
+import { INLINE_PROOF_SOURCE } from "../core/dpop";
 
 /**
  * Reads config from env:
@@ -64,9 +65,10 @@ const js = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c").replace(/\
 function refreshPage(cfg: Config, signInUrl: string, secure: boolean) {
   const flags = `Path=/; SameSite=Lax${secure ? "; Secure" : ""}`;
   return `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Loading…</title><script>
+${INLINE_PROOF_SOURCE}
 (async()=>{const k="dw_refresh_attempt";if(sessionStorage.getItem(k)){sessionStorage.removeItem(k);document.cookie=${js(`${ACTIVE_COOKIE}=; Max-Age=0; ${flags}`)};location.replace(${js(signInUrl)});return}
 sessionStorage.setItem(k,"1");
-try{const r=await fetch(${js(`${new URL(cfg.frontendApi).origin}/v1/client/session/token`)},{method:"POST",credentials:"include",headers:{"x-publishable-key":${js(cfg.publishableKey)}}});
+try{const tu=${js(`${new URL(cfg.frontendApi).origin}/v1/client/session/token`)};const pf=await dwProof(${js(instanceIdFromKey(cfg.publishableKey))},"POST",tu);const r=await fetch(tu,{method:"POST",credentials:"include",headers:Object.assign({"x-publishable-key":${js(cfg.publishableKey)}},pf?{dpop:pf}:{})});
 if(r.ok){const{jwt}=await r.json();const exp=JSON.parse(atob(jwt.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).exp;document.cookie=${js(`${SESSION_COOKIE}=`)}+jwt+"; Max-Age="+Math.max(exp-Math.floor(Date.now()/1e3),0)+${js(`; ${flags}`)};location.reload();return}}catch(e){}
 document.cookie=${js(`${ACTIVE_COOKIE}=; Max-Age=0; ${flags}`)};sessionStorage.removeItem(k);location.replace(${js(signInUrl)})})();
 </script>`;

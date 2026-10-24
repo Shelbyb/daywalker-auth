@@ -34,7 +34,7 @@ export async function finishRedirectSignIn(
     clearCookie(res);
     return setTwoFactorCookie(res, inst.id, token, maxAge);
   }
-  const s = await createSession(inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req), method });
+  const s = await createSession(inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req), method, redirectFlow: true });
   await hooks.onSession?.(s.id);
   const dest = redirect ? new URL(redirect, base) : new URL(`${base}/sign-in?pk=${encodeURIComponent(pk)}&status=signed_in`);
   const res = NextResponse.redirect(dest, 302);
