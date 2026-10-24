@@ -21,6 +21,10 @@ databases:
     production: true
     cluster_name: daywalker-valkey-cache-nyc3
 
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
 services:
   - name: web
     dockerfile_path: Dockerfile
@@ -44,7 +48,7 @@ services:
         scope: RUN_TIME
         value: pk_live_aW5zXzk2aXl1OHQ2Y2Y2d3d5OGRjNGkzeWU
       - key: DATABASE_URL
-        scope: RUN_AND_BUILD_TIME
+        scope: RUN_TIME # not build time: the image build needs no credentials
         value: ${db.DATABASE_URL}
       - key: DATABASE_CA_CERT
         scope: RUN_TIME
@@ -63,7 +67,9 @@ services:
         value: Daywalker <no-reply@daywalker.dev>
       - key: PASSKEY_RP_ID
         scope: RUN_TIME
-        value: daywalker.dev # parent domain; changing it orphans passkeys
+        # The registrable parent domain, NOT users.daywalker.dev. Never change it once anyone has registered a passkey
+        # or security key: every one of them stops working. See platform-docs/pages/deployment-digitalocean.md.
+        value: daywalker.dev
       - key: TURNSTILE_SITE_KEY
         scope: RUN_TIME
         value: 0x4AAAAAAFjRgGz7X9Ig6AM3

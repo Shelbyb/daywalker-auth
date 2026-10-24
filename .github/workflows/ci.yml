@@ -118,3 +118,36 @@ jobs:
           npx tsx scripts/sdk-e2e.ts
       - if: failure()
         run: tail -n 80 service.log example.log 2>/dev/null || true
+
+  # The production image must build, run as a non-root user and answer its health check.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build the image
+        run: docker build -t daywalker-auth:ci .
+      - name: Smoke test the image
+        run: |
+          docker run -d --name dw -p 8080:8080 \
+            -e APP_URL=http://localhost:8080 -e ALLOW_INSECURE_TRANSPORT=1 -e WEBHOOK_WORKER=0 \
+            -e MASTER_KEY="$(openssl rand -base64 48)" \
+            -e DATABASE_URL=postgres://nobody:nobody@127.0.0.1:1/none \
+            daywalker-auth:ci
+          for _ in $(seq 1 30); do
+            if curl -sf http://localhost:8080/healthz > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8080/healthz
+          test "$(docker exec dw id -u)" != "0" || { echo "container runs as root" >&2; exit 1; }
+          for _ in $(seq 1 12); do
+            state="$(docker inspect --format '{{.State.Health.Status}}' dw)"
+            [ "$state" = healthy ] && break
+            sleep 5
+          done
+          test "$state" = healthy || { echo "health check reports: $state" >&2; docker logs dw >&2; exit 1; }
+          docker exec dw test -f /app/migrate.mjs
+      - if: always()
+        run: docker rm -f dw || true

@@ -1,9 +1,10 @@
-# secrets
-.env
-.env.*
-!.env.example
+# secrets (anywhere in the tree, including examples/)
+**/.env
+**/.env.*
+!**/.env.example
 certificates
-*.pem
+**/*.pem
+**/*.key
 
 # dependencies & build output (rebuilt inside the image)
 node_modules

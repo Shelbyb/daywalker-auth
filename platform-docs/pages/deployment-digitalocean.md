@@ -54,6 +54,10 @@ Or use **Create > App**, pick your repo, and choose the Dockerfile. In the app's
 
 > **Warning**: Never put real secrets in `.do/app.yaml` or Git. Leave placeholders and enter values in the dashboard.
 
+## The container image
+
+The spec builds the repository's `Dockerfile`: a multi-stage build that installs dependencies with `npm ci --ignore-scripts`, produces Next.js standalone output and runs it as a non-root user (uid 1001) under `tini`, with no npm in the final image and a `HEALTHCHECK` on `/healthz`. The build needs no secrets (configuration is read at start-up), so `DATABASE_URL` and the other variables are `RUN_TIME` only. CI builds the image and smoke-tests it on every push. Locally: `docker build -t daywalker-auth .`, then run it with an env file; migrations are `docker run ... daywalker-auth node migrate.mjs`.
+
 ## 4. Migrations
 
 The spec defines a `PRE_DEPLOY` job that runs `node migrate.mjs` in the same image before each new version starts. It applies the SQL files in `drizzle/`. If it fails, the deploy stops and the old version keeps serving.
