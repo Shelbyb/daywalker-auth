@@ -116,6 +116,7 @@ export async function updateSettingsAction(_prev: ActionState, fd: FormData): Pr
       passwordMinLength: Number(str(fd, "passwordMinLength", 10)),
       sessionLifetimeDays: Number(str(fd, "sessionLifetimeDays", 10)),
       emailCodeSignIn: fd.get("emailCodeSignIn") === "on",
+      passkeySignUp: fd.get("passkeySignUp") === "on",
       breachedPasswordCheck: fd.get("breachedPasswordCheck") === "on",
       smsSecondFactor: fd.get("smsSecondFactor") === "on",
       smsCountries: str(fd, "smsCountries", 1000),

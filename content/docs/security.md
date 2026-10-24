@@ -14,7 +14,7 @@ description: What's protected, how, and what's still your responsibility.
 | Verification and reset codes | Keyed HMAC in the cache, deleted after 10 minutes, on use, or after 5 wrong guesses |
 | 2FA secrets | AES-256-GCM per user |
 | Backup codes | Keyed HMAC; marked used atomically |
-| Passkeys | Public keys only; private keys never leave the user's device |
+| Passkeys | Public keys only; private keys never leave the user's device. Passkey sign-up verifies the email by code first and creates nothing until the passkey is made |
 | OAuth client secrets | AES-256-GCM, bound to instance and provider; never returned by any API |
 | Social account IDs | Keyed HMAC only |
 | JWT signing keys | Private key AES-256-GCM encrypted; decrypted only into server memory |

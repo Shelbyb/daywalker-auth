@@ -51,8 +51,14 @@ export async function registrationOptions(inst: Instance, userId: string, sessio
   if (existing.length >= MAX_PASSKEYS) throw errors.badRequest("too_many_passkeys", `You can have up to ${MAX_PASSKEYS} passkeys`);
   const email = user.emailAddresses.find((e) => e.primary)?.email ?? userId;
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  const options = await newRegistrationOptions(inst, userId, email, name, existing);
+  await cache().set(`pk:reg:${sessionId}`, options.challenge, "EX", CHALLENGE_TTL);
+  return options;
+}
 
-  const options = await generateRegistrationOptions({
+/** Options for creating a passkey. Shared by adding one to an account and by passkey-first sign-up. */
+export async function newRegistrationOptions(inst: Instance, userId: string, email: string, name: string, existing: { credentialId: string; transports: string[] }[] = []) {
+  return generateRegistrationOptions({
     rpName: inst.name,
     rpID: rpId(),
     userName: email,
@@ -66,14 +72,10 @@ export async function registrationOptions(inst: Instance, userId: string, sessio
       userVerification: "required", // biometric or device PIN on every use
     },
   });
-  await cache().set(`pk:reg:${sessionId}`, options.challenge, "EX", CHALLENGE_TTL);
-  return options;
 }
 
-export async function verifyRegistration(inst: Instance, userId: string, sessionId: string, response: RegistrationResponseJSON, label?: string) {
-  const challenge = await cache().getdel(`pk:reg:${sessionId}`); // single use
-  if (!challenge) throw errors.badRequest("challenge_expired", "Passkey setup timed out. Please try again");
-
+/** Checks the browser's attestation against the challenge we issued. Returns the credential to store. */
+export async function checkRegistration(inst: Instance, response: RegistrationResponseJSON, challenge: string) {
   let result;
   try {
     result = await verifyRegistrationResponse({
@@ -87,22 +89,26 @@ export async function verifyRegistration(inst: Instance, userId: string, session
     throw errors.badRequest("passkey_invalid", "That passkey couldn't be verified");
   }
   if (!result.verified) throw errors.badRequest("passkey_invalid", "That passkey couldn't be verified");
-
   const { credential, credentialDeviceType, credentialBackedUp } = result.registrationInfo;
+  return {
+    credentialId: credential.id,
+    publicKey: b64url(credential.publicKey),
+    counter: credential.counter,
+    transports: (credential.transports ?? response.response.transports ?? []) as string[],
+    deviceType: credentialDeviceType,
+    backedUp: credentialBackedUp,
+  };
+}
+
+export const passkeyName = (label: string | undefined, backedUp: boolean) => (label?.trim() || (backedUp ? "Synced passkey" : "Passkey")).slice(0, 60);
+
+export async function verifyRegistration(inst: Instance, userId: string, sessionId: string, response: RegistrationResponseJSON, label?: string) {
+  const challenge = await cache().getdel(`pk:reg:${sessionId}`); // single use
+  if (!challenge) throw errors.badRequest("challenge_expired", "Passkey setup timed out. Please try again");
+  const c = await checkRegistration(inst, response, challenge);
   const id = newId("pk");
   try {
-    await db().insert(schema.passkeys).values({
-      id,
-      instanceId: inst.id,
-      userId,
-      credentialId: credential.id,
-      publicKey: b64url(credential.publicKey),
-      counter: credential.counter,
-      transports: credential.transports ?? response.response.transports ?? [],
-      deviceType: credentialDeviceType,
-      backedUp: credentialBackedUp,
-      name: (label?.trim() || (credentialBackedUp ? "Synced passkey" : "Passkey")).slice(0, 60),
-    });
+    await db().insert(schema.passkeys).values({ id, instanceId: inst.id, userId, ...c, name: passkeyName(label, c.backedUp) });
   } catch (e) {
     const code = (e as { cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code;
     if (code === "23505") throw errors.conflict("passkey_exists", "This passkey is already registered");

@@ -1,6 +1,7 @@
 import { enabledProviders } from "./oauth";
 import { legalOf } from "./legal";
 import { emailCodeEnabled } from "./email-sign-in";
+import { passkeySignUpEnabled } from "./passkey-signup";
 import { hasSso } from "./saml";
 import { smsAllowed } from "./mfa";
 import type { Instance } from "../db/schema";
@@ -18,6 +19,7 @@ export async function publicEnvironment(inst: Instance) {
     passwordMinLength: inst.settings.passwordMinLength,
     legal: legalOf(inst),
     emailCodeSignIn: emailCodeEnabled(inst),
+    passkeySignUp: passkeySignUpEnabled(inst),
     ssoEnabled: await hasSso(inst.id),
     smsSecondFactor: await smsAllowed(inst),
     captcha: captchaInfo(inst),

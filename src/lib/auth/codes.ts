@@ -11,7 +11,7 @@ import { safeEqual } from "../ids";
 const TTL = 600;
 const MAX_ATTEMPTS = 5;
 
-type Purpose = "verify_email" | "reset_password" | "org_domain" | "reauth";
+type Purpose = "verify_email" | "reset_password" | "org_domain" | "reauth" | "passkey_signup";
 const key = (purpose: Purpose, subject: string) => `code:${purpose}:${subject}`;
 
 export async function issueCode(purpose: Purpose, subject: string) {

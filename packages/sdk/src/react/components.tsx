@@ -52,6 +52,7 @@ export type EnvironmentInfo = {
   oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
   passwordMinLength: number;
   emailCodeSignIn: boolean;
+  passkeySignUp?: boolean;
   ssoEnabled?: boolean;
   /** Organization rules set by the app in the dashboard. */
   organizations?: OrganizationSettings;
@@ -180,7 +181,7 @@ type CommonProps = {
 
 // ---------- Small building blocks ----------
 
-function Field(props: { a?: Appearance; label: string; name: string; type?: string; autoComplete?: string; required?: boolean; value?: string; onChange?: (v: string) => void; inputMode?: "numeric"; maxLength?: number; autoFocus?: boolean }) {
+function Field(props: { a?: Appearance; /** Placed on the input as-is, e.g. "username webauthn" for passkey autofill. */ label: string; name: string; type?: string; autoComplete?: string; required?: boolean; value?: string; onChange?: (v: string) => void; inputMode?: "numeric"; maxLength?: number; autoFocus?: boolean }) {
   const id = useId();
   return (
     <div className={cx(props.a, "field", "dw-field")}>
@@ -329,6 +330,48 @@ export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
   const [passkeys, setPasskeys] = useState(false); // only known in the browser
   useEffect(() => setPasskeys(c.passkeysSupported()), [c]);
 
+  // Conditional UI: saved passkeys show up in the email field's autofill list. Re-armed every four minutes
+  // (a challenge lasts five), and whenever another passkey prompt has stopped it.
+  const [autofill, setAutofill] = useState(false);
+  const busyRef = useRef(false);
+  const autofillOn = step === "password" && passkeys && autofill;
+  useEffect(() => {
+    let alive = true;
+    c.passkeyAutofillSupported().then((ok) => alive && setAutofill(ok));
+    return () => { alive = false; };
+  }, [c]);
+  useEffect(() => {
+    if (!autofillOn) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = async () => {
+      while (alive) {
+        timer = setTimeout(() => c.cancelPasskeyAutofill(), 240_000);
+        try {
+          const r = await c.signInWithPasskeyAutofill();
+          if (!alive) return;
+          if (r.status === "needs_second_factor") setStep("second-factor");
+          else done(r.user);
+          return;
+        } catch (err) {
+          if (!alive) return;
+          if (!(err instanceof AuthError && err.code === "passkey_cancelled")) {
+            if (goUnauthorized(unauthorizedUrl, err)) return;
+            setError(message(err)); // a real failure (e.g. a revoked passkey): show it and stop retrying
+            return;
+          }
+          // Cancelled by the timer or by another passkey prompt: wait for that prompt to finish, then arm again.
+          do await new Promise((r) => setTimeout(r, 400)); while (alive && busyRef.current);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      }
+    };
+    void arm();
+    return () => { alive = false; if (timer) clearTimeout(timer); c.cancelPasskeyAutofill(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autofillOn, c]);
+
   const done = (u: User) => {
     setDoneUser(u);
     if (c.state.twoFactorSetupRequired) return setStep("setup"); // the app requires two-step verification first
@@ -336,6 +379,7 @@ export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
     finish(redirectUrl, onSignedIn, u);
   };
   async function run(fn: () => Promise<void>) {
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -344,6 +388,7 @@ export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
       if (goUnauthorized(unauthorizedUrl, err)) return;
       if (!(err instanceof AuthError && err.code === "passkey_cancelled")) setError(message(err));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -409,7 +454,7 @@ export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
           else done(r.user);
         });
       }}>
-        <Field a={a} label="Email" name="email" type="email" autoComplete="email" required value={email} onChange={setEmail} />
+        <Field a={a} label="Email" name="email" type="email" autoComplete={autofill ? "username webauthn" : "email"} required value={email} onChange={setEmail} />
         <Field a={a} label="Password" name="password" type="password" autoComplete="current-password" required maxLength={256} />
         <a href={c.hostedUrl("forgot-password", redirectUrl ?? window.location.href)} className={cx(a, "link", "dw-link dw-forgot")}>Forgot password?</a>
         {env.captcha && <Captcha siteKey={env.captcha.siteKey} action="login" onToken={setCaptchaToken} round={captchaRound} />}
@@ -443,7 +488,10 @@ export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
   const signInUrl = withRedirect(explicitSignIn ?? urls.signInUrl);
   const c = useAuthClient();
   const { env, failed } = useEnvironment(initialEnvironment);
-  const [step, setStep] = useState<"form" | "verify" | "setup" | "done">(signedIn ? "done" : "form");
+  const [step, setStep] = useState<"form" | "passkey" | "passkey-code" | "verify" | "setup" | "done">(signedIn ? "done" : "form");
+  const [pkProfile, setPkProfile] = useState<{ email: string; firstName?: string; lastName?: string } | null>(null);
+  const [passkeys, setPasskeys] = useState(false); // only known in the browser
+  useEffect(() => setPasskeys(c.passkeysSupported()), [c]);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaRound, setCaptchaRound] = useState(0);
   const [accepted, setAccepted] = useState(false);
@@ -471,6 +519,76 @@ export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
 
   if (step === "setup") return <SetupTwoFactor a={a} redirectUrl={redirectUrl} />;
   if (step === "done") return <Shell a={a} title="You're all set" subtitle={user ? `Welcome, ${displayName(user)}.` : undefined}><span /></Shell>;
+  if (step === "passkey" || step === "passkey-code") {
+    const back = <button type="button" className={cx(a, "link", "dw-link")} onClick={() => { setStep("form"); setError(null); }}>Use a password instead</button>;
+    if (step === "passkey-code" && pkProfile)
+      return (
+        <Shell a={a} title="Check your email" subtitle={`We sent a 6-digit code to ${pkProfile.email}. Then you'll create your passkey.`}>
+          <form className={cx(a, "form", "dw-form")} onSubmit={async (e) => {
+            e.preventDefault();
+            const code = String(new FormData(e.currentTarget).get("code") ?? "");
+            setBusy(true);
+            setError(null);
+            try {
+              const r = await c.completePasskeySignUp({ email: pkProfile.email, code });
+              complete(r.user);
+            } catch (err) {
+              if (goUnauthorized(unauthorizedUrl, err)) return;
+              if (!(err instanceof AuthError && err.code === "passkey_cancelled")) setError(message(err));
+              else setError("Passkey setup was cancelled. Press the button to try again; your code is used up, so you may need a new one.");
+            } finally {
+              setBusy(false);
+            }
+          }}>
+            <Field a={a} label="Code" name="code" autoComplete="one-time-code" inputMode="numeric" maxLength={6} required autoFocus />
+            {error && <Alert a={a}>{error}</Alert>}
+            <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Verify and create passkey"}</button>
+            <button type="button" className={cx(a, "link", "dw-link")} onClick={() => { setStep("passkey"); setError(null); }}>Use a different email, or send a new code</button>
+          </form>
+        </Shell>
+      );
+    return (
+      <Shell a={a} title="Sign up with a passkey" subtitle={`to continue to ${env.name}`}>
+        {needsConsent && (
+          <label className={cx(a, "checkbox", "dw-checkbox")}>
+            <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+            <span>
+              I agree to the <a href={env.legal.termsUrl!} target="_blank" rel="noopener noreferrer" className={cx(a, "link", "dw-link")}>Terms of Service</a>
+              {env.legal.privacyUrl && <> and <a href={env.legal.privacyUrl} target="_blank" rel="noopener noreferrer" className={cx(a, "link", "dw-link")}>Privacy Policy</a></>}
+            </span>
+          </label>
+        )}
+        <form className={cx(a, "form", "dw-form")} noValidate onSubmit={async (e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          const profile = { email: String(f.get("email") ?? "").trim().toLowerCase(), firstName: String(f.get("firstName") ?? "") || undefined, lastName: String(f.get("lastName") ?? "") || undefined };
+          setBusy(true);
+          setError(null);
+          try {
+            await c.startPasskeySignUp({ ...profile, legalAccepted: needsConsent ? accepted : undefined, captchaToken: captchaToken ?? undefined });
+            setPkProfile(profile);
+            setStep("passkey-code");
+          } catch (err) {
+            if (goUnauthorized(unauthorizedUrl, err)) return;
+            setError(message(err));
+          } finally {
+            setCaptchaRound((n) => n + 1); // each answer works once
+            setBusy(false);
+          }
+        }}>
+          <div className="dw-row">
+            <Field a={a} label="First name" name="firstName" autoComplete="given-name" maxLength={100} />
+            <Field a={a} label="Last name" name="lastName" autoComplete="family-name" maxLength={100} />
+          </div>
+          <Field a={a} label="Email" name="email" type="email" autoComplete="email" required autoFocus />
+          {env.captcha && <Captcha siteKey={env.captcha.siteKey} action="signup" onToken={setCaptchaToken} round={captchaRound} />}
+          {error && <Alert a={a}>{error}</Alert>}
+          <button disabled={busy || (needsConsent && !accepted) || (!!env.captcha && !captchaToken)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Email me a code"}</button>
+          {back}
+        </form>
+      </Shell>
+    );
+  }
   if (step === "verify")
     return (
       <Shell a={a} title="Verify your email" subtitle={`We sent a 6-digit code to ${user?.emailAddresses[0]?.email ?? "your email"}.`}>
@@ -550,6 +668,11 @@ export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
         {Object.values(fieldErrors)[0] && <Alert a={a}>{Object.values(fieldErrors)[0]}</Alert>}
         {error && !Object.keys(fieldErrors).length && <Alert a={a}>{error}</Alert>}
         <button disabled={busy || (needsConsent && !accepted) || (!!env.captcha && !captchaToken)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Create account"}</button>
+        {env.passkeySignUp && passkeys && (
+          <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-passkey")} onClick={() => { setStep("passkey"); setError(null); }}>
+            Sign up with a passkey instead
+          </button>
+        )}
       </form>
     </Shell>
   );

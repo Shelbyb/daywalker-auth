@@ -1,7 +1,7 @@
 import { ACTIVE_COOKIE, SESSION_COOKIE, instanceIdFromKey, normalizeOrigin, type Config } from "./keys";
 import type { RecentAuthCheck } from "./fresh";
 import { createDpopProof, deviceKeysSupported, generateDeviceKey, indexedDbKeyStore, type DeviceKey, type DeviceKeyStore } from "./dpop";
-import { startRegistration, startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
+import { startRegistration, startAuthentication, browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from "@simplewebauthn/browser";
 
 export type EmailAddress = { id: string; email: string; primary: boolean; verified: boolean };
 export type User = {
@@ -471,6 +471,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
       passwordMinLength: number;
       emailCodeSignIn: boolean;
+      /** New people can create an account with an email and a passkey (see `startPasskeySignUp`). */
+      passkeySignUp: boolean;
       /** At least one SAML SSO connection is enabled. */
       ssoEnabled: boolean;
       /** Users can add a phone for SMS two-factor. */
@@ -544,6 +546,62 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       webauthnError(e);
     }
     return request<{ id: string }>("passkeys/register/verify", { method: "POST", body: JSON.stringify({ response, name }) });
+  }
+
+  /** True when the browser can offer passkeys in the email field's autofill list (conditional UI). */
+  async function passkeyAutofillSupported() {
+    if (typeof window === "undefined") return false;
+    try {
+      return await browserSupportsWebAuthnAutofill();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Conditional UI: arms the browser so saved passkeys appear in the autofill list of an input with
+   * `autocomplete="username webauthn"`. Resolves when the person picks one (and rejects with code
+   * `passkey_cancelled` if it is stopped). Starting any other passkey prompt, or `cancelPasskeyAutofill()`,
+   * stops it. Challenges last five minutes, so call this again after a long wait; `<SignIn/>` does that for you.
+   */
+  async function signInWithPasskeyAutofill(): Promise<SignInResult> {
+    const optionsJSON = await request<Parameters<typeof startAuthentication>[0]["optionsJSON"]>("passkeys/authenticate/options", { method: "POST" });
+    let response;
+    try {
+      response = await startAuthentication({ optionsJSON, useBrowserAutofill: true });
+    } catch (e) {
+      webauthnError(e);
+    }
+    return finishSignIn(await request<Completed>("passkeys/authenticate/verify", { method: "POST", body: JSON.stringify({ response }) }));
+  }
+
+  /** Stops a pending `signInWithPasskeyAutofill()`. */
+  function cancelPasskeyAutofill() {
+    WebAuthnAbortService.cancelCeremony();
+  }
+
+  /**
+   * Passkey-first sign-up, step 1: emails a 6-digit code to a new address. Resolves the same way whether or not
+   * the address already has an account. Needs "Sign up with a passkey" turned on (`getEnvironment().passkeySignUp`).
+   */
+  async function startPasskeySignUp(input: { email: string; firstName?: string; lastName?: string; legalAccepted?: boolean; captchaToken?: string }) {
+    await request("sign_up/passkey/start", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  /**
+   * Passkey-first sign-up, step 2: checks the emailed code, then asks the browser to create a passkey and
+   * creates the account (no password, email already verified) and signs it in. Nothing exists until the passkey is made.
+   */
+  async function completePasskeySignUp(input: { email: string; code: string; name?: string }) {
+    const { token, options } = await request<{ token: string; options: Parameters<typeof startRegistration>[0]["optionsJSON"] }>("sign_up/passkey/verify", { method: "POST", body: JSON.stringify({ email: input.email, code: input.code }) });
+    let response;
+    try {
+      response = await startRegistration({ optionsJSON: options });
+    } catch (e) {
+      webauthnError(e);
+    }
+    const r = await request<Completed>("sign_up/passkey/complete", { method: "POST", body: JSON.stringify({ response, token, name: input.name }) });
+    return finishSignIn({ ...r, status: "complete" });
   }
 
   /** Sign in with a passkey. No email needed: the user picks their passkey in the browser prompt. */
@@ -889,6 +947,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     passkeysSupported,
     registerPasskey,
     signInWithPasskey,
+    passkeyAutofillSupported,
+    signInWithPasskeyAutofill,
+    cancelPasskeyAutofill,
+    startPasskeySignUp,
+    completePasskeySignUp,
     listPasskeys,
     renamePasskey,
     deletePasskey,

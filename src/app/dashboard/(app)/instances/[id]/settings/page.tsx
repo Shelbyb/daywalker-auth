@@ -40,6 +40,8 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
               description={<>Reject new passwords found in known data breaches. Only a 5-character piece of the password&apos;s hash is ever sent to check.</>} />
             <Toggle name="emailCodeSignIn" defaultChecked={inst.settings.emailCodeSignIn === true} label="Email sign-in codes and links"
               description="Let people sign in without a password: we email a 6-digit code and a one-time link. Two-factor still applies." />
+            <Toggle name="passkeySignUp" defaultChecked={inst.settings.passkeySignUp === true} label="Sign up with a passkey"
+              description="Let new people create an account with just an email and a passkey: no password. We email a code to verify the address, so the account starts out verified." />
           </div>
           <div className="rounded-lg border border-stone-200">
             <div className="border-b border-stone-200 px-4 py-3">

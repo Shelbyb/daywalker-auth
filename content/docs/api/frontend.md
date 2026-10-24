@@ -31,6 +31,18 @@ POST /v1/client/sign_in
 `200` → `{ status: "complete", user, sessionId, jwt }` and sets the refresh cookie, **or** `{ status: "needs_second_factor" }` with a 5-minute pending cookie (no session yet).
 Errors: `invalid_credentials` (400, same for unknown email and wrong password), `forbidden` (403, banned), `rate_limited` (429).
 
+## Sign up with a passkey
+
+Needs **Sign up with a passkey** on (`passkeySignUp` in `GET /v1/client/environment`).
+
+```http
+POST /v1/client/sign_up/passkey/start     { "email", "firstName"?, "lastName"?, "legalAccepted"?, "captchaToken"? }   // emails a code
+POST /v1/client/sign_up/passkey/verify    { "email", "code" }                      // → { token, options }
+POST /v1/client/sign_up/passkey/complete  { "token", "response", "name"? }         // → 201 { user, sessionId, jwt }
+```
+
+`start` answers `{ sent: true }` whether or not the address has an account. `verify` returns single-use WebAuthn creation options and a token (5 minutes); nothing is created until `complete` receives the browser's attestation. Errors: `passkey_signup_disabled`, `sign_up_not_allowed`, `legal_required`, `invalid_code`, `challenge_expired`, `passkey_invalid`, `email_taken` (409), `rate_limited`.
+
 ## Second factor
 
 ```http
@@ -205,7 +217,7 @@ Both are public, cacheable for 5 minutes, and allow any origin.
 | Endpoint | Limit |
 |---|---|
 | sign_in | 20 / 5 min per IP **and** 10 / 15 min per email |
-| sign_up | 10 / hour per IP |
+| sign_up, sign_up/passkey/start | 10 / hour per IP (shared); codes 5 / hour per address, silently |
 | session/token | 120 / min per IP |
 | email/send_code | 5 / hour per user |
 | email/verify | 20 / 15 min per IP |

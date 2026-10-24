@@ -50,6 +50,7 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `reauth_required` | 403 | Adding a passkey needs a sign-in from the last 15 minutes | Sign in again, then retry |
 | `passkey_invalid` | 400 | Passkey couldn't be verified (any reason) | Try again or use another sign-in method |
 | `challenge_expired` | 400 | Passkey setup took longer than 5 minutes | Start again |
+| `passkey_signup_disabled` | 400 | Sign-up with a passkey isn't turned on for this app | Turn it on in Settings, or use another sign-up method |
 | `passkey_exists` | 409 | This device already has a passkey for the account | Nothing to do |
 | `too_many_passkeys` | 400 | Already 10 passkeys | Remove one first |
 | `passkey_cancelled` / `passkey_unsupported` | — | Browser prompt closed, or no passkey support (SDK only) | Hide passkey options or let the user retry |

@@ -9,6 +9,11 @@ if (cmd === "enable") {
   await db().execute(sql`update instances set settings = settings || '{"emailCodeSignIn":true}'::jsonb where id = ${id}`);
   await invalidateInstance(id);
   console.log("ok");
+} else if (cmd === "enable-passkey-signup") {
+  const id = parsePublishableKey(arg)!;
+  await db().execute(sql`update instances set settings = settings || '{"passkeySignUp":true}'::jsonb where id = ${id}`);
+  await invalidateInstance(id);
+  console.log("ok");
 } else if (cmd === "mail") {
   const t = await cache().get(`devmail:${blindIndex(arg, "devmail")}`);
   console.log("CODE=" + (t?.match(/\b(\d{6})\b/)?.[1] ?? ""));

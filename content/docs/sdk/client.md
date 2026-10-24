@@ -47,6 +47,8 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `getSecurity()` | `{ hasPassword, twoFactorEnabled, backupCodesRemaining, connectedAccounts }` |
 | `listSessions()` / `revokeSession(id)` / `revokeOtherSessions()` | Manage signed-in devices |
 | `passkeysSupported()` / `signInWithPasskey()` | Detect support; usernameless passkey sign-in. See [Passkeys](/docs/guides/passkeys). |
+| `passkeyAutofillSupported()` / `signInWithPasskeyAutofill()` / `cancelPasskeyAutofill()` | Conditional UI: saved passkeys in the email field's autofill (`autocomplete="username webauthn"`) |
+| `startPasskeySignUp({ email, firstName?, lastName?, legalAccepted? })` / `completePasskeySignUp({ email, code, name? })` | Passkey-first sign-up: emailed code, then a passkey creates a verified account with no password |
 | `registerPasskey(name?)` / `listPasskeys()` / `renamePasskey(id, name)` / `deletePasskey(id)` | Manage passkeys |
 | `hostedUrl(page, redirectUrl?)` | URL of `"sign-in"`, `"sign-up"`, `"forgot-password"` or `"account"` |
 

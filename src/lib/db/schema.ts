@@ -51,7 +51,7 @@ export const instances = pgTable(
     /** Cloudflare Turnstile secret, encrypted. */
     captchaSecretEnc: text("captcha_secret_enc"),
     settings: jsonb("settings")
-      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string; smsSecondFactor?: boolean; smsCountries?: string[];
+      .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; passkeySignUp?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string; smsSecondFactor?: boolean; smsCountries?: string[];
         /** Self-service account deletion (see auth/account-deletion.ts): on by default, 14 days of grace. */
         accountDeletion?: { enabled?: boolean; graceDays?: number };
         /** Sign-up rules for new accounts (see auth/signup-protection.ts). */
