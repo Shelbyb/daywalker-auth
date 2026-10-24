@@ -2,12 +2,21 @@ import { z } from "zod";
 import { schema } from "../db";
 import { newId } from "../ids";
 import type { Instance } from "../db/schema";
+import { parsePublishableKey } from "./instance";
 
 type Legal = Instance["legal"];
 const DEFAULT: Legal = { required: false, termsUrl: null, privacyUrl: null, version: "1" };
 
 /** Instance terms settings (instances cached before this field existed fall back to defaults). */
-export const legalOf = (inst: Instance): Legal => ({ ...DEFAULT, ...(inst.legal ?? {}) });
+export const legalOf = (inst: Instance): Legal => {
+  const base = { ...DEFAULT, ...(inst.legal ?? {}) };
+  // The platform's own sign-up always requires accepting the Daywalker terms.
+  const appUrl = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  if (appUrl && inst.id === parsePublishableKey(process.env.PLATFORM_PUBLISHABLE_KEY || undefined)) {
+    return { ...base, required: true, termsUrl: `${appUrl}/terms`, version: "2026-10-23" };
+  }
+  return base;
+};
 
 /** Insert row for an acceptance; call inside the transaction that creates the user. */
 export function acceptanceRow(inst: Instance, userId: string, method: string) {

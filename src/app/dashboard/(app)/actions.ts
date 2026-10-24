@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
@@ -61,12 +62,13 @@ export async function createInstanceAction(_prev: ActionState, fd: FormData): Pr
 }
 
 export async function deleteInstanceAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  return run(async () => {
+  const r = await run(async () => {
     const { userId } = await requireDashboardUser();
     await deleteInstance(userId, str(fd, "instanceId", 200), str(fd, "confirmName", 200));
-    revalidatePath("/dashboard");
-    return { message: "Instance deleted.", redirectTo: "/dashboard" };
   });
+  if (!r.ok) return r;
+  // Redirect without revalidating first: re-rendering the deleted instance's page would 404.
+  redirect("/dashboard");
 }
 
 // ---------- Keys ----------
