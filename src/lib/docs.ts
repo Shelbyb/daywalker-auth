@@ -35,6 +35,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/breached-passwords", title: "Breached passwords" },
       { slug: "guides/sign-up-protection", title: "Sign-up protection" },
       { slug: "guides/email-templates", title: "Email templates" },
+      { slug: "guides/account-portal", title: "Account Portal" },
       { slug: "guides/account-page", title: "Account page" },
       { slug: "guides/components", title: "Drop-in components" },
       { slug: "guides/custom-ui", title: "Build your own sign-in form" },

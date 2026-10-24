@@ -86,7 +86,8 @@ Returns the underlying [browser client](/docs/sdk/client), for example to build 
 | `<SignInButton mode? redirectUrl? className?>` | A button that opens the hosted sign-in (or `mode="sign-up"`) page and returns to `redirectUrl` (default: current page) |
 | `<SignUpButton redirectUrl? className?>` | Opens the hosted sign-up page and returns to `redirectUrl` |
 | `<AccountButton redirectUrl? className?>` | Opens the hosted account page, with a link back to your app |
-| `<HostedLink page redirectUrl? className?>` | A plain `<a>` link to a hosted page (`sign-in`, `sign-up`, `forgot-password` or `account`) that returns to `redirectUrl` |
+| `<HostedLink page redirectUrl? className?>` | A plain `<a>` link to a hosted page (`sign-in`, `sign-up`, `forgot-password` or `account`) that returns to `redirectUrl`. Pass `redirectUrl={false}` to use the [Account Portal](/docs/guides/account-portal) fallback redirects instead |
+| `<AccountPortalSignIn>` / `<AccountPortalSignUp>` / `<AccountPortalProfile>` / `<AccountPortalLink>` | Account Portal names for `HostedSignIn`, `HostedSignUp`, `HostedUserProfile` and `HostedLink` (same components) |
 | `<RedirectToSignIn redirectUrl? mode?>` | Sends signed-out visitors to the hosted sign-in page, then back |
 | `<OAuthButton provider redirectUrl? className?>` | "Continue with Google" (or any [social provider](/docs/guides/social-sign-in)) |
 | `<SignOutButton afterSignOutUrl? className?>` | A button that signs out, then optionally navigates |
@@ -146,7 +147,7 @@ If you leave these unset, everything uses the hosted pages.
 
 ## What the hosted pages look like
 
-Each instance's hosted pages live at `https://users.daywalker.dev/h/<publishable key>/<page>`, or on your custom domain. The logo and colors follow your **Hosted pages** settings.
+Each instance's hosted pages live at `https://users.daywalker.dev/h/<publishable key>/<page>`, or on your custom domain. The logo and colors follow your **Account Portal** settings (see [Account Portal](/docs/guides/account-portal)).
 
 **Sign in** (`/sign-in`)
 
@@ -162,6 +163,6 @@ Each instance's hosted pages live at `https://users.daywalker.dev/h/<publishable
 
 **Account** (`/account`): only available when signed in, so there's no screenshot. It covers profile, password, passkeys, two-factor, connected accounts and signed-in devices. Signed-out visitors are sent to sign-in.
 
-## Hosted pages on a custom domain
+## Account Portal on a custom domain
 
 Pass `hostedDomain="https://auth.example.com"` to `<AuthProvider>` (or set `NEXT_PUBLIC_DAYWALKER_HOSTED_DOMAIN`) once the domain is verified in your dashboard. Hosted links and `authProxy` then use it, without `pk` in the URL. The `redirect_url` must match one of your allowed origins.

@@ -9,7 +9,7 @@ import {
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
 } from "@/lib/dashboard";
-import { addDomain, removeDomain, saveBranding, verifyDomain } from "@/lib/hosted";
+import { addDomain, removeDomain, saveBranding, saveRedirects, verifyDomain } from "@/lib/hosted";
 import {
   EVENT_TYPES, createEndpoint, deleteEndpoint, retryDelivery, rotateSecret, sendTest, updateEndpoint,
 } from "@/lib/webhooks";
@@ -429,6 +429,17 @@ export async function saveBrandingAction(_prev: ActionState, fd: FormData): Prom
     await saveBranding(userId, id, { logoUrl: v("logoUrl", 500), primaryColor: v("primaryColor", 7), backgroundColor: v("backgroundColor", 7), title: v("title", 80) });
     refresh(id);
     return { message: "Branding saved." };
+  });
+}
+
+export async function saveRedirectsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const v = (k: string) => str(fd, k, 500).trim() || null;
+    await saveRedirects(userId, id, { afterSignIn: v("afterSignIn"), afterSignUp: v("afterSignUp"), afterLogoClick: v("afterLogoClick") });
+    refresh(id);
+    return { message: "Redirects saved." };
   });
 }
 

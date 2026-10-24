@@ -28,7 +28,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <Link href="/dashboard" className="rounded text-base font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-dawn">
             Daywalker Auth
           </Link>
@@ -49,7 +49,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <HelpProvider><main className="mx-auto max-w-5xl px-4 py-8">{children}</main></HelpProvider>
+      <HelpProvider><main className="mx-auto max-w-6xl px-4 py-8">{children}</main></HelpProvider>
     </div>
   );
 }

@@ -49,6 +49,30 @@ export function Field({ label, hint, children }: { label: string; hint?: React.R
   );
 }
 
+/** On/off switch backed by a real checkbox, so forms submit it exactly like one. */
+export function Toggle({ name, label, description, defaultChecked, checked, disabled, note }: {
+  name?: string; label: React.ReactNode; description?: React.ReactNode; defaultChecked?: boolean; checked?: boolean;
+  disabled?: boolean; note?: React.ReactNode;
+}) {
+  return (
+    <div className="py-4">
+      <label className={`flex items-start gap-3 text-sm ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}>
+        <span className="relative mt-0.5 inline-flex shrink-0">
+          <input type="checkbox" role="switch" name={name} defaultChecked={checked === undefined ? defaultChecked : undefined}
+            checked={checked} readOnly={checked !== undefined} disabled={disabled} className="peer sr-only" />
+          <span aria-hidden className="h-5 w-9 rounded-full bg-stone-300 transition-colors peer-checked:bg-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-dawn peer-disabled:opacity-50" />
+          <span aria-hidden className="absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+        </span>
+        <span>
+          <span className="font-medium">{label}</span>
+          {description && <span className="block text-stone-600">{description}</span>}
+        </span>
+      </label>
+      {note && <p className="ml-12 mt-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">ⓘ {note}</p>}
+    </div>
+  );
+}
+
 export function Skeleton({ lines = 3 }: { lines?: number }) {
   return (
     <div className="animate-pulse space-y-3 rounded-xl border border-stone-200 bg-white p-5" aria-busy="true" aria-label="Loading">

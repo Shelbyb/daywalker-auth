@@ -41,6 +41,6 @@ Revoking is immediate: the key stops working on the very next request. Create th
 - Deleting an instance permanently deletes its users, sessions, keys and webhooks. You must type the instance's name to confirm.
 - Dashboard sessions work like any other: short-lived tokens, with the long-lived credential in an HttpOnly cookie.
 
-## Hosted pages
+## Account Portal
 
-Instead of the SDK components you can send people to pages we host: `/sign-in`, `/sign-up`, `/forgot-password` and `/account`. They support the same features as the components. See [what they look like](/docs/sdk/react#what-the-hosted-pages-look-like) and how to [link to them from the SDK](/docs/sdk/react#embedded-component-or-hosted-page). Under **Hosted pages** in your instance you can set a logo, button and background colors, and attach a custom domain. To use a domain, add a single CNAME record at your DNS provider pointing your host to the address shown. We detect it automatically and set up the certificate. Once it resolves, the pages work at `https://your-host/sign-in` without a key in the URL.
+Instead of the SDK components you can send people to the Account Portal, pages we host for sign-in, sign-up, password reset and the account page. Set it up under **Configure → Customization → Account Portal**: the **Overview** tab lists the links, **Redirects** sets where people land when a link has no `redirect_url`, and **Customization** sets the logo, colors and a custom domain (one CNAME record, verified automatically). See [Account Portal](/docs/guides/account-portal) for step-by-step setup.

@@ -11,7 +11,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const h = await hostedInstance(pkParam);
   const pk = h?.pk, inst = h?.inst;
   if (!pk || !inst) return <p className="text-center text-sm text-stone-500">Missing or invalid publishable key.</p>;
-  const redirect = safeRedirect(redirect_url, inst.allowedOrigins) ?? undefined;
+  const redirect = safeRedirect(redirect_url, inst.allowedOrigins) ?? safeRedirect(inst.settings.redirects?.afterSignUp ?? undefined, inst.allowedOrigins) ?? undefined;
   const q = (extra: Record<string, string>) => new URLSearchParams({ pk, ...(redirect ? { redirect_url: redirect } : {}), ...extra }).toString();
   return (
     <>

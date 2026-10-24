@@ -57,7 +57,9 @@ export const instances = pgTable(
         /** Two-factor policy: required for everyone, after a grace period that ends at this time. */
         requireTwoFactor?: boolean; twoFactorGraceUntil?: string | null;
         /** Hosted page look: logo, colors, heading. */
-        branding?: { logoUrl?: string | null; primaryColor?: string | null; backgroundColor?: string | null; title?: string | null } }>()
+        branding?: { logoUrl?: string | null; primaryColor?: string | null; backgroundColor?: string | null; title?: string | null };
+        /** Account Portal fallbacks when no redirect_url is given; checked against allowed origins when used. */
+        redirects?: { afterSignIn?: string | null; afterSignUp?: string | null; afterLogoClick?: string | null } }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.

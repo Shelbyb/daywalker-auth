@@ -7,7 +7,7 @@ type Doc = { slug: string; title: string };
 
 /** Docs related to each dashboard page, matched by path (first match wins). */
 const RELATED: [RegExp, Doc[]][] = [
-  [/\/instances\/[^/]+\/hosted/, [{ slug: "sdk/react", title: "Hosted pages and SDK links" }, { slug: "guides/dashboard", title: "Dashboard: hosted pages" }, { slug: "guides/account-page", title: "Account page" }]],
+  [/\/instances\/[^/]+\/hosted/, [{ slug: "guides/account-portal", title: "Account Portal" }, { slug: "sdk/react", title: "SDK links to the portal" }, { slug: "guides/account-page", title: "Account page" }]],
   [/\/instances\/[^/]+\/users/, [{ slug: "guides/manage-users", title: "Manage users" }, { slug: "guides/read-user", title: "Read the current user" }]],
   [/\/instances\/[^/]+\/keys/, [{ slug: "guides/rotating-keys", title: "Rotating keys" }, { slug: "guides/call-your-api", title: "Call your API" }]],
   [/\/instances\/[^/]+\/social/, [{ slug: "guides/social-sign-in", title: "Social sign-in" }]],

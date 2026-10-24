@@ -26,6 +26,19 @@ export async function saveBranding(userId: string, instanceId: string, input: un
   void record(instanceId, "instance.branding_updated", { actor: { type: "developer", id: userId } });
 }
 
+const redirectUrl = z.string().url().max(500).refine((u) => /^https?:\/\//.test(u), "Use an http(s) URL").nullable();
+const redirectsInput = z.object({ afterSignIn: redirectUrl, afterSignUp: redirectUrl, afterLogoClick: redirectUrl });
+
+/** Saves the Account Portal fallback redirects. Each must be on one of the instance's allowed origins. */
+export async function saveRedirects(userId: string, instanceId: string, input: unknown) {
+  const inst = await ownedInstance(userId, instanceId);
+  const redirects = redirectsInput.parse(input);
+  for (const u of Object.values(redirects)) if (u && !inst.allowedOrigins.includes(new URL(u).origin)) throw new Error(`${new URL(u).origin} isn't one of this instance's allowed origins`);
+  await db().update(schema.instances).set({ settings: { ...inst.settings, redirects }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
+  await invalidateInstance(instanceId);
+  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, target: "redirects" });
+}
+
 const HOST = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const appHostname = () => process.env.CUSTOM_DOMAIN_CNAME_TARGET || new URL(process.env.APP_URL ?? "http://localhost").hostname;
 /** The hostname customers point their CNAME at (CUSTOM_DOMAIN_CNAME_TARGET, e.g. the Cloudflare fallback origin, else the APP_URL host). */

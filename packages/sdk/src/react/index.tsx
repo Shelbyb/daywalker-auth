@@ -183,16 +183,17 @@ export function RedirectToSignIn({ redirectUrl, mode = "sign-in" }: { redirectUr
  * A plain `<a>` link to a hosted page, for when you'd rather not embed the SDK component.
  * The user comes back to the current URL (or `redirectUrl`) when done.
  */
-export function HostedLink({ page, children, className, redirectUrl }: ButtonProps & { page: "sign-in" | "sign-up" | "forgot-password" | "account"; redirectUrl?: string }) {
+export function HostedLink({ page, children, className, redirectUrl }: ButtonProps & { page: "sign-in" | "sign-up" | "forgot-password" | "account"; redirectUrl?: string | false }) {
   const c = useAuthClient();
   const pageUrl = usePageUrl();
-  const [href, setHref] = useState(() => c.hostedUrl(page, redirectUrl));
-  useEffect(() => setHref(pageUrl(page, redirectUrl ?? window.location.href)), [page, redirectUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [href, setHref] = useState(() => c.hostedUrl(page, redirectUrl || undefined));
+  useEffect(() => setHref(pageUrl(page, redirectUrl === false ? undefined : redirectUrl ?? window.location.href)), [page, redirectUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const label = { "sign-in": "Sign in", "sign-up": "Sign up", "forgot-password": "Forgot password?", account: "Manage account" }[page];
   return <a href={href} className={className}>{children ?? label}</a>;
 }
 
-type HostedProps = ButtonProps & { redirectUrl?: string };
+/** `redirectUrl={false}` leaves it off, so the Account Portal's fallback redirects (dashboard > Account Portal > Redirects) apply. */
+type HostedProps = ButtonProps & { redirectUrl?: string | false };
 /** Link to the hosted sign-in page (hosted counterpart of `<SignIn />`). */
 export const HostedSignIn = (p: HostedProps) => <HostedLink {...p} page="sign-in" />;
 /** Link to the hosted sign-up page (hosted counterpart of `<SignUp />`). */
@@ -234,3 +235,7 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
 
 export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
 export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, Captcha, type Appearance, type EnvironmentInfo } from "./components";
+
+/** Account Portal names for the hosted links (same components). */
+export const AccountPortalLink = HostedLink;
+export { HostedSignIn as AccountPortalSignIn, HostedSignUp as AccountPortalSignUp, HostedUserProfile as AccountPortalProfile };

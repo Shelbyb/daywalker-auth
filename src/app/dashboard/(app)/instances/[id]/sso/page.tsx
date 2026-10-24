@@ -3,7 +3,7 @@ import { ssoFor } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
 import { createScimTokenAction, setScimAdminGroupsAction, singleLogoutAction, createSsoAction, deleteSsoAction, requireSsoAction, revokeScimTokenAction, toggleSsoAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
-import { Badge, Card, CodeBlock, EmptyState, Field, PageHeader } from "../../../ui";
+import { Badge, Card, CodeBlock, EmptyState, Field, PageHeader, Toggle } from "../../../ui";
 import { inputCls } from "../../../styles";
 import { guarded } from "../../../server";
 
@@ -47,9 +47,7 @@ export default async function SsoPage({ params }: { params: Promise<{ id: string
                 <Field label="Identity provider logout URL" hint="From its metadata, or its admin console (HTTP-Redirect).">
                   <input name="sloUrl" type="url" defaultValue={c.sloUrl ?? ""} placeholder="https://" className={`${inputCls} font-mono`} />
                 </Field>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="singleLogout" defaultChecked={c.singleLogout} /> Sign out at the identity provider too
-                </label>
+                <Toggle name="singleLogout" defaultChecked={c.singleLogout} label="Sign out at the identity provider too" />
               </ActionForm>
             </div>
             <div className="space-y-2 rounded-lg border border-stone-200 p-3">

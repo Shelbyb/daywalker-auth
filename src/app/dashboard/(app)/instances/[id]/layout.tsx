@@ -19,8 +19,7 @@ export default async function InstanceLayout({ children, params }: { children: R
           <span className="text-sm text-stone-500">{inst.userCount} {inst.userCount === 1 ? "user" : "users"}</span>
         </div>
       </div>
-      <Tabs base={base} />
-      <div>{children}</div>
+      <Tabs base={base}>{children}</Tabs>
     </div>
   );
 }

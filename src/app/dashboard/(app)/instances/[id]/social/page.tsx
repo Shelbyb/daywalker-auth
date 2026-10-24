@@ -3,7 +3,7 @@ import { listProviders } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
 import { saveProviderAction, setProviderEnabledAction } from "../../../actions";
 import { ActionForm } from "../../../forms";
-import { Badge, Card, CodeBlock, Field, PageHeader, Skeleton } from "../../../ui";
+import { Badge, Card, CodeBlock, Field, PageHeader, Skeleton, Toggle } from "../../../ui";
 import { inputCls } from "../../../styles";
 import { guarded } from "../../../server";
 
@@ -80,10 +80,7 @@ async function Providers({ userId, id }: { userId: string; id: string }) {
                     </Field>
                   </>
                 )}
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="enabled" defaultChecked={p.enabled} className="size-4 accent-ink" />
-                  Enable {name} sign-in
-                </label>
+                <Toggle name="enabled" defaultChecked={p.enabled} label={<>Enable {name} sign-in</>} />
               </ActionForm>
               {p.configured && (
                 <ActionForm action={setProviderEnabledAction} submit={p.enabled ? `Disable ${name}` : `Enable ${name}`} tone="ghost" className="space-y-2">

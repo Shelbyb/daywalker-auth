@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "../../../guard";
 import { updateLegalAction } from "../../../actions";
 import { ActionForm } from "../../../forms";
-import { Card, Field, PageHeader } from "../../../ui";
+import { Card, Field, PageHeader, Toggle } from "../../../ui";
 import { inputCls } from "../../../styles";
 import { details } from "../../../server";
 
@@ -22,10 +22,7 @@ export default async function TermsPage({ params }: { params: Promise<{ id: stri
       <Card>
         <ActionForm action={updateLegalAction} submit="Save terms settings" className="max-w-xl space-y-5">
           <input type="hidden" name="instanceId" value={inst.id} />
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" name="required" defaultChecked={l.required} className="size-4 accent-ink" />
-            Require new users to accept the terms
-          </label>
+          <Toggle name="required" defaultChecked={l.required} label="Require new users to accept the terms" />
           <Field label="Terms of service URL" hint="Required when acceptance is on. Must be https.">
             <input name="termsUrl" type="url" defaultValue={l.termsUrl ?? ""} placeholder="https://example.com/terms" className={inputCls} />
           </Field>
