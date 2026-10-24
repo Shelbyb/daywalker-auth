@@ -23,6 +23,7 @@ import { newId, newToken, sha256 } from "./ids";
 import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/instance";
 import { createSigningKey, getJwks, issuerFor, listSigningKeys, rotateSigningKey } from "./auth/keys";
 import { getUser, deleteUser, setBanned } from "./auth/users";
+import { unlockUser } from "./auth/lockout";
 import { PROVIDERS, callbackUrl, isProvider, labelFor, setProviderConfig } from "./auth/oauth";
 import { parseSettings, type ProviderSettings } from "./auth/oauth-providers";
 import { legalInput, legalOf } from "./auth/legal";
@@ -422,6 +423,7 @@ export async function listUsers(userId: string, instanceId: string, q: { limit?:
     name: [u!.firstName, u!.lastName].filter(Boolean).join(" ") || null,
     twoFactorEnabled: u!.twoFactorEnabled,
     banned: !!(u as { banned?: boolean }).banned,
+    lockedUntil: (u as { lockedUntil?: string | null }).lockedUntil ?? null,
     lastSignInAt: u!.lastSignInAt,
     createdAt: u!.createdAt,
   }));
@@ -431,6 +433,11 @@ export async function banUser(userId: string, instanceId: string, targetId: stri
   await ownedInstance(userId, instanceId);
   await setBanned(instanceId, targetId, banned);
   void record(instanceId, banned ? "user.banned" : "user.unbanned", { actor: { type: "developer", id: userId }, target: targetId });
+}
+
+export async function unlockUserFromDashboard(userId: string, instanceId: string, targetId: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  await unlockUser(inst, targetId, { type: "developer", id: userId, reason: "admin" });
 }
 
 export async function removeUser(userId: string, instanceId: string, targetId: string) {

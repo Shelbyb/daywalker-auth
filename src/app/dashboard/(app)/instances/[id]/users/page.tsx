@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { listUsers } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
-import { banUserAction, removeUserAction } from "../../../actions";
+import { banUserAction, removeUserAction, unlockUserAction } from "../../../actions";
 import { ConfirmAction } from "../../../forms";
 import { Badge, EmptyState, PageHeader, Skeleton } from "../../../ui";
 import { fmtDate, fmtDateTime, guarded } from "../../../server";
@@ -34,6 +34,7 @@ async function Users({ userId, id, page, size }: { userId: string; id: string; p
                 <td className="space-x-1 p-3">
                   {u.twoFactorEnabled && <Badge tone="good">2FA</Badge>}
                   {u.banned && <Badge tone="bad">suspended</Badge>}
+                  {u.lockedUntil && <Badge tone="bad">locked until {fmtDateTime(u.lockedUntil)}</Badge>}
                 </td>
                 <td className="p-3 text-stone-600">{fmtDateTime(u.lastSignInAt)}</td>
                 <td className="p-3 text-stone-600">{fmtDate(u.createdAt)}</td>
@@ -50,6 +51,12 @@ async function Users({ userId, id, page, size }: { userId: string; id: string; p
                       <input type="hidden" name="targetId" value={u.id} />
                       <input type="hidden" name="banned" value={u.banned ? "false" : "true"} />
                     </ConfirmAction>
+                    {u.lockedUntil && (
+                      <ConfirmAction action={unlockUserAction} tone="ghost" label="Unlock" confirmLabel="Yes, unlock" prompt="Lift the lockout so this user can try again?">
+                        <input type="hidden" name="instanceId" value={id} />
+                        <input type="hidden" name="targetId" value={u.id} />
+                      </ConfirmAction>
+                    )}
                     <ConfirmAction action={removeUserAction} label="Delete" confirmLabel="Yes, delete" prompt="Permanently delete this user and their data? This can't be undone.">
                       <input type="hidden" name="instanceId" value={id} />
                       <input type="hidden" name="targetId" value={u.id} />

@@ -11,7 +11,7 @@ import { errors } from "./http";
 import { escapeHtml } from "./mail";
 import type { Instance } from "./db/schema";
 
-export const TEMPLATE_KINDS = ["verify_email", "reset_password", "sign_in", "invitation"] as const;
+export const TEMPLATE_KINDS = ["verify_email", "reset_password", "sign_in", "invitation", "account_unlock"] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
 
 type Spec = { label: string; vars: string[]; required: string[]; subject: string; body: string };
@@ -44,6 +44,13 @@ export const SPECS: Record<TemplateKind, Spec> = {
     required: ["link"],
     subject: "{{inviter}} invited you to join {{org_name}} on {{app_name}}",
     body: "{{inviter}} invited you to join {{org_name}} on {{app_name}}.\n\n{{link}}\n\nThe link works for {{expires_days}} days. If you weren't expecting this, you can ignore this email.",
+  },
+  account_unlock: {
+    label: "Account locked",
+    vars: ["app_name", "link", "expires_hours"],
+    required: ["link"],
+    subject: "Your {{app_name}} account is temporarily locked",
+    body: "There were too many failed attempts to sign in to your {{app_name}} account, so we locked it for a while.\n\nIf this was you, unlock it now:\n\n{{link}}\n\nThe link works once and expires in {{expires_hours}} hours. If it wasn't you, your password is safe; we recommend resetting it.",
   },
 };
 
@@ -136,6 +143,7 @@ export const isTemplateKind = (k: string): k is TemplateKind => (TEMPLATE_KINDS 
 const LINK_LABEL: Partial<Record<TemplateKind, (v: Record<string, string>) => string>> = {
   sign_in: (v) => `Sign in to ${v.app_name}`,
   invitation: () => "Accept invitation",
+  account_unlock: () => "Unlock my account",
 };
 
 /** What every sender calls: the instance's wording (or the default), filled in and rendered. */
@@ -152,6 +160,7 @@ export const SAMPLE_VARS = (appName: string): Record<string, string> => ({
   link: "https://users.daywalker.dev/example-link",
   expires_minutes: "10",
   expires_days: "7",
+  expires_hours: "24",
   org_name: "Acme Inc.",
   inviter: "Ada Lovelace",
 });

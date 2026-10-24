@@ -17,7 +17,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 | Area | Highlights |
 |---|---|
 | Sign-in | Email + password (argon2id, breached passwords blocked via k-anonymity), email verification, password reset, passwordless email codes and magic links, Google, GitHub, Microsoft, Apple, Discord, GitLab and any OpenID Connect provider, passkeys (WebAuthn), TOTP, SMS (Twilio) and security-key two-factor with backup codes |
-| Protection | Sign-up domain allow/block lists, throwaway-address blocking, Cloudflare Turnstile human check (fails closed), required two-factor app-wide (with grace period) or per organization |
+| Protection | Sign-up domain allow/block lists, throwaway-address blocking, Cloudflare Turnstile human check (fails closed), required two-factor app-wide (with grace period) or per organization, progressive account lockout (emailed unlock link, admin unlock) |
 | Sessions | HttpOnly refresh cookie + 60-second ES256 JWTs verified locally against per-instance JWKS; revoke and ban take effect within a minute |
 | Accounts | Hosted account page (profile, password, sessions, passkeys, two-factor) |
 | Organizations | Roles (admin/member), invitations by email, active organization with `org_id`/`org_role` in the JWT |

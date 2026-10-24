@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  banUser, unlockUserFromDashboard, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
@@ -232,6 +232,16 @@ export async function banUserAction(_prev: ActionState, fd: FormData): Promise<A
     await banUser(userId, id, str(fd, "targetId", 200), banned);
     refresh(id);
     return { message: banned ? "User suspended." : "User restored." };
+  });
+}
+
+export async function unlockUserAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await unlockUserFromDashboard(userId, id, str(fd, "targetId", 200));
+    refresh(id);
+    return { message: "Account unlocked." };
   });
 }
 

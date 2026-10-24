@@ -133,6 +133,8 @@ export type BackendUser = {
   publicMetadata: Record<string, unknown>;
   privateMetadata: Record<string, unknown>;
   banned: boolean;
+  /** ISO time the account is locked until after repeated failed attempts, or null. */
+  lockedUntil: string | null;
   lastSignInAt: string | null;
   createdAt: string;
 };
@@ -167,6 +169,8 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
         call<{ data: BackendUser[] }>("GET", `users?limit=${q.limit ?? 20}&offset=${q.offset ?? 0}`).then((r) => r.data),
       get: (userId: string) => call<BackendUser>("GET", `users/${encodeURIComponent(userId)}`),
       delete: (userId: string) => call<{ id: string; deleted: true }>("DELETE", `users/${encodeURIComponent(userId)}`),
+      /** Lifts a lockout and resets its progression. `unlocked` is false if the account wasn't locked. */
+      unlock: (userId: string) => call<{ id: string; unlocked: boolean }>("POST", `users/${encodeURIComponent(userId)}/unlock`, {}),
     },
     organizations: {
       list: (q: { limit?: number; offset?: number } = {}) =>

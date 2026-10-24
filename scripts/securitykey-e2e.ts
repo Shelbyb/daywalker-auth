@@ -161,6 +161,8 @@ check("someone else can't remove it", (await ben.b.post(`mfa/security_keys/${key
 const rm = await ann.b.post(`mfa/security_keys/${keys[1].id}/remove`, { code: backups[0] });
 backups.shift();
 check("with a backup code, a key is removed", rm.status === 200 && (await ann.b.get("me/security")).body.securityKeys.length === 1, rm.body);
+// Wrong answers add up toward an account lockout (by design); lift it so this test can go on.
+await fetch(`${AUTH}/v1/users/${ann.id}/unlock`, { method: "POST", headers: { authorization: `Bearer ${seed.secretKey}` } });
 const s7 = new Browser();
 await s7.post("sign_in", { email: ann.email, password: pw });
 const ch7 = await s7.post("sign_in/second_factor/security_key");

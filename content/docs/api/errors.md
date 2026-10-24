@@ -70,5 +70,7 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `unauthenticated` | 401 | No valid session or key | Sign in, or check your keys |
 | `forbidden` | 403 | Origin not allowed, or account suspended | Add the origin, or contact support |
 | `not_found` | 404 | No such user/session in this instance | |
+| `account_locked` | 429 | Too many wrong passwords or codes; the account is locked for a while (same response for unknown emails) | Tell the user to wait or use the emailed unlock link |
+| `invalid_unlock_link` | 400 | Unlock link used or expired | Sign in again to get a new link |
 | `rate_limited` | 429 | Too many attempts | Wait and retry |
 | `internal_error` | 500 | Unexpected failure (details only in server logs) | Retry; report if it persists |

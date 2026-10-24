@@ -45,6 +45,14 @@ DELETE /v1/users/{userId}/mfa
 
 For users locked out of both their authenticator and backup codes. **Verify their identity first.** `200` → `{ id, twoFactorEnabled: false }`
 
+## Unlock a locked account
+
+```http
+POST /v1/users/{userId}/unlock
+```
+
+Lifts an [account lockout](/docs/guides/account-lockout) and resets its progression. `200` → `{ id, unlocked }` (`unlocked` is `false` when the account wasn't locked). The user object from `GET /v1/users/{id}` has `lockedUntil`.
+
 ## Revoke a session
 
 ```http

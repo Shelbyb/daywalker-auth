@@ -45,7 +45,7 @@ function jar(pk = seed.publishableKey) {
 
 // ---------- Defaults ----------
 const list = await api.emailTemplates.list();
-check("lists all four emails, all on the default wording", list.data.length === 4 && list.data.every((t) => !t.custom) && list.accentColor === null);
+check("lists all five emails, all on the default wording", list.data.length === 5 && list.data.every((t) => !t.custom) && list.accentColor === null);
 check("each lists its placeholders and required ones", list.data.find((t) => t.kind === "sign_in")?.required?.join() === "code,link");
 
 // ---------- Validation ----------

@@ -12,7 +12,7 @@ export const AUDIT_TYPES = [
   "user.password_changed", "user.password_reset", "user.profile_updated",
   "user.two_factor_enabled", "user.two_factor_disabled", "user.two_factor_reset", "user.two_factor_failed",
   "user.passkey_added", "user.passkey_removed",
-  "user.banned", "user.unbanned", "user.deleted",
+  "user.banned", "user.unbanned", "user.deleted", "user.locked", "user.unlocked",
   "api_key.created", "api_key.revoked", "signing_key.rotated",
   "instance.settings_updated", "instance.terms_updated", "instance.organizations_updated", "instance.sessions_updated", "instance.branding_updated", "instance.domain_added", "instance.domain_verified",
   "social_provider.saved", "social_provider.enabled", "social_provider.disabled",

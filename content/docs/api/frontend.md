@@ -34,6 +34,7 @@ Errors: `invalid_credentials` (400, same for unknown email and wrong password), 
 ## Second factor
 
 ```http
+POST /v1/client/unlock                   { "token": "…" }   // one-time link from the "account locked" email
 POST /v1/client/sign_in/second_factor   { "code": "123456" }   // or a backup code
 ```
 

@@ -8,6 +8,7 @@ import {
   index,
   pgEnum,
   bigint,
+  integer,
   primaryKey,
 } from "drizzle-orm/pg-core";
 
@@ -632,3 +633,24 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   updatedAt: updatedAt(),
 });
+
+/**
+ * Persistent lockout state for a real account (the fast path lives in Valkey under HMAC-keyed names, see
+ * auth/lockout.ts). Survives a Valkey flush. Holds no personal data; the unlock token is stored only as a hash.
+ */
+export const accountLockouts = pgTable(
+  "account_lockouts",
+  {
+    userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    /** How many times in a row this account has been locked; drives the duration. Reset by an admin or a password reset. */
+    level: integer("level").notNull().default(0),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    reason: text("reason"),
+    unlockTokenHash: text("unlock_token_hash"),
+    unlockExpiresAt: timestamp("unlock_expires_at", { withTimezone: true }),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("account_lockouts_instance_idx").on(t.instanceId), index("account_lockouts_token_idx").on(t.unlockTokenHash)],
+);

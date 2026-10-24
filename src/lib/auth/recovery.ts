@@ -10,6 +10,7 @@ import { errors } from "../http";
 import { sendMail } from "../mail";
 import { issueCode, consumeCode } from "./codes";
 import type { Instance } from "../db/schema";
+import { unlockUser } from "./lockout";
 import { assertSsoNotRequired } from "./sso-policy";
 
 const emailIndex = (instanceId: string, email: string) => blindIndex(email, `email:${instanceId}`);
@@ -95,5 +96,6 @@ export async function resetPassword(inst: Instance, input: z.infer<typeof resetI
       .returning({ h: schema.sessions.refreshTokenHash });
   });
   if (revoked.length) await cache().del(...revoked.map((r) => `sess:${r.h}`));
+  await unlockUser(inst, row.userId, { type: "user", id: row.userId, reason: "password_reset" });
   void record(inst.id, "user.password_reset", { actor: { type: "user", id: row.userId }, target: row.userId, data: { sessionsRevoked: revoked.length } });
 }

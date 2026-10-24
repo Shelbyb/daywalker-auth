@@ -42,6 +42,14 @@ async function smsPhone(userId: string, verified = true) {
 }
 
 /** On when an authenticator app, a verified phone or a security key is set up. */
+import * as lockout from "./lockout";
+import { getInstance } from "./instance";
+async function lockoutInstance(id: string) {
+  const inst = await getInstance(id);
+  if (!inst) throw errors.unauthorized();
+  return inst;
+}
+
 export async function hasTwoFactor(userId: string) {
   return (await totpOn(userId)) || (await smsPhone(userId)) !== null || (await countSecurityKeys(userId)) > 0;
 }
@@ -318,10 +326,14 @@ export async function completePendingSecondFactor(instanceId: string, token: str
   }
   const pending = JSON.parse(decrypt(raw, "2fa_pending")) as { instanceId: string; userId: string };
   if (pending.instanceId !== instanceId) throw errors.unauthorized();
+  const inst = await lockoutInstance(instanceId);
+  const slot = await lockout.reserve(inst, { userId: pending.userId }, "mf");
   if (!(await verifySecondFactor(pending.userId, code, method))) {
+    await lockout.failed(inst, { userId: pending.userId }, slot, "second_factor");
     void record(instanceId, "user.two_factor_failed", { target: pending.userId, data: { attempt: attempts } });
     throw errors.badRequest("invalid_code", "That code is incorrect");
   }
+  await lockout.succeeded(inst, { userId: pending.userId }, "mf");
   await cache().del(key);
   return pending.userId;
 }
@@ -338,10 +350,13 @@ export async function completePendingWithSecurityKey(inst: Instance, token: stri
   }
   const pending = JSON.parse(decrypt(raw, "2fa_pending")) as { instanceId: string; userId: string };
   if (pending.instanceId !== inst.id) throw errors.unauthorized();
+  const slot = await lockout.reserve(inst, { userId: pending.userId }, "mf");
   if (!(await verifySecurityKeyAuthentication(inst, pending.userId, response))) {
+    await lockout.failed(inst, { userId: pending.userId }, slot, "second_factor");
     void record(inst.id, "user.two_factor_failed", { target: pending.userId, data: { attempt: attempts, method: "security_key" } });
     throw errors.badRequest("security_key_invalid", "That security key couldn't be verified");
   }
+  await lockout.succeeded(inst, { userId: pending.userId }, "mf");
   await cache().del(key);
   return pending.userId;
 }

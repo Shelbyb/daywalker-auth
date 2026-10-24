@@ -225,6 +225,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return r.status === "needs_second_factor" ? r : { ...finishSignIn(r), redirectUrl: r.redirectUrl };
   }
 
+  /** Uses the one-time token from the "account locked" email (URL fragment `#token=`). The user then signs in as usual. */
+  async function unlockAccount(token: string) {
+    return request<{ unlocked: true }>("unlock", { method: "POST", body: JSON.stringify({ token }) });
+  }
+
   /** Does this email's domain sign in through the company's identity provider (SAML SSO)? */
   async function checkSSO(email: string) {
     return request<{ sso: boolean; connectionName: string | null; required: boolean }>("sso/check", { method: "POST", body: JSON.stringify({ email }) });
@@ -642,6 +647,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     sendSignInCode,
     signInWithEmailCode,
     signInWithMagicLink,
+    unlockAccount,
     signUp,
     signOut,
     authFetch,

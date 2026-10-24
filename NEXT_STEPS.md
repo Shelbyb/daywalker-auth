@@ -16,12 +16,17 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
 Order of work, one commit per feature, each with migration, API, UI, SDK, docs page and an e2e suite (added to
 `test:all`, its own `test:<name>` and CI). Status is updated as each lands.
 
-1. [ ] Real account lockout (progressive, per account, Valkey + persistent state, email unlock link, admin unlock, `user.locked` / `user.unlocked`)
+1. [x] Real account lockout (migration 0022, `auth/lockout.ts`, `scripts/lockout-e2e.ts`; see `guides/account-lockout.md`) (progressive, per account, Valkey + persistent state, email unlock link, admin unlock, `user.locked` / `user.unlocked`)
 2. [ ] Custom organization roles and permissions (`org_permissions` claim, SDK `has()` / protect helpers) + verified-domain auto-join
 3. [ ] SDK `<CreateOrganization/>` and `<OrganizationProfile/>` + hosted organization pages
 4. [ ] Self-service account deletion (re-auth, grace period, `user.deleted`, purge job) + data export (rate limited, audited)
 
 New-device sign-in alerts were dropped on purpose (not wanted).
+
+Notes: lockout is deliberately not configurable yet (5 failures / 15 min, 5 min to 24 h). Existing mfa and securitykey
+suites now unlock the account via `POST /v1/users/{id}/unlock` after their brute-force sections. Local run needed
+Postgres 16 + redis-server started by hand (no Docker daemon). `dashboard-e2e` "platform instance is excluded" fails
+locally only because `bootstrap:platform` wasn't run.
 
 ## Just finished: follow-ups (after the roadmap)
 

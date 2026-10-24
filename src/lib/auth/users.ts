@@ -13,6 +13,8 @@ import { hasTwoFactor } from "./mfa";
 import { legalOf, acceptanceRow } from "./legal";
 import { emit } from "../webhooks";
 import { cache } from "../cache";
+import * as lockout from "./lockout";
+import { lockStatus } from "./lockout";
 
 const email = z.string().trim().toLowerCase().email().max(254);
 
@@ -82,13 +84,18 @@ export async function signIn(inst: Instance, input: z.infer<typeof signInInput>)
     .leftJoin(schema.passwords, eq(schema.passwords.userId, schema.users.id))
     .where(and(eq(schema.emailAddresses.instanceId, inst.id), eq(schema.emailAddresses.emailIndex, emailIndex(inst.id, input.email))));
 
+  // Unknown emails get the same counters and lock (keyed by the email's blind index), so nothing reveals whether the account exists.
+  const subject = row ? { userId: row.userId } : { emailIndex: emailIndex(inst.id, input.email) };
+  const slot = await lockout.reserve(inst, subject, "pw");
   // Always run a verify so timing doesn't reveal whether the email exists.
   const ok = await verifyPassword(row?.hash ?? (await dummyHash()), input.password);
   if (!row || !row.hash || !ok) {
+    await lockout.failed(inst, subject, slot, "password");
     // Only failures against a real account are logged; unknown emails would just fill the log.
     if (row) void record(inst.id, "user.sign_in_failed", { target: row.userId, data: { reason: "wrong_password" } });
     throw errors.badRequest("invalid_credentials", "Email or password is incorrect");
   }
+  await lockout.succeeded(inst, subject, "pw");
   if (row.banned) {
     void record(inst.id, "user.sign_in_blocked", { target: row.userId, data: { reason: "suspended" } });
     throw errors.forbidden("This account is suspended");
@@ -114,7 +121,7 @@ export async function getUser(instanceId: string, userId: string, opts: { includ
     emailAddresses: emails.map((e) => ({ id: e.id, email: decrypt(e.emailEnc, `email_addresses.email:${e.id}`), primary: e.isPrimary, verified: !!e.verified })),
     publicMetadata: u.publicMetadata,
     twoFactorEnabled: await hasTwoFactor(u.id),
-    ...(opts.includePrivate ? { privateMetadata: JSON.parse(decryptNullable(u.privateMetadataEnc, `users.private_metadata:${u.id}`) ?? "{}"), banned: u.banned } : {}),
+    ...(opts.includePrivate ? { lockedUntil: await lockStatus(instanceId, u.id), privateMetadata: JSON.parse(decryptNullable(u.privateMetadataEnc, `users.private_metadata:${u.id}`) ?? "{}"), banned: u.banned } : {}),
     lastSignInAt: u.lastSignInAt,
     createdAt: u.createdAt,
   };

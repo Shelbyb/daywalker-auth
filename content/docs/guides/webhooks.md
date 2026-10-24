@@ -80,6 +80,8 @@ await api.webhooks.sendTest(endpoint.id); // you'll receive a "webhook.test" eve
 | --- | --- | --- |
 | `user.created` | Someone signs up | `userId`, `email` |
 | `user.deleted` | A user is deleted through the backend API | `userId` |
+| `user.locked` | An account is locked after repeated failed attempts | `userId`, `lockedUntil`, `level`, `reason` |
+| `user.unlocked` | A lockout is lifted (unlock link, admin, password reset) | `userId`, `reason` |
 | `session.created` | Someone signs in | `sessionId`, `userId` |
 | `session.revoked` | A session is revoked | `sessionId` |
 | `organization.created` | An organization is created | `organizationId`, `name`, `slug`, `createdBy` |

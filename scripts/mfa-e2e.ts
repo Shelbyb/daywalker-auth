@@ -87,6 +87,11 @@ for (let i = 0; i < 5; i++) await b4.post("sign_in/second_factor", { code: "0000
 check("attempt voided after 5 wrong codes (even a right code fails)", (await b4.post("sign_in/second_factor", { code: backup[1] })).status === 401);
 check("second factor without the pending cookie → 401", (await new Browser().post("sign_in/second_factor", { code: backup[1] })).status === 401);
 
+// Five wrong codes also lock the account (by design); lift it so the rest of the test can sign in.
+const lockedUid = (await me.post("session/token")).body.userId;
+check("5 wrong codes also locked the account", (await new Browser().post("sign_in", { email, password })).body.error?.code === "account_locked");
+await fetch(`${AUTH}/v1/users/${lockedUid}/unlock`, { method: "POST", headers: { authorization: `Bearer ${sk}` } });
+
 // ---------- Management ----------
 check("regenerate requires a valid code", (await me.post("mfa/backup_codes", { code: "000000" })).body.error?.code === "invalid_code");
 const rot = await me.post("mfa/backup_codes", { code: backup[2] });
