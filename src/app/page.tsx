@@ -245,6 +245,7 @@ if (!session) {
           <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-6 gap-y-2">
             <Link href="/docs" className="hover:text-ink">Documentation</Link>
             <Link href="/docs/api/frontend" className="hover:text-ink">API reference</Link>
+            <Link href="/status" className="hover:text-ink">Status</Link>
             <Link href="/terms" className="hover:text-ink">Terms of Service</Link>
             <Link href="/dashboard" className="hover:text-ink">Dashboard</Link>
           </nav>

@@ -68,7 +68,7 @@ Add `users.daywalker.dev` under **Settings > Domains**, and pick your domain. If
 
 ## 6. Health checks
 
-`GET /healthz` returns `{"ok":true}` and is used by App Platform. `GET /healthz?deep=1` also checks Postgres and Valkey and returns `503 {"ok":false}` on failure, with no details. Use the deep check for external uptime monitors, not for the platform health check, so a Valkey blip does not restart healthy containers.
+`GET /healthz` returns `{"ok":true}` and is used by App Platform. `GET /healthz?deep=1` also checks Postgres and Valkey and returns `503 {"ok":false}` on failure, with no details. Neither is for the platform health check beyond the shallow one, so a Valkey blip does not restart healthy containers. For external uptime monitors use `GET /v1/health` (database, cache, email configuration, job-runner heartbeat and signing-key checks; `503` only when down; no details leaked) and the public page `/status`. See the [status docs](/docs/status).
 
 ## 7. Passkeys
 

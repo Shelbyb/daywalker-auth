@@ -75,6 +75,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
     section: "Operating it",
     pages: [
       { slug: "security", title: "Security model" },
+      { slug: "status", title: "Status and health checks" },
       { slug: "troubleshooting", title: "Troubleshooting" },
       { slug: "roadmap", title: "Roadmap" },
     ],
