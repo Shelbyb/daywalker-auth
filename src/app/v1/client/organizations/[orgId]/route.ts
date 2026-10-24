@@ -20,6 +20,6 @@ export const PATCH = handler(async (req: Request, { params }: Ctx) => {
 export const DELETE = handler(async (req: Request, { params }: Ctx) => {
   const ctx = await frontendContext(req);
   const s = await requireSession(ctx.inst, ctx.refreshToken);
-  await deleteOrg(ctx.inst.id, (await params).orgId, s.userId);
+  await deleteOrg(ctx.inst, (await params).orgId, s.userId);
   return ctx.json({ deleted: true });
 });

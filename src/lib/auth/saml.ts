@@ -27,6 +27,8 @@ import { record } from "../audit";
 import type { Instance } from "../db/schema";
 import { linkOrCreate } from "./oauth";
 import { managedUserIds, normalizeGroupNames, roleFromGroups, syncRoles } from "./scim-roles";
+import { memberCount, roleIn } from "./orgs";
+import { orgSettings } from "../org-settings";
 
 export const STATE_COOKIE = "__dw_saml";
 const STATE_TTL = 600;
@@ -407,8 +409,15 @@ export async function completeSso(inst: Instance, connectionId: string, pending:
   );
   if (c.orgId) {
     // Just-in-time membership in the connection's organization.
-    const role = await roleFromGroups({ id: c.id, instanceId: c.instanceId, orgId: c.orgId, scimAdminGroups: c.scimAdminGroups }, userId);
-    await db().insert(schema.memberships).values({ orgId: c.orgId, userId, role }).onConflictDoNothing();
+    // Instance org settings apply: the default role (unless admin groups decide) and the membership limit.
+    // A full organization doesn't block the sign-in; the person just isn't added.
+    const cfg = orgSettings(inst);
+    const role = c.scimAdminGroups.length ? await roleFromGroups({ id: c.id, instanceId: c.instanceId, orgId: c.orgId, scimAdminGroups: c.scimAdminGroups }, userId) : cfg.defaultRole;
+    const already = await roleIn(inst.id, c.orgId, userId);
+    if (!already && cfg.enabled && (cfg.membershipLimit === null || (await memberCount(c.orgId)) < cfg.membershipLimit)) {
+      await db().insert(schema.memberships).values({ orgId: c.orgId, userId, role }).onConflictDoNothing();
+      await cache().del(`mem:${c.orgId}:${userId}`);
+    }
   }
   const login: SamlLogin = { connectionId: c.id, nameID: profile.nameID, nameIDFormat: profile.nameIDFormat ?? null, sessionIndex: typeof profile.sessionIndex === "string" ? profile.sessionIndex : null };
   return { userId, login };

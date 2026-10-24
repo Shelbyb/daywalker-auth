@@ -223,6 +223,39 @@ export async function updateLegal(userId: string, instanceId: string, input: unk
   void record(instanceId, "instance.terms_updated", { actor: { type: "developer", id: userId } });
 }
 
+const orgLimit = z.union([z.literal("").transform(() => null), z.coerce.number().int().min(1).max(10000)]);
+
+/** Organization rules for the frontend API (see lib/org-settings.ts). Limits: whole numbers 1..10000, blank = unlimited. */
+export async function updateOrgSettings(
+  userId: string,
+  instanceId: string,
+  input: { enabled: boolean; membershipLimit: string; allowUserCreation: boolean; creationLimit: string; creatorRole: string; defaultRole: string; allowAdminDelete: boolean; allowPersonalAccounts: boolean },
+) {
+  const inst = await ownedInstance(userId, instanceId);
+  const parsed = z
+    .object({
+      enabled: z.boolean(),
+      membershipLimit: orgLimit,
+      allowUserCreation: z.boolean(),
+      creationLimit: orgLimit,
+      creatorRole: z.enum(["admin", "member"]),
+      defaultRole: z.enum(["admin", "member"]),
+      allowAdminDelete: z.boolean(),
+      allowPersonalAccounts: z.boolean(),
+    })
+    .safeParse({ ...input, membershipLimit: input.membershipLimit.trim(), creationLimit: input.creationLimit.trim() });
+  if (!parsed.success) {
+    const field = String(parsed.error.issues[0]?.path[0] ?? "");
+    if (field === "membershipLimit" || field === "creationLimit")
+      throw errors.badRequest("invalid_limit", `${field === "membershipLimit" ? "Membership limit" : "Creation limit"} must be a whole number from 1 to 10000, or blank for unlimited`);
+    throw errors.badRequest("invalid_role", "Roles must be admin or member");
+  }
+  const organizations = parsed.data;
+  await db().update(schema.instances).set({ settings: { ...inst.settings, organizations }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
+  await invalidateInstance(instanceId);
+  void record(instanceId, "instance.organizations_updated", { actor: { type: "developer", id: userId }, data: organizations });
+}
+
 export async function instanceDetails(userId: string, instanceId: string) {
   const inst = await ownedInstance(userId, instanceId);
   const [{ users }] = await db().select({ users: count() }).from(schema.users).where(eq(schema.users.instanceId, instanceId));

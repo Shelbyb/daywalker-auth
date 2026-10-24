@@ -59,7 +59,9 @@ export const instances = pgTable(
         /** Hosted page look: logo, colors, heading. */
         branding?: { logoUrl?: string | null; primaryColor?: string | null; backgroundColor?: string | null; title?: string | null };
         /** Account Portal fallbacks when no redirect_url is given; checked against allowed origins when used. */
-        redirects?: { afterSignIn?: string | null; afterSignUp?: string | null; afterLogoClick?: string | null } }>()
+        redirects?: { afterSignIn?: string | null; afterSignUp?: string | null; afterLogoClick?: string | null };
+        /** Organization rules (see lib/org-settings.ts for defaults). */
+        organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: "admin" | "member"; defaultRole?: "admin" | "member"; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean } }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.

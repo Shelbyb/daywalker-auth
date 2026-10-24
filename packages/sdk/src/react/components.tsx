@@ -133,6 +133,24 @@ const REDIRECT_ERRORS: Record<string, string> = {
 };
 const redirectError = (code?: string) => (code ? (REDIRECT_ERRORS[code] ?? null) : null);
 
+/** Errors that mean the app refused this person (not a mistake they can fix here). Mirrors the service's reason codes. */
+function refusalReason(e: unknown): string | null {
+  if (!(e instanceof AuthError)) return null;
+  if (e.code === "sign_up_not_allowed") return "sign_up_restricted";
+  if (e.code === "forbidden" && /suspended/i.test(e.message)) return "account_locked";
+  if (e.code === "forbidden" && /origin not allowed/i.test(e.message)) return "origin_not_allowed";
+  return null;
+}
+/** Sends the browser to the "Unauthorized sign in" page for a refusal. Returns false when it didn't. */
+function goUnauthorized(unauthorizedUrl: string | undefined, e: unknown) {
+  const reason = refusalReason(e);
+  if (!unauthorizedUrl || !reason) return false;
+  const to = new URL(unauthorizedUrl, window.location.href);
+  to.searchParams.set("reason", reason);
+  window.location.assign(to.toString());
+  return true;
+}
+
 const message = (e: unknown) => (e instanceof AuthError ? e.message : "Network error. Check your connection and try again.");
 const displayName = (u: User) => [u.firstName, u.lastName].filter(Boolean).join(" ") || u.emailAddresses[0]?.email || "";
 
@@ -153,6 +171,8 @@ type CommonProps = {
   redirectUrl?: string;
   onSignedIn?: (user: User) => void;
   appearance?: Appearance;
+  /** When set, refusals by the app (suspended account, restricted sign-ups, origin not allowed) go to this page with `?reason=` instead of showing inline. */
+  unauthorizedUrl?: string;
 };
 
 // ---------- Small building blocks ----------
@@ -289,7 +309,7 @@ function SetupTwoFactor({ a, redirectUrl }: { a?: Appearance; redirectUrl?: stri
 
 // ---------- <SignIn /> ----------
 
-export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: a, signUpUrl: explicitSignUp, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "No account yet?". Defaults to `signUpUrl` on `<AuthProvider>`. */ signUpUrl?: string }) {
+export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: a, signUpUrl: explicitSignUp, initialEnvironment, initialError, signedIn, unauthorizedUrl }: CommonProps & { /** Link for "No account yet?". Defaults to `signUpUrl` on `<AuthProvider>`. */ signUpUrl?: string }) {
   const urls = useAuthUrls();
   const redirectUrl = useAfterAuthUrl(explicitRedirect, urls.signInFallbackRedirectUrl);
   const signUpUrl = withRedirect(explicitSignUp ?? urls.signUpUrl);
@@ -318,6 +338,7 @@ export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
     try {
       await fn();
     } catch (err) {
+      if (goUnauthorized(unauthorizedUrl, err)) return;
       if (!(err instanceof AuthError && err.code === "passkey_cancelled")) setError(message(err));
     } finally {
       setBusy(false);
@@ -413,7 +434,7 @@ export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
 
 // ---------- <SignUp /> ----------
 
-export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: a, signInUrl: explicitSignIn, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "Already have an account?". Defaults to `signInUrl` on `<AuthProvider>`. */ signInUrl?: string }) {
+export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: a, signInUrl: explicitSignIn, initialEnvironment, initialError, signedIn, unauthorizedUrl }: CommonProps & { /** Link for "Already have an account?". Defaults to `signInUrl` on `<AuthProvider>`. */ signInUrl?: string }) {
   const urls = useAuthUrls();
   const redirectUrl = useAfterAuthUrl(explicitRedirect, urls.signUpFallbackRedirectUrl);
   const signInUrl = withRedirect(explicitSignIn ?? urls.signInUrl);
@@ -508,6 +529,7 @@ export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
           if (u.emailAddresses[0]?.verified) complete(u);
           else setStep("verify");
         } catch (err) {
+          if (goUnauthorized(unauthorizedUrl, err)) return;
           setError(message(err));
           if (err instanceof AuthError) setFieldErrors(Object.fromEntries(err.fields.map((x) => [x.path, x.message])));
           setCaptchaRound((n) => n + 1); // each answer works once

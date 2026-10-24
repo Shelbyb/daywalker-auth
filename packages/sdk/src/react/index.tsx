@@ -18,7 +18,7 @@ export const useAuthUrls = () => useContext(UrlsCtx);
 function usePageUrl() {
   const c = useAuthClient();
   const u = useAuthUrls();
-  return (page: "sign-in" | "sign-up" | "forgot-password" | "account", redirectUrl?: string) => {
+  return (page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in", redirectUrl?: string) => {
     const own = page === "sign-in" ? u.signInUrl : page === "sign-up" ? u.signUpUrl : undefined;
     if (!own) return c.hostedUrl(page, redirectUrl);
     if (!redirectUrl || typeof window === "undefined") return own;
@@ -183,12 +183,12 @@ export function RedirectToSignIn({ redirectUrl, mode = "sign-in" }: { redirectUr
  * A plain `<a>` link to a hosted page, for when you'd rather not embed the SDK component.
  * The user comes back to the current URL (or `redirectUrl`) when done.
  */
-export function HostedLink({ page, children, className, redirectUrl }: ButtonProps & { page: "sign-in" | "sign-up" | "forgot-password" | "account"; redirectUrl?: string | false }) {
+export function HostedLink({ page, children, className, redirectUrl }: ButtonProps & { page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in"; redirectUrl?: string | false }) {
   const c = useAuthClient();
   const pageUrl = usePageUrl();
   const [href, setHref] = useState(() => c.hostedUrl(page, redirectUrl || undefined));
   useEffect(() => setHref(pageUrl(page, redirectUrl === false ? undefined : redirectUrl ?? window.location.href)), [page, redirectUrl]); // eslint-disable-line react-hooks/exhaustive-deps
-  const label = { "sign-in": "Sign in", "sign-up": "Sign up", "forgot-password": "Forgot password?", account: "Manage account" }[page];
+  const label = { "sign-in": "Sign in", "sign-up": "Sign up", "forgot-password": "Forgot password?", account: "Manage account", "unauthorized-sign-in": "Unauthorized sign in" }[page];
   return <a href={href} className={className}>{children ?? label}</a>;
 }
 

@@ -28,6 +28,19 @@ Add `?redirect_url=https://app.example.com/somewhere` to any portal link to send
 
 Each URL must be on one of your allowed origins, or saving fails.
 
+## Unauthorized sign in
+
+When your instance refuses someone, the portal sends them to `/unauthorized-sign-in?reason=<code>` instead of showing a raw error. The page uses your branding and links back to sign in (and to your "After logo click" URL when set). Reasons are coarse so they never reveal whether an account exists:
+
+| `reason` | Shown when |
+|---|---|
+| `sign_up_restricted` | Sign-up is blocked by your email domain rules |
+| `account_locked` | The account is suspended |
+| `origin_not_allowed` | The request came from an origin not in your allowed origins |
+| `sso_failed` | An SSO sign-in could not be completed |
+
+Any other value shows a generic message. With the SDK, pass `unauthorizedUrl` to `<SignIn>` / `<SignUp>` to send refusals to your own page (with `?reason=` added), or link to the portal page with `<AccountPortalLink page="unauthorized-sign-in" />`.
+
 ## Customization
 
 The **Customization** tab has:

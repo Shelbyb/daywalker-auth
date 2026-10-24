@@ -13,10 +13,10 @@ export const GET = handler(async (req: Request) => {
   return ctx.json({ organizations: await myOrgs(ctx.inst.id, s.userId) });
 });
 
-/** Create an organization; the creator becomes its admin. */
+/** Create an organization; the creator gets the instance's creator role (admin by default). */
 export const POST = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(await req.json());
-  return ctx.json({ organization: { ...(await createOrg(ctx.inst, s.userId, name)), role: "admin" } }, { status: 201 });
+  return ctx.json({ organization: await createOrg(ctx.inst, s.userId, name) }, { status: 201 });
 });

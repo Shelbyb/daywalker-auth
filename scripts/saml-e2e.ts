@@ -120,7 +120,9 @@ const response = (inResponseTo: string, assertionXml: string, destination = `${A
   Buffer.from(
     `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r${randomBytes(8).toString("hex")}" Version="2.0" IssueInstant="${iso(0)}" Destination="${destination}" InResponseTo="${inResponseTo}"><saml:Issuer>${IDP_ENTITY}</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>${assertionXml}</samlp:Response>`,
   ).toString("base64");
-const errOf = (r: Response) => new URL(r.headers.get("location") ?? "http://x/", AUTH).searchParams.get("error");
+// Recoverable errors go back to sign-in as ?error=; refusals go to the unauthorized page as ?reason=.
+const errOf = (r: Response) => { const u = new URL(r.headers.get("location") ?? "http://x/", AUTH); return u.searchParams.get("error") ?? u.searchParams.get("reason"); };
+const pathOf = (r: Response) => new URL(r.headers.get("location") ?? "http://x/", AUTH).pathname;
 
 // ---------- Happy path ----------
 const t = Date.now();
@@ -154,10 +156,10 @@ async function attempt(name: string, build: (s: Awaited<ReturnType<typeof start>
   const r = await b.post(`${AUTH}/v1/saml/${conn.id}/acs`, { SAMLResponse: build(s), RelayState: s.relayState });
   const ok = r.status === 302 && !!errOf(r) && !(await b.userId());
   check(name, ok, { status: r.status, loc: r.headers.get("location") });
-  return errOf(r);
+  return { code: errOf(r), path: pathOf(r) };
 }
 const mallory = `mallory.${t}@acme.test`;
-await attempt("unsigned assertion → refused", (s) => response(s.requestId, assertion({ inResponseTo: s.requestId, nameId: mallory })));
+const unsigned = await attempt("unsigned assertion → refused", (s) => response(s.requestId, assertion({ inResponseTo: s.requestId, nameId: mallory })));
 await attempt("assertion signed by the wrong key → refused", (s) => response(s.requestId, sign(assertion({ inResponseTo: s.requestId, nameId: mallory }), rogue.key)));
 await attempt("assertion edited after signing → refused", (s) => response(s.requestId, sign(assertion({ inResponseTo: s.requestId, nameId: `nobody.${t}@acme.test` })).replace(`nobody.${t}@acme.test</saml:NameID>`, `${alice}</saml:NameID>`)));
 await attempt("signature wrapping (forged assertion beside a signed one) → refused", (s) => {
@@ -171,7 +173,8 @@ await attempt("assertion from a different issuer → refused", (s) => response(s
 const other = await start(new Browser(), `x.${t}@acme.test`);
 await attempt("answer to a different sign-in request → refused", () => response(other.requestId, sign(assertion({ inResponseTo: other.requestId, nameId: mallory }))));
 const foreign = await attempt("email outside the connection's domains → refused", (s) => response(s.requestId, sign(assertion({ inResponseTo: s.requestId, nameId: `eve.${t}@evil.test` }))));
-check("…with email_unverified", foreign === "email_unverified", foreign);
+check("…with email_unverified, back on sign-in", foreign.code === "email_unverified" && foreign.path === "/sign-in", foreign);
+check("a failed SSO login lands on the unauthorized page with sso_failed", unsigned.code === "sso_failed" && unsigned.path === "/unauthorized-sign-in", unsigned);
 
 const idpInit = await new Browser().post(`${AUTH}/v1/saml/${conn.id}/acs`, { SAMLResponse: response("", sign(assertion({ inResponseTo: "", nameId: mallory }))), RelayState: "" });
 check("IdP-initiated response (no sign-in started here) → refused", idpInit.status === 400);

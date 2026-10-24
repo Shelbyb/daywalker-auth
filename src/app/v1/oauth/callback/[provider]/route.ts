@@ -7,6 +7,7 @@ import { setRefreshCookie, setTwoFactorCookie } from "@/lib/auth/frontend";
 import { hasTwoFactor, createPendingSecondFactor } from "@/lib/auth/mfa";
 import { publishableKey } from "@/lib/auth/instance";
 import { env } from "@/lib/env";
+import { refusalReason, unauthorizedUrl } from "@/lib/auth/unauthorized";
 
 // Only these codes ever reach the URL; the sign-in page maps them to fixed messages.
 const SAFE_ERRORS = new Set(["oauth_cancelled", "oauth_failed", "email_unverified", "provider_disabled", "forbidden", "legal_required", "sso_required"]);
@@ -82,7 +83,16 @@ async function handle(req: Request, provider: string, q: URLSearchParams) {
     res.cookies.set(STATE_COOKIE, "", { path: "/v1/oauth", maxAge: 0 });
     return setRefreshCookie(res, pending.inst.id, s.refreshToken, s.expiresAt);
   } catch (e) {
-    if (e instanceof ApiError) return back(e.code);
+    if (e instanceof ApiError) {
+      // The instance refused this person (suspended, sign-ups restricted): not something a retry fixes.
+      const reason = refusalReason(e.code, e.message);
+      if (reason) {
+        const res = NextResponse.redirect(unauthorizedUrl(base, pk, reason, pending.redirect), 302);
+        res.cookies.set(STATE_COOKIE, "", { path: "/v1/oauth", maxAge: 0 });
+        return res;
+      }
+      return back(e.code);
+    }
     console.error("OAuth callback failed", e);
     return back("oauth_failed");
   }

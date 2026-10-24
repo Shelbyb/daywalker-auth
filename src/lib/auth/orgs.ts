@@ -13,6 +13,7 @@ import { getUser } from "./users";
 import { publishableKey } from "./instance";
 import type { Instance } from "../db/schema";
 import { emit } from "../webhooks";
+import { orgSettings } from "../org-settings";
 
 export type OrgRole = "admin" | "member";
 
@@ -63,9 +64,36 @@ async function adminCount(orgId: string) {
   return Number(r?.n ?? 0);
 }
 
+export async function memberCount(orgId: string) {
+  const [r] = await db().select({ n: count() }).from(schema.memberships).where(eq(schema.memberships.orgId, orgId));
+  return Number(r?.n ?? 0);
+}
+
+/** Throws limit_reached when the organization is full under the instance's membership limit. */
+export async function assertRoomFor(inst: Instance, orgId: string) {
+  const max = orgSettings(inst).membershipLimit;
+  if (max !== null && (await memberCount(orgId)) >= max) throw errors.limitReached(`This organization has reached its limit of ${max} members`);
+}
+
+export function assertOrgsEnabled(inst: Instance) {
+  if (!orgSettings(inst).enabled) throw errors.forbidden("Organizations are turned off for this application");
+}
+
 // ---------- Organizations ----------
 
+/** Frontend API: subject to the instance's organization settings (the backend API is not). */
 export async function createOrg(inst: Instance, userId: string, name: string) {
+  const cfg = orgSettings(inst);
+  assertOrgsEnabled(inst);
+  if (!cfg.allowUserCreation) throw errors.forbidden("Creating organizations is turned off for this application");
+  if (cfg.creationLimit !== null) {
+    const [r] = await db()
+      .select({ n: count() })
+      .from(schema.organizations)
+      .where(and(eq(schema.organizations.instanceId, inst.id), eq(schema.organizations.createdBy, userId)));
+    if (Number(r?.n ?? 0) >= cfg.creationLimit) throw errors.limitReached(`You can create at most ${cfg.creationLimit} organizations`);
+  }
+  const role = cfg.creatorRole;
   if ((await rateLimit(`${inst.id}:org_create:${userId}`, 10, 3600)) < 0) throw errors.tooMany();
   const id = newId("org");
   const base = slugify(name);
@@ -74,11 +102,11 @@ export async function createOrg(inst: Instance, userId: string, name: string) {
     try {
       await db().transaction(async (tx) => {
         await tx.insert(schema.organizations).values({ id, instanceId: inst.id, name, slug, createdBy: userId });
-        await tx.insert(schema.memberships).values({ orgId: id, userId, role: "admin" });
+        await tx.insert(schema.memberships).values({ orgId: id, userId, role });
       });
       void emit(inst.id, "organization.created", { organizationId: id, name, slug, createdBy: userId });
-      void emit(inst.id, "organizationMembership.created", { organizationId: id, userId, role: "admin" });
-      return { id, name, slug };
+      void emit(inst.id, "organizationMembership.created", { organizationId: id, userId, role });
+      return { id, name, slug, role };
     } catch (e) {
       const code = (e as { cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code;
       if (code !== "23505") throw e; // slug taken: retry with a suffix
@@ -118,8 +146,10 @@ export async function setOrgTwoFactor(instanceId: string, orgId: string, actorId
   await forgetOrgPolicy(orgId);
 }
 
-export async function deleteOrg(instanceId: string, orgId: string, actorId: string) {
+export async function deleteOrg(inst: Instance, orgId: string, actorId: string) {
+  const instanceId = inst.id;
   await requirePermission(instanceId, orgId, actorId, "org:manage");
+  if (!orgSettings(inst).allowAdminDelete) throw errors.forbidden("Deleting organizations is turned off for this application");
   const members = await db().select({ u: schema.memberships.userId }).from(schema.memberships).where(eq(schema.memberships.orgId, orgId));
   await db().delete(schema.organizations).where(eq(schema.organizations.id, orgId));
   await Promise.all(members.map((m) => dropRole(orgId, m.u)));
@@ -169,8 +199,10 @@ export async function removeMember(instanceId: string, orgId: string, actorId: s
 
 // ---------- Invitations ----------
 
-export async function invite(inst: Instance, orgId: string, actorId: string, email: string, role: OrgRole) {
+export async function invite(inst: Instance, orgId: string, actorId: string, email: string, role: OrgRole | undefined) {
   await requirePermission(inst.id, orgId, actorId, "invitations:manage");
+  assertOrgsEnabled(inst);
+  role ??= orgSettings(inst).defaultRole;
   if ((await rateLimit(`${inst.id}:invite:${orgId}`, 50, 3600)) < 0) throw errors.tooMany();
   const org = (await getOrg(inst.id, orgId))!;
   const idx = emailIndexFor(inst.id, email);
@@ -243,7 +275,9 @@ export async function previewInvitation(instanceId: string, token: string) {
  * The link alone isn't enough: the signed-in user must own the invited address, and it
  * must be verified. A forwarded or leaked link can't be used by someone else.
  */
-export async function acceptInvitation(instanceId: string, userId: string, token: string) {
+export async function acceptInvitation(inst: Instance, userId: string, token: string) {
+  const instanceId = inst.id;
+  assertOrgsEnabled(inst);
   const invalid = () => errors.badRequest("invalid_invitation", "This invitation is invalid, expired or was already used");
   const [row] = await db()
     .select({ inv: schema.invitations, org: schema.organizations })
@@ -258,6 +292,8 @@ export async function acceptInvitation(instanceId: string, userId: string, token
     .where(and(eq(schema.emailAddresses.userId, userId), eq(schema.emailAddresses.emailIndex, row.inv.emailIndex)));
   if (!mine) throw errors.forbidden("This invitation was sent to a different email address").withCode("invitation_email_mismatch");
   if (!mine.verifiedAt) throw errors.forbidden("Verify your email address first, then open the invitation again").withCode("email_unverified");
+
+  if (!(await roleIn(instanceId, row.org.id, userId))) await assertRoomFor(inst, row.org.id);
 
   // Mark used first (conditional update = single use under concurrency), then add membership.
   const used = await db()
@@ -274,7 +310,10 @@ export async function acceptInvitation(instanceId: string, userId: string, token
 
 // ---------- Active organization (carried in the session JWT) ----------
 
-export async function setActiveOrg(instanceId: string, sessionId: string, refreshHash: string, userId: string, orgId: string | null) {
+export async function setActiveOrg(inst: Instance, sessionId: string, refreshHash: string, userId: string, orgId: string | null) {
+  const instanceId = inst.id;
+  if (!orgId && !orgSettings(inst).allowPersonalAccounts)
+    throw errors.forbidden("Personal accounts are turned off for this application: choose an organization");
   if (orgId && !(await roleIn(instanceId, orgId, userId))) throw errors.notFound("Organization not found");
   await db().update(schema.sessions).set({ activeOrgId: orgId }).where(eq(schema.sessions.id, sessionId));
   await cache().del(`sess:${refreshHash}`); // next token mint re-reads the active org

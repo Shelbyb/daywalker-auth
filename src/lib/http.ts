@@ -18,6 +18,7 @@ export const errors = {
   forbidden: (msg = "Forbidden") => new ApiError(403, "forbidden", msg),
   notFound: (msg = "Not found") => new ApiError(404, "not_found", msg),
   conflict: (code: string, msg: string) => new ApiError(409, code, msg),
+  limitReached: (msg: string) => new ApiError(403, "limit_reached", msg),
   tooMany: () => new ApiError(429, "rate_limited", "Too many attempts. Try again shortly."),
 };
 

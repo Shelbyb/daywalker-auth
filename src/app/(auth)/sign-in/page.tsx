@@ -22,6 +22,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       origin={h!.origin}
       redirect={redirect}
       returnTo={`${h!.origin}/sign-in?${q({ status: "signed_in" })}`}
+      unauthorizedUrl={`${h!.origin}/unauthorized-sign-in?${q({})}`}
       otherUrl={`/sign-up?${q({})}`}
       environment={await publicEnvironment(inst)}
       error={error}

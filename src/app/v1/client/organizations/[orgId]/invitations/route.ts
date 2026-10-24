@@ -18,7 +18,7 @@ export const POST = handler(async (req: Request, { params }: Ctx) => {
   const ctx = await frontendContext(req);
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   const body = z
-    .object({ email: z.string().trim().toLowerCase().email().max(254), role: z.enum(["admin", "member"]).default("member") })
+    .object({ email: z.string().trim().toLowerCase().email().max(254), role: z.enum(["admin", "member"]).optional() })
     .parse(await req.json());
   return ctx.json({ invitation: await invite(ctx.inst, (await params).orgId, s.userId, body.email, body.role) }, { status: 201 });
 });

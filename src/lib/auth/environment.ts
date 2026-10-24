@@ -5,6 +5,7 @@ import { hasSso } from "./saml";
 import { smsAllowed } from "./mfa";
 import type { Instance } from "../db/schema";
 import { captchaInfo } from "./signup-protection";
+import { orgSettings } from "../org-settings";
 
 /** Public instance settings the sign-in UI needs. Nothing secret: shared by the API and the hosted pages. */
 export async function publicEnvironment(inst: Instance) {
@@ -19,5 +20,6 @@ export async function publicEnvironment(inst: Instance) {
     ssoEnabled: await hasSso(inst.id),
     smsSecondFactor: await smsAllowed(inst),
     captcha: captchaInfo(inst),
+    organizations: orgSettings(inst),
   };
 }

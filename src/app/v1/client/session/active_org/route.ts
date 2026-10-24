@@ -17,6 +17,6 @@ export const POST = handler(async (req: Request) => {
   const { orgId } = z.object({ orgId: z.string().max(64).nullable() }).parse(await req.json());
   if (orgId && !(await orgAllowed(orgId, s.userId)))
     throw new ApiError(403, "two_factor_setup_required", "This organization requires two-step verification. Set it up on your account page first");
-  await setActiveOrg(ctx.inst.id, s.id, sha256(ctx.refreshToken!), s.userId, orgId);
+  await setActiveOrg(ctx.inst, s.id, sha256(ctx.refreshToken!), s.userId, orgId);
   return ctx.json(await issueToken(ctx.inst, ctx.refreshToken, ctx.origin));
 });

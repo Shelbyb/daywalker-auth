@@ -15,6 +15,7 @@ export function HostedAuth(props: {
   redirect?: string; // allow-listed app URL, if any
   returnTo: string; // where provider/SSO flows come back to
   otherUrl: string; // link to the other hosted page
+  unauthorizedUrl: string; // where refusals by the instance are sent (with ?reason=)
   environment: EnvironmentInfo;
   error?: string;
   signedIn?: boolean;
@@ -24,6 +25,7 @@ export function HostedAuth(props: {
     initialEnvironment: props.environment,
     initialError: props.error,
     signedIn: props.signedIn,
+    unauthorizedUrl: props.unauthorizedUrl,
   };
   return (
     <div className="hosted-embed">

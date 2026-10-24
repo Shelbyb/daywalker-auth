@@ -6,6 +6,7 @@ import { getInstance, publishableKey } from "@/lib/auth/instance";
 import { finishRedirectSignIn } from "@/lib/auth/finish-redirect";
 import { linkSamlSession, stashForSecondFactor } from "@/lib/auth/saml-logout";
 import { env } from "@/lib/env";
+import { refusalReason, unauthorizedUrl, type UnauthorizedReason } from "@/lib/auth/unauthorized";
 
 const SAFE_ERRORS = new Set(["oauth_failed", "email_unverified", "forbidden", "legal_required", "sso_not_configured"]);
 const clear = (res: NextResponse) => res.cookies.set(STATE_COOKIE, "", { path: "/v1/saml", maxAge: 0 });
@@ -39,6 +40,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     clear(res);
     return res;
   };
+  const refuse = (reason: UnauthorizedReason) => {
+    const res = NextResponse.redirect(unauthorizedUrl(env().APP_URL, publishableKey(inst), reason, pending.redirect), 302);
+    clear(res);
+    return res;
+  };
   try {
     const { userId, login } = await completeSso(inst, id, pending, samlResponse);
     return await finishRedirectSignIn(req, inst, userId, pending.redirect, "saml", clear, {
@@ -46,8 +52,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       onPending: (token) => stashForSecondFactor(token, login),
     });
   } catch (e) {
-    if (e instanceof ApiError) return back(e.code);
+    if (e instanceof ApiError) {
+      const reason = refusalReason(e.code, e.message);
+      if (reason) return refuse(reason);
+      // Codes the sign-in page can explain (and the user can act on) stay there; any other SSO failure is a refusal.
+      return SAFE_ERRORS.has(e.code) && e.code !== "oauth_failed" ? back(e.code) : refuse("sso_failed");
+    }
     console.error("SAML sign-in failed", (e as Error).message);
-    return back("oauth_failed");
+    return refuse("sso_failed");
   }
 }

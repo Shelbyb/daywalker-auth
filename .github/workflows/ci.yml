@@ -64,7 +64,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf localhost:3000/healthz && break; sleep 2; done
       - name: Service test suites
         run: |
-          for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e keyrotation-e2e masterkey-e2e audit-e2e emailcode-e2e breach-e2e templates-e2e providers-e2e saml-e2e sms-e2e securitykey-e2e scim-e2e protection-e2e platform-e2e; do
+          for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e keyrotation-e2e masterkey-e2e audit-e2e emailcode-e2e breach-e2e templates-e2e providers-e2e saml-e2e sms-e2e securitykey-e2e scim-e2e protection-e2e platform-e2e unauthorized-e2e; do
             # The service (started above) keeps WEBHOOK_ALLOW_PRIVATE; the test process must not, or the SSRF checks would pass for the wrong reason.
             echo "::group::$t"; env -u WEBHOOK_ALLOW_PRIVATE npx tsx scripts/$t.ts; echo "::endgroup::"
           done

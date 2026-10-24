@@ -65,6 +65,7 @@ export default async function AccountPortalPage({ params, searchParams }: { para
             <UrlRow label="Sign in" url={`${portal}/sign-in`} />
             <UrlRow label="Sign up" url={`${portal}/sign-up`} />
             <UrlRow label="Forgot password" url={`${portal}/forgot-password`} />
+            <UrlRow label="Unauthorized sign in" url={`${portal}/unauthorized-sign-in`} />
           </div>
         </Card>
         <Card>

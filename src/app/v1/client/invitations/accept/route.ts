@@ -12,5 +12,5 @@ export const POST = handler(async (req: Request) => {
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   await ctx.limit("invite_accept", 30, 900);
   const { token } = z.object({ token: z.string().min(10).max(200) }).parse(await req.json());
-  return ctx.json({ organization: await acceptInvitation(ctx.inst.id, s.userId, token) });
+  return ctx.json({ organization: await acceptInvitation(ctx.inst, s.userId, token) });
 });

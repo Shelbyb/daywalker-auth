@@ -189,3 +189,20 @@ npm run test:all
 ```
 
 Commits: author Shelbyb `<Shelbyb@users.noreply.github.com>`, no co-author or attribution trailers.
+
+## Clerk gap roadmap
+
+| # | Gap | Priority | Scope | Status |
+|---|-----|----------|-------|--------|
+| 1 | Identifier allowlist/blocklist | P2 | Extend domain allow/block (`instance-policy.ts`) to per-email/phone identifiers | partial |
+| 2 | Waitlist / restricted sign-up mode | P1 | Instance sign-up mode (public/restricted/waitlist) + waitlist entries & invite flow | missing |
+| 3 | Lock user from dashboard | P3 | Ban exists (`banUser`); add manual lock/unlock with reason | partial |
+| 4 | Session custom claims / JWT templates | P1 | Custom session claims + named JWT templates | planned (in progress) |
+| 5 | Per-instance bot protection config | P3 | Turnstile toggle exists; add mode/strictness and per-flow options | partial |
+| 6 | Org roles/permissions + domain auto-join | P1 | Custom roles/permissions, verified domains with auto-invite/join (org settings) | planned (in progress) |
+| 7 | Account Portal org pages | P2 | Hosted org switcher, create-org, org profile pages | missing |
+| 8 | SDK org components | P2 | `OrganizationSwitcher` exists; add `CreateOrganization`, `OrganizationProfile` | partial |
+| 9 | Dev → prod instance cloning | P3 | Copy settings/branding/providers to a new production instance | missing |
+| 10 | Satellite domains / multi-domain | P3 | Satellite domain config + cross-domain session sync | missing |
+
+Session settings (lifetime, inactivity timeout, multi-session) are also planned (in progress) alongside #4.
