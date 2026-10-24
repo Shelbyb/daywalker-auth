@@ -186,6 +186,21 @@ check("deleted passkey can't sign in", (await new Browser().post("passkeys/authe
 check("junk credential body rejected with 422", (await new Browser().post("passkeys/authenticate/verify", { response: { id: "x" } })).status === 422);
 void instanceId;
 
+// ---------- PASSKEY_RP_ID validation (a wrong value would silently break every passkey) ----------
+import { spawnSync } from "node:child_process";
+const envCheck = (vars: Record<string, string>) =>
+  spawnSync("npx", ["tsx", "-e", `import("${process.cwd()}/src/lib/env.ts").then((m) => { try { m.env(); console.log("OK"); } catch (e) { console.log("ERR " + String(e.message).includes("PASSKEY_RP_ID")); } })`], {
+    env: { PATH: process.env.PATH!, HOME: process.env.HOME!, MASTER_KEY: process.env.MASTER_KEY!, DATABASE_URL: process.env.DATABASE_URL!, ...vars } as unknown as NodeJS.ProcessEnv,
+    encoding: "utf8",
+  }).stdout.trim();
+check("RP ID: parent domain of APP_URL is accepted", envCheck({ APP_URL: "https://users.daywalker.dev", PASSKEY_RP_ID: "daywalker.dev" }) === "OK");
+check("RP ID: APP_URL's own host is accepted", envCheck({ APP_URL: "https://users.daywalker.dev", PASSKEY_RP_ID: "users.daywalker.dev" }) === "OK");
+check("RP ID: unset is accepted", envCheck({ APP_URL: "http://localhost:3000" }) === "OK");
+check("RP ID: a domain APP_URL isn't under is refused", envCheck({ APP_URL: "http://localhost:3000", PASSKEY_RP_ID: "daywalker.dev" }) === "ERR true");
+check("RP ID: a sibling domain is refused", envCheck({ APP_URL: "https://users.daywalker.dev", PASSKEY_RP_ID: "evil.dev" }) === "ERR true");
+check("RP ID: a bare suffix lookalike is refused", envCheck({ APP_URL: "https://users.notdaywalker.dev", PASSKEY_RP_ID: "daywalker.dev" }) === "ERR true");
+check("RP ID: scheme/port/path is refused", envCheck({ APP_URL: "https://users.daywalker.dev", PASSKEY_RP_ID: "https://daywalker.dev" }) === "ERR true");
+
 await closeDb();
 await closeCache();
 console.log(failures ? `\n${failures} check(s) failed` : "\nAll passkey checks passed");

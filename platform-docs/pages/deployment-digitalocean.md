@@ -49,7 +49,7 @@ Or use **Create > App**, pick your repo, and choose the Dockerfile. In the app's
 | `RESEND_API_KEY` | secret |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` | optional, secrets; only for SMS two-factor |
 | `MAIL_FROM` | `Acme <no-reply@users.daywalker.dev>` |
-| `PASSKEY_RP_ID` | `<yourdomain>` |
+| `PASSKEY_RP_ID` | `daywalker.dev` for `users.daywalker.dev` (your parent domain); permanent, see section 7 |
 | `TRUST_PROXY_HOPS` | `1` |
 
 > **Warning**: Never put real secrets in `.do/app.yaml` or Git. Leave placeholders and enter values in the dashboard.
@@ -72,7 +72,7 @@ Add `users.daywalker.dev` under **Settings > Domains**, and pick your domain. If
 
 ## 7. Passkeys
 
-`PASSKEY_RP_ID` is the domain passkeys are bound to. Set it to your parent domain (for example `example.com`) so apps on other subdomains can use them. Decide before launch: changing it later invalidates every registered passkey.
+`PASSKEY_RP_ID` is the domain passkeys and security keys are bound to. For `users.daywalker.dev` it is `daywalker.dev` (the parent domain, so apps on other `daywalker.dev` subdomains can use passkeys). It is set in `.do/app.yaml` and checked at start-up: it must be `APP_URL`'s hostname or a parent of it. **Never change it once anyone has registered a passkey or security key.** Every credential is bound to this value, so changing it makes all of them stop working, with no migration path. If it is ever lost from the spec, restore exactly `daywalker.dev`; do not let it fall back to the default (`users.daywalker.dev`), which would be a different, incompatible ID.
 
 ## Client IPs and rate limits
 
@@ -94,7 +94,7 @@ Rate limits key on the client IP. App Platform appends the real client address t
 5. Resend domain is verified and `MAIL_TRANSPORT=resend`.
 6. `TRUST_PROXY_HOPS` matches the number of proxies in front of the app.
 7. Automated database backups are on.
-8. `PASSKEY_RP_ID` is final.
+8. `PASSKEY_RP_ID=daywalker.dev` is set and treated as permanent.
 
 ## Webhook delivery
 

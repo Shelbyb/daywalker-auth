@@ -11,6 +11,16 @@ const schema = z
     TRUST_PROXY_HOPS: z.string().regex(/^\d{0,2}$/).optional(),
     // Publishable key of the instance that signs developers in to /dashboard (see scripts/bootstrap-platform.ts). Unset = dashboard disabled.
     PLATFORM_PUBLISHABLE_KEY: z.string().regex(/^pk_(test|live)_[A-Za-z0-9_-]+$/).optional().or(z.literal("")),
+    /**
+     * Domain passkeys and security keys are bound to (WebAuthn relying party ID). Default: the hostname of APP_URL.
+     * Production (users.daywalker.dev) uses the parent domain `daywalker.dev`. NEVER change it once users have
+     * registered a passkey or security key: every credential stops working. Must be APP_URL's hostname or a parent of it.
+     */
+    PASSKEY_RP_ID: z
+      .string()
+      .regex(/^(localhost|[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+)$/, "PASSKEY_RP_ID must be a bare lowercase domain such as daywalker.dev (no scheme, port or path)")
+      .optional()
+      .or(z.literal("")),
     VALKEY_URL: z.string().default("redis://localhost:6379"),
     MASTER_KEY: z
       .string()
@@ -44,6 +54,12 @@ const schema = z
   })
   // In production every hop is encrypted: HTTPS for clients, TLS to Postgres and Valkey.
   .superRefine((e, ctx) => {
+    // A relying party ID the service's own origin isn't inside would make every passkey ceremony fail in browsers.
+    if (e.PASSKEY_RP_ID) {
+      const host = new URL(e.APP_URL).hostname;
+      if (host !== e.PASSKEY_RP_ID && !host.endsWith(`.${e.PASSKEY_RP_ID}`))
+        ctx.addIssue({ code: "custom", path: ["PASSKEY_RP_ID"], message: `must be the hostname of APP_URL (${host}) or a parent domain of it` });
+    }
     if (!prod || process.env.ALLOW_INSECURE_TRANSPORT === "1") return;
     if (!e.APP_URL.startsWith("https://"))
       ctx.addIssue({ code: "custom", path: ["APP_URL"], message: "must be https in production" });

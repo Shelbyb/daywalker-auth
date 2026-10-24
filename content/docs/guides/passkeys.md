@@ -131,7 +131,9 @@ PASSKEY_RP_ID=example.com
 
 Then add `https://app.example.com` to the instance's allowed origins. Any allowed origin under that domain can register and use passkeys.
 
-> **Warning** Choose this before users start registering passkeys. Each passkey is tied to the relying party ID it was created under, and changing the ID later makes existing passkeys stop working.
+The value must be the auth service's own hostname or a parent domain of it (a value the service's `APP_URL` isn't under is refused at start-up, because browsers would reject every passkey). Write it as a bare domain: no `https://`, port or path. The managed service at `users.daywalker.dev` uses `PASSKEY_RP_ID=daywalker.dev`, so passkeys work on every `*.daywalker.dev` app.
+
+> **Warning** Choose this before users start registering passkeys, and **never change it afterwards**. Each passkey and [security key](/docs/guides/two-factor) is tied to the relying party ID it was created under; if the ID changes, every existing one stops working and there is no way to migrate them. Users would have to sign in another way and register again.
 
 ## Security details
 

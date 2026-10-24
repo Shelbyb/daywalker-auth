@@ -25,10 +25,11 @@ const fromB64url = (s: string) => new Uint8Array(Buffer.from(s, "base64url"));
 
 /**
  * The domain passkeys are bound to. Defaults to this service's hostname. Set PASSKEY_RP_ID
- * to a parent domain (e.g. "example.com") so apps on subdomains can use passkeys directly.
+ * to a parent domain (e.g. "daywalker.dev") so apps on subdomains can use passkeys directly.
+ * Validated at start-up (src/lib/env.ts). Never change it once credentials exist: they all stop working.
  */
 export function rpId() {
-  return process.env.PASSKEY_RP_ID || new URL(env().APP_URL).hostname;
+  return env().PASSKEY_RP_ID || new URL(env().APP_URL).hostname;
 }
 
 /** This service, plus allowed app origins that fall under the RP ID. */
