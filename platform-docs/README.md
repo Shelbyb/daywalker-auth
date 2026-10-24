@@ -10,6 +10,7 @@ Nothing in this folder is rendered. `src/lib/docs.ts` only reads `content/docs`.
 |---|---|
 | `pages/self-hosting.md` | The deleted page `content/docs/self-hosting.md` (slug `self-hosting`) |
 | `pages/deployment-digitalocean.md` | The deleted page `content/docs/deployment-digitalocean.md` (slug `deployment-digitalocean`) |
+| `pages/backup-restore.md` | Operator runbook for backups, the restore drill (`npm run drill:backup`) and disaster restore. New page, not part of the removed content; nothing links to it yet |
 | `patches/restore-platform-sections.patch` | A unified diff that puts back the removed sections in the pages that still exist, plus the two nav entries in `src/lib/docs.ts` |
 
 The patch restores:
