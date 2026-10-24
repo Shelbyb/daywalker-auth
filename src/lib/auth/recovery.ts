@@ -9,6 +9,7 @@ import { blindIndex, decrypt, hashPassword } from "../crypto";
 import { errors } from "../http";
 import { sendMail } from "../mail";
 import { issueCode, consumeCode } from "./codes";
+import { TEST_CODE, emailInTestMode } from "./test-mode";
 import type { Instance } from "../db/schema";
 import { autoJoinByDomain } from "./org-domains";
 import { unlockUser } from "./lockout";
@@ -35,8 +36,9 @@ export async function sendVerification(inst: Instance, userId: string) {
   const e = await primaryEmail(inst.id, userId);
   if (e.verified) throw errors.badRequest("already_verified", "This email address is already verified");
   if ((await rateLimit(`${inst.id}:verify_send:${userId}`, 5, 3600)) < 0) throw errors.tooMany();
-  const code = await issueCode("verify_email", e.id);
-  await sendMail({ to: e.email, ...(await composeEmail(inst, "verify_email", { code, expires_minutes: "10" })) });
+  const test = emailInTestMode(inst, e.email);
+  const code = await issueCode("verify_email", e.id, test ? TEST_CODE : undefined);
+  if (!test) await sendMail({ to: e.email, ...(await composeEmail(inst, "verify_email", { code, expires_minutes: "10" })) });
 }
 
 export async function verifyEmail(inst: Instance, userId: string, code: string) {
@@ -52,6 +54,7 @@ export async function verifyEmail(inst: Instance, userId: string, code: string) 
  * can't be used to discover registered emails. Throttled per address and silently.
  */
 export async function forgotPassword(inst: Instance, email: string) {
+  const test = emailInTestMode(inst, email);
   await assertSsoNotRequired(inst.id, email);
   const idx = emailIndex(inst.id, email);
   if ((await rateLimit(`${inst.id}:reset_send:${idx}`, 5, 3600)) < 0) return;
@@ -60,8 +63,8 @@ export async function forgotPassword(inst: Instance, email: string) {
     .from(schema.emailAddresses)
     .where(and(eq(schema.emailAddresses.instanceId, inst.id), eq(schema.emailAddresses.emailIndex, idx)));
   if (!row) return;
-  const code = await issueCode("reset_password", idx);
-  await sendMail({ to: email, ...(await composeEmail(inst, "reset_password", { code, expires_minutes: "10" })) });
+  const code = await issueCode("reset_password", idx, test ? TEST_CODE : undefined);
+  if (!test) await sendMail({ to: email, ...(await composeEmail(inst, "reset_password", { code, expires_minutes: "10" })) });
 }
 
 /**

@@ -6,6 +6,7 @@
 import { env } from "./env";
 import { guardedFetch } from "./net-guard";
 import { effectiveSettings } from "./platform-settings";
+import { TEST_CODE } from "./auth/test-mode";
 
 export const smsConfigured = async () => !!(await effectiveSettings()).twilio;
 
@@ -42,7 +43,8 @@ async function call(path: string, form: Record<string, string>) {
 }
 
 /** Sends a code. Returns false if Twilio refused (bad number, blocked country, too many attempts). */
-export async function sendSmsCode(phone: string) {
+export async function sendSmsCode(phone: string, opts: { test?: boolean } = {}) {
+  if (opts.test) return true; // reserved test number in test mode: nothing is sent (see auth/test-mode.ts)
   const r = await call("Verifications", { To: phone, Channel: "sms" });
   if (r.status >= 200 && r.status < 300) return true;
   console.warn("[sms] send refused:", r.status, String(r.body.code ?? ""));
@@ -50,8 +52,9 @@ export async function sendSmsCode(phone: string) {
 }
 
 /** True only if Twilio approves this code for this number. Each code works once. */
-export async function checkSmsCode(phone: string, code: string) {
+export async function checkSmsCode(phone: string, code: string, opts: { test?: boolean } = {}) {
   if (!/^\d{4,10}$/.test(code)) return false;
+  if (opts.test) return code === TEST_CODE;
   const r = await call("VerificationCheck", { To: phone, Code: code });
   return r.status >= 200 && r.status < 300 && r.body.status === "approved";
 }

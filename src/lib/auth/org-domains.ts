@@ -25,6 +25,7 @@ import { emit } from "../webhooks";
 import { record } from "../audit";
 import { orgSettings } from "../org-settings";
 import { issueCode, consumeCode } from "./codes";
+import { isTestEmail } from "./test-mode";
 import { assertSafeForAutoJoin } from "./org-roles";
 import { requirePermission, assertRoomFor, getOrg, forgetMembership } from "./orgs";
 import type { Instance } from "../db/schema";
@@ -204,7 +205,8 @@ async function verifiedDomains(instanceId: string, userId: string) {
     .select({ id: schema.emailAddresses.id, enc: schema.emailAddresses.emailEnc, verifiedAt: schema.emailAddresses.verifiedAt })
     .from(schema.emailAddresses)
     .where(and(eq(schema.emailAddresses.userId, userId), eq(schema.emailAddresses.instanceId, instanceId)));
-  return new Set(rows.filter((r) => r.verifiedAt).map((r) => decrypt(r.enc, `email_addresses.email:${r.id}`).split("@").pop()!.toLowerCase()));
+  // A test address (+daywalker_test) is never proof of belonging to a company domain.
+  return new Set(rows.filter((r) => r.verifiedAt).map((r) => decrypt(r.enc, `email_addresses.email:${r.id}`)).filter((e) => !isTestEmail(e)).map((e) => e.split("@").pop()!.toLowerCase()));
 }
 
 async function join(inst: Instance, e: Enrollable, userId: string, how: "auto" | "suggestion") {

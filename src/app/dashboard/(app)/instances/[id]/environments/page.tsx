@@ -1,6 +1,6 @@
-import { environmentsFor } from "@/lib/dashboard";
+import { environmentsFor, testModeFor } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
-import { addProductionAction, cloneConfigAction } from "../../../actions";
+import { addProductionAction, cloneConfigAction, testModeAction } from "../../../actions";
 import { ActionForm } from "../../../forms";
 import { Badge, Card, PageHeader, Toggle } from "../../../ui";
 import { guarded } from "../../../server";
@@ -11,6 +11,7 @@ export default async function EnvironmentsPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/environments`);
   const v = await guarded(() => environmentsFor(userId, id));
+  const tm = await guarded(() => testModeFor(userId, id));
   const hasProd = v.environments.some((e) => e.environment === "production");
   return (
     <div className="space-y-6">
@@ -27,6 +28,14 @@ export default async function EnvironmentsPage({ params }: { params: Promise<{ i
           ))}
           {!v.environments.length && <li className="text-stone-600">This instance was created before applications existed and has no sibling environments.</li>}
         </ul>
+      </Card>
+      <Card title="Test mode" description={tm.available ? `For end-to-end tests. Addresses like name${tm.emailTag}@example.com and phone numbers ${tm.phoneRange} accept the code ${tm.code}, and nothing is sent to them. Real addresses and numbers are unaffected.` : "Test mode is only available on development instances."}>
+        {tm.available ? (
+          <ActionForm action={testModeAction} submit="Save" className="max-w-md space-y-3">
+            <input type="hidden" name="instanceId" value={id} />
+            <Toggle name="enabled" label="Turn on test mode" description="Don't use it for real people: anyone can sign in to a test address with the public code." defaultChecked={tm.enabled} />
+          </ActionForm>
+        ) : null}
       </Card>
       {v.environment === "development" && v.application && !hasProd && (
         <Card title="Create the production instance" description="Gets its own publishable and secret keys (sk_live_…). The secret is shown once.">

@@ -12,6 +12,7 @@
  *
  * Refusals use one generic message, so the rules themselves aren't revealed to a prober.
  */
+import { assertNoTestEmailOnProduction } from "./test-mode";
 import { createRequire } from "node:module";
 import { decrypt, encrypt } from "../crypto";
 import { env } from "../env";
@@ -37,6 +38,7 @@ export const notAllowedError = () => new ApiError(403, "sign_up_not_allowed", "S
 
 /** Throws `sign_up_not_allowed` if a NEW account with this email breaks the instance's rules. */
 export function assertEmailAllowed(inst: Instance, email: string | null | undefined) {
+  assertNoTestEmailOnProduction(inst, email);
   const s = inst.settings;
   const domain = email ? domainOf(email) : "";
   const allowed = s.signUpAllowedDomains ?? [];

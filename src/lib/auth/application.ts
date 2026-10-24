@@ -97,6 +97,7 @@ const SKIPPED_SETTINGS: Record<string, string> = {
   captchaSiteKey: "belongs to the development Turnstile secret",
   requireTwoFactor: "could lock out existing production users; set it on production deliberately",
   twoFactorGraceUntil: "belongs to requireTwoFactor",
+  testMode: "test mode never applies to production",
 };
 
 export type CloneReport = {

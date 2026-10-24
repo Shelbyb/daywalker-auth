@@ -20,6 +20,7 @@ import { errors } from "../http";
 import { newToken, sha256 } from "../ids";
 import { record } from "../audit";
 import { sendMail } from "../mail";
+import { emailInTestMode } from "./test-mode";
 import { composeEmail } from "../email-templates";
 import { emit } from "../webhooks";
 import { publishableKey } from "./instance";
@@ -152,7 +153,7 @@ async function sendUnlockEmail(inst: Instance, userId: string, token: string) {
     if (!to) return;
     // Token in the fragment (not sent to servers or logs); the landing page needs a click, so link scanners can't use it.
     const link = `${env().APP_URL}/unlock?pk=${encodeURIComponent(publishableKey(inst))}#token=${encodeURIComponent(token)}`;
-    await sendMail({ to, ...(await composeEmail(inst, "account_unlock", { link, expires_hours: String(UNLOCK_LINK_SECONDS / 3600) })) });
+    if (!emailInTestMode(inst, to)) await sendMail({ to, ...(await composeEmail(inst, "account_unlock", { link, expires_hours: String(UNLOCK_LINK_SECONDS / 3600) })) });
   } catch (e) {
     console.error("[lockout] unlock email failed", (e as Error).message);
   }

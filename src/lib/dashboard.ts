@@ -17,6 +17,7 @@ import { z } from "zod";
 import { db, schema } from "./db";
 import { cache, rateLimit } from "./cache";
 import { decrypt } from "./crypto";
+import { assertCanEnableTestMode, testModeView } from "./auth/test-mode";
 import { addSatellite, listSatellites, primaryDomainOf, removeSatellite, setPrimaryDomain, verifySatellite } from "./auth/satellites";
 import { createClient, deleteClient, listClients, rotateSecret } from "./auth/m2m";
 import { apiKeySettings, listKeys as listUserApiKeys, revokeByBackend, settingsInput as apiKeySettingsInput } from "./auth/api-keys";
@@ -713,4 +714,19 @@ export async function verifySatelliteFor(userId: string, instanceId: string, id:
 }
 export async function removeSatelliteFor(userId: string, instanceId: string, id: string) {
   return removeSatellite(await ownedInstance(userId, instanceId), id, { type: "developer", id: userId });
+}
+
+
+// ---------- Test mode ----------
+
+export async function testModeFor(userId: string, instanceId: string) {
+  return testModeView(await ownedInstance(userId, instanceId));
+}
+export async function setTestMode(userId: string, instanceId: string, enabled: boolean) {
+  const cached = await ownedInstance(userId, instanceId);
+  if (enabled) assertCanEnableTestMode(cached);
+  const [inst] = await db().select().from(schema.instances).where(eq(schema.instances.id, cached.id));
+  await db().update(schema.instances).set({ settings: { ...inst.settings, testMode: { enabled } }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
+  await invalidateInstance(instanceId);
+  void record(instanceId, "instance.test_mode_updated", { actor: { type: "developer", id: userId }, data: { enabled } });
 }

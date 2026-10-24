@@ -3,4 +3,5 @@ export { instanceIdFromKey, issuerFor, SESSION_COOKIE, ACTIVE_COOKIE, type Confi
 export { createDpopProof, generateDeviceKey, indexedDbKeyStore, deviceKeysSupported, type DeviceKey, type DeviceKeyStore } from "./dpop";
 export { isRecentlyVerified, staleFactors, type ReverificationLevel, type RecentAuthCheck } from "./fresh";
 
+export { TEST_CODE, TEST_EMAIL_TAG, testEmail, testPhone, isTestEmail, isTestPhone } from "./testing";
 export { SATELLITE_SYNC_PATH, SATELLITE_HANDSHAKE_PATH, assertSatelliteConfig, buildSyncUrl, safeReturnTarget } from "./satellite";

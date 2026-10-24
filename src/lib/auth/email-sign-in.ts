@@ -22,6 +22,7 @@ import { composeEmail } from "../email-templates";
 import { record } from "../audit";
 import { publishableKey } from "./instance";
 import type { Instance } from "../db/schema";
+import { TEST_CODE, emailInTestMode } from "./test-mode";
 import { assertSsoNotRequired, assertSsoNotRequiredForUser } from "./sso-policy";
 
 const TTL = 600;
@@ -53,12 +54,13 @@ async function accountFor(instanceId: string, idx: string) {
 /** Sends the code and link if the address has an account. Resolves the same way either way. */
 export async function sendSignInEmail(inst: Instance, email: string, redirect: string | null) {
   assertEnabled(inst);
+  const test = emailInTestMode(inst, email); // throws for test addresses on production
   await assertSsoNotRequired(inst.id, email); // depends on the domain only, so it reveals nothing about accounts
   const idx = emailIndex(inst.id, email);
   if ((await rateLimit(`${inst.id}:esi_send:${idx}`, 5, 3600)) < 0) return;
   const acct = await accountFor(inst.id, idx);
   if (!acct) return;
-  const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+  const code = test ? TEST_CODE : randomInt(0, 1_000_000).toString().padStart(6, "0");
   const token = newToken(32);
   const k = codeKey(inst.id, idx);
   const old = await cache().hget(k, "l");
@@ -67,7 +69,7 @@ export async function sendSignInEmail(inst: Instance, email: string, redirect: s
   await cache().expire(k, TTL);
   await cache().set(linkKey(token), encrypt(JSON.stringify({ i: inst.id, x: idx }), "esi_link"), "EX", TTL);
   const link = `${env().APP_URL}/magic-link?pk=${encodeURIComponent(publishableKey(inst))}#token=${encodeURIComponent(token)}`;
-  await sendMail({ to: email, ...(await composeEmail(inst, "sign_in", { code, link, expires_minutes: "10" })) });
+  if (!test) await sendMail({ to: email, ...(await composeEmail(inst, "sign_in", { code, link, expires_minutes: "10" })) });
 }
 
 async function finish(inst: Instance, idx: string, method: "email_code" | "magic_link") {

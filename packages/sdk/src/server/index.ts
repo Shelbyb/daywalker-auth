@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, errors as joseErrors } from "jose";
 import { instanceIdFromKey, issuerFor, type Config } from "../core/keys";
+export { TEST_CODE, TEST_EMAIL_TAG, testEmail, testPhone, isTestEmail, isTestPhone } from "../core/testing";
 import { isRecentlyVerified, type RecentAuthCheck, type ReverificationLevel } from "../core/fresh";
 
 if (typeof window !== "undefined") {
@@ -415,6 +416,12 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
       get: () => call<EnvironmentsInfo>("GET", "instance/environments"),
       /** Call with the PRODUCTION secret key: copies configuration from the development instance. Never copies users. */
       cloneFromDevelopment: (input: CloneConfigInput = {}) => call<CloneConfigResult>("POST", "instance/clone", input),
+    },
+    /** Test mode for end-to-end tests (development instances only): fixed code 424242 for +daywalker_test addresses and reserved phone numbers. */
+    testMode: {
+      get: () => call<{ available: boolean; enabled: boolean; code: string; emailTag: string; phoneRange: string }>("GET", "instance/test_mode"),
+      /** Fails with `test_mode_unavailable` (403) on a production instance. */
+      set: (enabled: boolean) => call<{ available: boolean; enabled: boolean; code: string; emailTag: string; phoneRange: string }>("PATCH", "instance/test_mode", { enabled }),
     },
     /** Other domains of the same app that share sessions through a redirect handshake. */
     satelliteDomains: {

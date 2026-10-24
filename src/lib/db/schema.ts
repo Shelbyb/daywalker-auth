@@ -87,6 +87,8 @@ export const instances = pgTable(
         /** Customer-issued API keys for end users and organizations (see auth/api-keys.ts). */
         /** Main domain of the application (an origin). Treated as an allowed origin; satellites sync sessions from the same instance. */
         primaryDomain?: string | null;
+        /** Development instances only (see auth/test-mode.ts). Never cloned to production. */
+        testMode?: { enabled?: boolean };
         apiKeys?: { enabled?: boolean; maxPerSubject?: number; maxExpiryDays?: number | null; allowedScopes?: string[] };
         sessions?: { maxLifetimeEnabled?: boolean; inactivityTimeoutMinutes?: number | null; multiSession?: boolean; customClaims?: Record<string, string>; deviceBinding?: "off" | "optional" | "required" } }>()
       .notNull()

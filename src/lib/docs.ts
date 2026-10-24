@@ -29,6 +29,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
       { slug: "guides/environments", title: "Development and production" },
       { slug: "guides/machine-auth", title: "Machine auth and API keys" },
+      { slug: "guides/test-mode", title: "Test mode and e2e tests" },
       { slug: "guides/satellite-domains", title: "Satellite domains" },
       { slug: "guides/dashboard", title: "The developer dashboard" },
       { slug: "guides/organizations", title: "Organizations" },

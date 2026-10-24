@@ -50,6 +50,8 @@ export type EnvironmentInfo = {
   name: string;
   /** "development" instances show a banner in the sign-in and sign-up components. */
   instanceEnvironment?: "development" | "production";
+  /** Development only: test addresses (+daywalker_test) accept the fixed code 424242. */
+  testMode?: boolean;
   oauthProviders: OAuthProvider[];
   oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
   passwordMinLength: number;
@@ -215,7 +217,7 @@ function Alert({ a, tone = "error", children }: { a?: Appearance; tone?: "error"
 /** Shown on development instances so nobody mistakes them for the real thing. Not removable through `appearance`. */
 function DevBanner({ env }: { env?: EnvironmentInfo | null }) {
   if (env?.instanceEnvironment !== "development") return null;
-  return <p role="note" className="dw-dev-banner">Development mode: for testing, not real users</p>;
+  return <p role="note" className="dw-dev-banner">{env.testMode ? "Development mode, test mode on: +daywalker_test emails use code 424242" : "Development mode: for testing, not real users"}</p>;
 }
 
 function Shell({ a, title, subtitle, children, footer, env }: { a?: Appearance; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; env?: EnvironmentInfo | null }) {

@@ -117,3 +117,5 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `domain_taken` | 409 | The domain is already verified by another app | Contact support |
 | `domain_is_primary` / `domain_is_satellite` | 400 | The domain is already the primary / a satellite | Pick another |
 | `verification_failed` | 400 | The DNS TXT record wasn't found | Publish it and retry |
+| `test_mode_unavailable` | 400 / 403 | A `+daywalker_test` address was used on a production instance (400), or test mode was turned on for one (403) | Test mode is for development instances only |
+| `test_phone_unavailable` | 400 | A reserved test phone number was used on a production instance, or on a development instance with test mode off | Use a real number, or turn on test mode on a development instance |

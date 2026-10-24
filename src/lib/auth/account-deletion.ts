@@ -27,6 +27,7 @@ import { sendMail } from "../mail";
 import { composeEmail } from "../email-templates";
 import { emit } from "../webhooks";
 import { issueCode, consumeCode } from "./codes";
+import { TEST_CODE, emailInTestMode } from "./test-mode";
 import { confirmed, hasTwoFactor } from "./mfa";
 import { publishableKey } from "./instance";
 import * as lockout from "./lockout";
@@ -73,8 +74,9 @@ export async function sendReauthCode(inst: Instance, userId: string) {
   if ((await rateLimit(`${inst.id}:reauth_code:${userId}`, 5, 3600)) < 0) throw errors.tooMany();
   const to = await primaryEmail(inst.id, userId);
   if (!to) throw errors.badRequest("no_email", "This account has no email address to send a code to");
-  const code = await issueCode("reauth", userId);
-  await sendMail({ to, ...(await composeEmail(inst, "reauth_code", { code, expires_minutes: "10" })) });
+  const test = emailInTestMode(inst, to);
+  const code = await issueCode("reauth", userId, test ? TEST_CODE : undefined);
+  if (!test) await sendMail({ to, ...(await composeEmail(inst, "reauth_code", { code, expires_minutes: "10" })) });
 }
 
 /** Throws unless the caller proved who they are right now. Wrong answers count toward lockout. */
@@ -161,7 +163,7 @@ export async function requestDeletion(inst: Instance, userId: string, sessionId:
   const to = await primaryEmail(inst.id, userId);
   if (to) {
     const link = `${env().APP_URL}/cancel-deletion?pk=${encodeURIComponent(publishableKey(inst))}#token=${encodeURIComponent(token)}`;
-    await sendMail({ to, ...(await composeEmail(inst, "account_deletion", { link, date: scheduled.toISOString().slice(0, 10) })) }).catch((e) => console.error("[deletion] mail failed", (e as Error).message));
+    if (!emailInTestMode(inst, to)) await sendMail({ to, ...(await composeEmail(inst, "account_deletion", { link, date: scheduled.toISOString().slice(0, 10) })) }).catch((e) => console.error("[deletion] mail failed", (e as Error).message));
   }
   return { scheduledFor: scheduled.toISOString(), deleted: false };
 }

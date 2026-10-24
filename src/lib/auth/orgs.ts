@@ -8,6 +8,7 @@ import { newId, newToken, sha256 } from "../ids";
 import { errors } from "../http";
 import { env } from "../env";
 import { sendMail } from "../mail";
+import { emailInTestMode } from "./test-mode";
 import { composeEmail } from "../email-templates";
 import { getUser } from "./users";
 import { publishableKey } from "./instance";
@@ -257,7 +258,7 @@ export async function invite(inst: Instance, orgId: string, actorId: string, ema
   const link = `${env().APP_URL}/accept-invite?pk=${encodeURIComponent(publishableKey(inst))}&token=${encodeURIComponent(token)}`;
   const inviter = await getUser(inst.id, actorId);
   const inviterName = [inviter?.firstName, inviter?.lastName].filter(Boolean).join(" ") || inviter?.emailAddresses[0]?.email || "Someone";
-  await sendMail({ to: email, ...(await composeEmail(inst, "invitation", { org_name: org.name, inviter: inviterName, link, expires_days: String(INVITE_TTL_DAYS) })) });
+  if (!emailInTestMode(inst, email)) await sendMail({ to: email, ...(await composeEmail(inst, "invitation", { org_name: org.name, inviter: inviterName, link, expires_days: String(INVITE_TTL_DAYS) })) });
   void emit(inst.id, "organizationInvitation.created", { organizationId: orgId, invitationId: id, email, role });
   return { id, email, role, expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000) };
 }

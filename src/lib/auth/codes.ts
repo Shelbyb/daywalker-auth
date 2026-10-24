@@ -14,8 +14,9 @@ const MAX_ATTEMPTS = 5;
 type Purpose = "verify_email" | "reset_password" | "org_domain" | "reauth" | "passkey_signup";
 const key = (purpose: Purpose, subject: string) => `code:${purpose}:${subject}`;
 
-export async function issueCode(purpose: Purpose, subject: string) {
-  const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+/** `fixed` is only for test mode (see test-mode.ts): a fixed code for a test address. */
+export async function issueCode(purpose: Purpose, subject: string, fixed?: string) {
+  const code = fixed ?? randomInt(0, 1_000_000).toString().padStart(6, "0");
   await cache().hset(key(purpose, subject), { h: blindIndex(code, `${purpose}:${subject}`), n: "0" });
   await cache().expire(key(purpose, subject), TTL);
   return code;

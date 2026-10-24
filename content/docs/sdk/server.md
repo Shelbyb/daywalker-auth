@@ -44,6 +44,10 @@ Failed calls throw `BackendError` with `status`, `code` and `message`. Passing a
 
 `verifyMachineToken(token, { ...config, scopes? })`, `verifyApiKey(key, { secretKey, apiUrl, scopes? })` and `requestMachineToken({ apiUrl, clientId, clientSecret, scopes? })`. The backend client has `m2mClients` and `apiKeys`. See [Machine auth and API keys](/docs/guides/machine-auth).
 
+## Test helpers
+
+`testEmail(name, { unique, domain })`, `testPhone(index)`, `isTestEmail`, `isTestPhone` and `TEST_CODE` for [end-to-end tests](/docs/guides/test-mode); `backend().testMode.get()` / `.set(enabled)` toggles test mode on a development instance.
+
 ## Organization claims and API
 
 `verifyToken()` also returns `orgId` and `orgRole` (`"admin"`, `"member"` or a custom role key) and `orgPermissions` when the session has an active organization. `has(claims, { permission?, role? })` and `protect(claims, check)` (throws `ForbiddenError`, status 403) test them; `organizationRoles` and `organizationDomains` on the backend client manage roles and domains. See [Roles, permissions and domains](/docs/guides/organization-roles). The backend client adds `organizations.list({ limit, offset })` and `organizations.members(orgId)`. See the [Organizations guide](/docs/guides/organizations).

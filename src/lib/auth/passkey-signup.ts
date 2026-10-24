@@ -27,6 +27,7 @@ import { assertSsoNotRequired } from "./sso-policy";
 import { assertEmailAllowed } from "./signup-protection";
 import { legalOf, acceptanceRow } from "./legal";
 import { issueCode, consumeCode } from "./codes";
+import { TEST_CODE, emailInTestMode } from "./test-mode";
 import { newRegistrationOptions, checkRegistration, passkeyName } from "./passkeys";
 import type { Instance } from "../db/schema";
 
@@ -60,6 +61,7 @@ export async function startPasskeySignUp(inst: Instance, input: z.infer<typeof s
   assertEnabled(inst);
   await assertSsoNotRequired(inst.id, input.email);
   assertEmailAllowed(inst, input.email);
+  const test = emailInTestMode(inst, input.email);
   if (legalOf(inst).required && input.legalAccepted !== true) throw errors.badRequest("legal_required", "Please accept the terms to create an account");
   const idx = emailIndex(inst.id, input.email);
   if ((await rateLimit(`${inst.id}:pks_send:${idx}`, 5, 3600)) < 0) return; // silent, like other email senders
@@ -67,8 +69,8 @@ export async function startPasskeySignUp(inst: Instance, input: z.infer<typeof s
   if (taken) return;
   const profile: Profile = { firstName: input.firstName, lastName: input.lastName, legal: input.legalAccepted === true };
   await cache().set(profileKey(inst, idx), encrypt(JSON.stringify(profile), `pks_profile:${subject(inst, idx)}`), "EX", PENDING_TTL);
-  const code = await issueCode("passkey_signup", subject(inst, idx));
-  await sendMail({ to: input.email, ...(await composeEmail(inst, "verify_email", { code, expires_minutes: "10" })) });
+  const code = await issueCode("passkey_signup", subject(inst, idx), test ? TEST_CODE : undefined);
+  if (!test) await sendMail({ to: input.email, ...(await composeEmail(inst, "verify_email", { code, expires_minutes: "10" })) });
 }
 
 /** Checks the emailed code and hands back a single-use token and WebAuthn options for the new account. */

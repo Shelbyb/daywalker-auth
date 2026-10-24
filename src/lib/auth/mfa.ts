@@ -18,6 +18,7 @@ import {
   verifySecurityKeyAuthentication,
   verifySecurityKeyRegistration,
 } from "./security-keys";
+import { phoneInTestMode, testModeActive, isTestPhone } from "./test-mode";
 import { checkSmsCode, maskPhone, normalizePhone, phoneInAllowedCountry, sendSmsCode, smsConfigured } from "../sms";
 
 const secretCtx = (userId: string) => `mfa_totp.secret:${userId}`;
@@ -56,7 +57,7 @@ export async function hasTwoFactor(userId: string) {
 
 /** Which second factors this user can use right now (for the sign-in and account screens). */
 export async function twoFactorMethods(userId: string) {
-  const phone = (await smsConfigured()) ? await smsPhone(userId) : null;
+  const phone = await smsPhoneIfUsable(userId);
   return { totp: await totpOn(userId), sms: phone ? maskPhone(phone) : null, securityKeys: await countSecurityKeys(userId), backupCodes: await remainingBackupCodes(userId) };
 }
 
@@ -201,8 +202,8 @@ export async function verifySecondFactor(userId: string, code: string, method?: 
       .from(schema.mfaTotp)
       .where(and(eq(schema.mfaTotp.userId, userId), isNotNull(schema.mfaTotp.verifiedAt)));
     const viaSms = async () => {
-      const phone = (await smsConfigured()) ? await smsPhone(userId) : null;
-      return phone ? checkSmsCode(phone, c) : false;
+      const phone = await smsPhoneIfUsable(userId);
+      return phone ? checkSmsCode(phone, c, { test: await smsTest(userId, phone) }) : false;
     };
     if (method === "sms" || (!row && method !== "totp")) return viaSms();
     if (row && (await consumeTotp(userId, decrypt(row.secretEnc, secretCtx(userId)), c))) return true;
@@ -214,7 +215,23 @@ export async function verifySecondFactor(userId: string, code: string, method?: 
 
 // ---------- SMS ----------
 
-export const smsAllowed = async (inst: Instance) => inst.settings.smsSecondFactor === true && (await smsConfigured());
+/** Test mode lets reserved test numbers work without Twilio, on development instances only (see test-mode.ts). */
+export const smsAllowed = async (inst: Instance) => inst.settings.smsSecondFactor === true && ((await smsConfigured()) || testModeActive(inst));
+
+/** Is this user's number a reserved test number on an instance in test mode? */
+async function smsTest(userId: string, phone: string) {
+  if (!isTestPhone(phone)) return false;
+  const [u] = await db().select({ instanceId: schema.users.instanceId }).from(schema.users).where(eq(schema.users.id, userId));
+  const inst = u ? await getInstance(u.instanceId) : null;
+  return !!inst && testModeActive(inst);
+}
+
+/** The user's verified phone, if texts can reach it: Twilio is configured, or it is a test number in test mode. */
+async function smsPhoneIfUsable(userId: string) {
+  const phone = await smsPhone(userId);
+  if (!phone) return null;
+  return (await smsConfigured()) || (await smsTest(userId, phone)) ? phone : null;
+}
 
 /** Limits per user, per phone number and per instance-wide IP bucket, so texts can't be used to run up a bill. */
 async function smsLimit(inst: Instance, userId: string, phone: string) {
@@ -229,15 +246,16 @@ export async function startSmsEnrollment(inst: Instance, userId: string, rawPhon
   if (!(await smsAllowed(inst))) throw errors.badRequest("sms_disabled", "SMS two-factor isn't available for this app");
   const phone = normalizePhone(rawPhone);
   if (!phone) throw errors.badRequest("invalid_phone", "Enter the number in international format, like +1 415 555 0100");
+  const test = phoneInTestMode(inst, phone); // reserved test numbers: refused unless this is a development instance in test mode
   // Only for new numbers: people who already added a phone keep it, so narrowing the list never locks anyone out.
   if (!phoneInAllowedCountry(phone, inst.settings.smsCountries)) throw errors.badRequest("sms_country_not_allowed", "Text messages aren't available for numbers in that country");
   if ((await smsPhone(userId)) !== null) throw errors.conflict("already_enabled", "A phone is already set up. Remove it first to use a different one");
   if ((await hasTwoFactor(userId)) && !(await confirmed(userId, sessionId, currentCode)))
     throw errors.badRequest("code_required", "Confirm with a current two-factor code or a security key to add a phone");
-  const phoneIndex = await smsLimit(inst, userId, phone);
+  const phoneIndex = test ? blindIndex(phone, `phone:${inst.id}`) : await smsLimit(inst, userId, phone);
   const phoneEnc = encrypt(phone, phoneCtx(userId));
   await db().insert(schema.mfaSms).values({ userId, phoneEnc, phoneIndex }).onConflictDoUpdate({ target: schema.mfaSms.userId, set: { phoneEnc, phoneIndex, verifiedAt: null } });
-  if (!(await sendSmsCode(phone))) throw errors.badRequest("sms_failed", "We couldn't text that number. Check it and try again");
+  if (!(await sendSmsCode(phone, { test }))) throw errors.badRequest("sms_failed", "We couldn't text that number. Check it and try again");
   return { phone: maskPhone(phone) };
 }
 
@@ -245,7 +263,7 @@ export async function startSmsEnrollment(inst: Instance, userId: string, rawPhon
 export async function confirmSmsEnrollment(userId: string, code: string) {
   const phone = await smsPhone(userId, false);
   if (!phone) throw errors.badRequest("no_pending_enrollment", "Add a phone number first");
-  if (!(await checkSmsCode(phone, code.trim()))) throw errors.badRequest("invalid_code", "That code is incorrect or has expired");
+  if (!(await checkSmsCode(phone, code.trim(), { test: await smsTest(userId, phone) }))) throw errors.badRequest("invalid_code", "That code is incorrect or has expired");
   const hadTotp = (await totpOn(userId)) || (await countSecurityKeys(userId)) > 0;
   await db().update(schema.mfaSms).set({ verifiedAt: new Date() }).where(eq(schema.mfaSms.userId, userId));
   void recordForUser(userId, "user.two_factor_enabled", { data: { method: "sms", phone: maskPhone(phone) } });
@@ -254,11 +272,12 @@ export async function confirmSmsEnrollment(userId: string, code: string) {
 
 /** Texts a code to the user's verified phone (to sign in, or to confirm a change on the account page). */
 export async function sendSmsChallenge(inst: Instance, userId: string) {
-  if (!(await smsConfigured())) throw errors.badRequest("sms_disabled", "SMS isn't available");
   const phone = await smsPhone(userId);
+  const test = !!phone && (await smsTest(userId, phone));
+  if (!test && !(await smsConfigured())) throw errors.badRequest("sms_disabled", "SMS isn't available");
   if (!phone) throw errors.badRequest("no_phone", "No phone is set up for two-factor");
-  await smsLimit(inst, userId, phone);
-  if (!(await sendSmsCode(phone))) throw errors.badRequest("sms_failed", "We couldn't send a text right now. Try another method");
+  if (!test) await smsLimit(inst, userId, phone);
+  if (!(await sendSmsCode(phone, { test }))) throw errors.badRequest("sms_failed", "We couldn't send a text right now. Try another method");
   await cache().set(`sms:sent:${userId}`, "1", "EX", 600);
   return { phone: maskPhone(phone) };
 }

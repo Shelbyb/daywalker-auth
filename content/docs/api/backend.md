@@ -163,3 +163,5 @@ See the [Webhooks guide](/docs/guides/webhooks).
 `/v1/m2m_clients` (list, create, `GET|PATCH|DELETE /{id}`, `POST /{id}/rotate_secret`) manage machine clients; `POST /v1/m2m/token` is the public OAuth token endpoint. `/v1/api_keys` (list, create, `GET|DELETE /{id}`, `POST /verify`) and `GET|PATCH /v1/instance/api_keys` manage keys held by your users and organizations. See [Machine auth and API keys](/docs/guides/machine-auth).
 
 `/v1/satellite_domains` (list, add, `DELETE /{id}`, `POST /{id}/verify`) and `GET|PUT /v1/instance/primary_domain` manage [satellite domains](/docs/guides/satellite-domains). The handshake itself is `GET /v1/client/satellite/sync` and `POST /v1/client/satellite/exchange`.
+
+`GET|PATCH /v1/instance/test_mode` reads and sets [test mode](/docs/guides/test-mode) (development instances only).

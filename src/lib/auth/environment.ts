@@ -5,6 +5,7 @@ import { passkeySignUpEnabled } from "./passkey-signup";
 import { hasSso } from "./saml";
 import { smsAllowed } from "./mfa";
 import type { Instance } from "../db/schema";
+import { testModeActive } from "./test-mode";
 import { captchaInfo } from "./signup-protection";
 import { orgSettings } from "../org-settings";
 import { sessionSettings } from "../session-settings";
@@ -16,6 +17,8 @@ export async function publicEnvironment(inst: Instance) {
     name: inst.name,
     /** "development" makes the components show a banner: this instance is not for real users. */
     instanceEnvironment: inst.environment,
+    /** Development only: addresses with +daywalker_test accept the code 424242. */
+    testMode: testModeActive(inst),
     oauthProviders: list.map((p) => p.id),
     oauthProviderLabels: Object.fromEntries(list.map((p) => [p.id, p.label])),
     passwordMinLength: inst.settings.passwordMinLength,

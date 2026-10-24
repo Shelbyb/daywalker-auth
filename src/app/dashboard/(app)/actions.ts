@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, savePrimaryDomain, addSatelliteFor, verifySatelliteFor, removeSatelliteFor, createM2mFor, rotateM2mFor, deleteM2mFor, updateApiKeySettings, revokeUserApiKeyFor, addProductionInstance, cloneConfigFor, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, setTestMode, savePrimaryDomain, addSatelliteFor, verifySatelliteFor, removeSatelliteFor, createM2mFor, rotateM2mFor, deleteM2mFor, updateApiKeySettings, revokeUserApiKeyFor, addProductionInstance, cloneConfigFor, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
@@ -757,5 +757,17 @@ export async function removeSatelliteAction(_prev: ActionState, fd: FormData): P
     await removeSatelliteFor(userId, id, str(fd, "domainId", 100));
     refresh(id);
     return { message: "Removed." };
+  });
+}
+
+// ---------- Test mode ----------
+
+export async function testModeAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await setTestMode(userId, id, flag(fd, "enabled"));
+    refresh(id);
+    return { message: "Saved." };
   });
 }
