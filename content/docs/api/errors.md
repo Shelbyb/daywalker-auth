@@ -98,3 +98,8 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `export_failed` | 400 | The audit log bucket rejected or could not be reached | Check the bucket settings and credentials; the message has the bucket's reason |
 | `rate_limited` | 429 | Too many attempts | Wait and retry |
 | `internal_error` | 500 | Unexpected failure (details only in server logs) | Retry; report if it persists |
+| `clone_target_not_production` | 400 | Config cloning was called with a development secret key | Use the production instance's secret key |
+| `no_development_instance` | 400 | The application has no development instance to clone from | Create one |
+| `secrets_without_part` | 400 | `copySecrets` lists a part that isn't being copied | Include the part or drop the secret |
+| `environment_exists` | 409 | The application already has an instance for that environment | None |
+| `provider_needs_secret` | 400 | Tried to enable a social provider that has no client secret | Set the secret first |

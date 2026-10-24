@@ -11,6 +11,15 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
   custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), SMS two-factor, and
   the four follow-ups below ("SSO required", SMS country allow-list, security keys, SCIM).
 
+## In progress: platform batch 3 (resume here)
+
+One commit per feature, each with migration, API, dashboard UI, SDK, docs page and an e2e suite (in `test:all`, its own script, CI). Local server: rebuild and restart by PID (`/tmp/restart.sh` style), never pkill. Migration journal `when` values are synthetic (previous + 100000).
+
+1. [x] Development vs production instances (migration 0028 `applications`, `instances.application_id`, unique per application+environment, backfill one application per existing instance; `auth/application.ts`; `GET /v1/instance/environments`, `POST /v1/instance/clone` (production secret key only); dashboard Environments page and dev banner; components show a dev banner from `instanceEnvironment`; SDK `environments.get/cloneFromDevelopment`; `guides/environments.md`, `scripts/environments-e2e.ts`). Clone uses an allow-list of settings; providers without secrets are created disabled with an empty secret (enabling needs a secret: `provider_needs_secret`); webhooks created disabled; secrets only via `copySecrets`, re-encrypted. Not tested: the dashboard pages in a browser, the banner rendering in a browser.
+2. [ ] Machine-to-machine auth + customer API keys
+3. [ ] Satellite domains
+4. [ ] Test mode for development instances
+
 ## In progress: security and org feature batch (resume here)
 
 Order of work, one commit per feature, each with migration, API, UI, SDK, docs page and an e2e suite (added to

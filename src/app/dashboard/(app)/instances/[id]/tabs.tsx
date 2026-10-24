@@ -27,6 +27,7 @@ export function Tabs({ base, children }: { base: string; children: React.ReactNo
         { label: "Developers", items: [
           { href: `${base}/keys`, label: "API keys" },
           { href: `${base}/webhooks`, label: "Webhooks" },
+          { href: `${base}/environments`, label: "Environments" },
         ] },
       ],
     },

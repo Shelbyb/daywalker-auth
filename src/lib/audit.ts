@@ -15,7 +15,7 @@ export const AUDIT_TYPES = [
   "user.passkey_added", "user.passkey_removed",
   "session.device_bound", "user.reverified", "audit.exported", "audit.verified", "audit_export.configured", "audit_export.removed", "user.banned", "user.unbanned", "user.deleted", "user.locked", "user.unlocked", "user.deletion_requested", "user.deletion_canceled", "user.data_exported",
   "api_key.created", "api_key.revoked", "signing_key.rotated",
-  "instance.settings_updated", "instance.terms_updated", "instance.organizations_updated", "instance.sessions_updated", "instance.branding_updated", "instance.domain_added", "instance.domain_verified",
+  "instance.settings_updated", "instance.terms_updated", "instance.organizations_updated", "instance.sessions_updated", "instance.branding_updated", "instance.domain_added", "instance.domain_verified", "instance.config_cloned",
   "social_provider.saved", "social_provider.enabled", "social_provider.disabled",
   "sso_connection.created", "sso_connection.updated", "sso_connection.deleted",
   "scim_token.created", "scim_token.revoked",

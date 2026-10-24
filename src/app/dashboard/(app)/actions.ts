@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, addProductionInstance, cloneConfigFor, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
@@ -59,6 +59,30 @@ export async function createInstanceAction(_prev: ActionState, fd: FormData): Pr
     const r = await createInstance(userId, { name: str(fd, "name", 200), environment: env });
     revalidatePath("/dashboard");
     return { message: "Instance created.", instanceId: r.id, publishableKey: r.publishableKey, secret: r.secretKey };
+  });
+}
+
+export async function addProductionAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const r = await addProductionInstance(userId, str(fd, "instanceId", 200));
+    revalidatePath("/dashboard");
+    return { message: "Production instance created.", instanceId: r.id, publishableKey: r.publishableKey, secret: r.secretKey };
+  });
+}
+
+export async function cloneConfigAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const copySecrets = (["providers", "webhooks"] as const).filter((p) => flag(fd, `secrets_${p}`));
+    const r = await cloneConfigFor(userId, id, {
+      include: { settings: flag(fd, "settings"), providers: flag(fd, "providers"), templates: flag(fd, "templates"), roles: flag(fd, "roles"), webhooks: flag(fd, "webhooks"), origins: flag(fd, "origins") },
+      copySecrets: copySecrets.filter((p) => flag(fd, p)),
+    });
+    refresh(id);
+    const parts = Object.keys(r.copied).join(", ") || "nothing";
+    return { message: `Copied: ${parts}.${r.skipped.length ? ` ${r.skipped.length} item(s) skipped.` : ""}`, secret: r.webhookSecrets.length ? r.webhookSecrets.map((w) => w.secret).join("\n") : undefined };
   });
 }
 

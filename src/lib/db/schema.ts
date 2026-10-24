@@ -38,6 +38,21 @@ export const accountMembers = pgTable(
 
 export const environmentEnum = pgEnum("environment", ["development", "production"]);
 
+/**
+ * An application groups its environments: at most one development and one production instance, each with its own
+ * users, keys, signing keys and settings. Configuration can be cloned from development to production, never users.
+ */
+export const applications = pgTable(
+  "applications",
+  {
+    id: id(),
+    accountId: text("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("applications_account_idx").on(t.accountId)],
+);
+
 /** An application environment. Every end-user record is scoped to one instance. */
 export const instances = pgTable(
   "instances",
@@ -46,6 +61,8 @@ export const instances = pgTable(
     accountId: text("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     environment: environmentEnum("environment").notNull().default("development"),
+    /** The application this is an environment of. Null for instances that predate applications. */
+    applicationId: text("application_id").references(() => applications.id, { onDelete: "cascade" }),
     // Origins allowed to call the frontend API with credentials (CORS).
     allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
     /** Cloudflare Turnstile secret, encrypted. */
@@ -78,7 +95,10 @@ export const instances = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("instances_account_idx").on(t.accountId)],
+  (t) => [
+    index("instances_account_idx").on(t.accountId),
+    uniqueIndex("instances_application_env_idx").on(t.applicationId, t.environment).where(sql`${t.applicationId} is not null`),
+  ],
 );
 
 /** Secret keys for the backend API. Only a hash is stored. */

@@ -286,6 +286,29 @@ export function verifyAuditExport(ndjson: string, opts: { after?: { seq: number;
   return { ...out, ok: true };
 }
 
+export type EnvironmentsInfo = {
+  instanceId: string;
+  environment: "development" | "production";
+  application: { id: string; name: string } | null;
+  /** The application's instances, development first. Publishable keys only. */
+  environments: { instanceId: string; environment: "development" | "production"; name: string; publishableKey: string; current: boolean }[];
+};
+export type CloneConfigInput = {
+  /** Defaults: settings, providers, templates and roles on; webhooks and origins off. */
+  include?: Partial<Record<"settings" | "providers" | "templates" | "roles" | "webhooks" | "origins", boolean>>;
+  /** Parts whose secrets are copied too (re-encrypted for production). Default: none. */
+  copySecrets?: ("providers" | "webhooks")[];
+};
+export type CloneConfigResult = {
+  from: { instanceId: string; environment: "development" };
+  to: { instanceId: string; environment: "production" };
+  copied: Record<string, unknown>;
+  skipped: { what: string; reason: string }[];
+  secretsCopied: ("providers" | "webhooks")[];
+  /** Signing secrets of webhook endpoints created without copying secrets; shown only in this response. */
+  webhookSecrets: { id: string; secret: string }[];
+};
+
 export class BackendError extends Error {
   constructor(public status: number, public code: string, message: string) {
     super(message);
@@ -320,6 +343,12 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
       unlock: (userId: string) => call<{ id: string; unlocked: boolean }>("POST", `users/${encodeURIComponent(userId)}/unlock`, {}),
       /** Stops a pending self-service deletion. `canceled` is false if none was pending. */
       cancelDeletion: (userId: string) => call<{ id: string; canceled: boolean }>("POST", `users/${encodeURIComponent(userId)}/cancel_deletion`, {}),
+    },
+    /** Development and production instances of one application. */
+    environments: {
+      get: () => call<EnvironmentsInfo>("GET", "instance/environments"),
+      /** Call with the PRODUCTION secret key: copies configuration from the development instance. Never copies users. */
+      cloneFromDevelopment: (input: CloneConfigInput = {}) => call<CloneConfigResult>("POST", "instance/clone", input),
     },
     /** Whether users can delete their own account, and the grace period (0 to 90 days). */
     accountDeletion: {

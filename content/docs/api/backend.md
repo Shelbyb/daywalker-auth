@@ -157,3 +157,5 @@ The identity provider itself calls `/v1/scim/v2/{connectionId}/Users` and `/Grou
 | `POST /v1/webhooks/deliveries/{deliveryId}/retry` | Re-queue a delivery |
 
 See the [Webhooks guide](/docs/guides/webhooks).
+
+`GET /v1/instance/environments` returns this instance's environment and its application's others. `POST /v1/instance/clone` (production secret key) copies configuration from development; see [Development and production](/docs/guides/environments).

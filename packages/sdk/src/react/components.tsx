@@ -48,6 +48,8 @@ const cx = (appearance: Appearance | undefined, part: Part, base: string) => [ba
 
 export type EnvironmentInfo = {
   name: string;
+  /** "development" instances show a banner in the sign-in and sign-up components. */
+  instanceEnvironment?: "development" | "production";
   oauthProviders: OAuthProvider[];
   oauthProviderLabels: Partial<Record<OAuthProvider, string>>;
   passwordMinLength: number;
@@ -210,9 +212,16 @@ function Alert({ a, tone = "error", children }: { a?: Appearance; tone?: "error"
   );
 }
 
-function Shell({ a, title, subtitle, children, footer }: { a?: Appearance; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
+/** Shown on development instances so nobody mistakes them for the real thing. Not removable through `appearance`. */
+function DevBanner({ env }: { env?: EnvironmentInfo | null }) {
+  if (env?.instanceEnvironment !== "development") return null;
+  return <p role="note" className="dw-dev-banner">Development mode: for testing, not real users</p>;
+}
+
+function Shell({ a, title, subtitle, children, footer, env }: { a?: Appearance; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; env?: EnvironmentInfo | null }) {
   return (
     <div className={cx(a, "root", "dw-root")}>
+      <DevBanner env={env} />
       <div className={cx(a, "header", "dw-header")}>
         <h2 className={cx(a, "title", "dw-title")}>{title}</h2>
         {subtitle && <p className={cx(a, "subtitle", "dw-subtitle")}>{subtitle}</p>}
@@ -425,7 +434,7 @@ export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
     );
 
   return (
-    <Shell a={a} title="Sign in" subtitle={`to continue to ${env.name}`} footer={footer}>
+    <Shell a={a} env={env} title="Sign in" subtitle={`to continue to ${env.name}`} footer={footer}>
       {(env.oauthProviders.length > 0 || passkeys) && (
         <>
           <div className={cx(a, "providers", "dw-providers")}>
@@ -615,7 +624,7 @@ export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: 
 
   const footer = signInUrl ? <>Already have an account? <a href={signInUrl} className={cx(a, "link", "dw-link")}>Sign in</a></> : undefined;
   return (
-    <Shell a={a} title="Create your account" subtitle={`to continue to ${env.name}`} footer={footer}>
+    <Shell a={a} env={env} title="Create your account" subtitle={`to continue to ${env.name}`} footer={footer}>
       {needsConsent && (
         <label className={cx(a, "checkbox", "dw-checkbox")}>
           <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />

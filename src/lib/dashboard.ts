@@ -16,6 +16,8 @@ import { createLocalJWKSet, jwtVerify } from "jose";
 import { z } from "zod";
 import { db, schema } from "./db";
 import { cache, rateLimit } from "./cache";
+import { decrypt } from "./crypto";
+import { applicationsFor, cloneConfig, createEnvironmentInstance, environmentsView, instanceCount, type CloneInput } from "./auth/application";
 import { env } from "./env";
 import { errors } from "./http";
 import { listAudit, record, type AuditQuery } from "./audit";
@@ -147,20 +149,38 @@ export async function listInstances(userId: string) {
 
 const sanitizeName = z.string().trim().min(1, "Give it a name").max(60);
 
-/** Creates an instance with its signing key and first secret key (returned once). */
-export async function createInstance(userId: string, input: { name: string; environment: "development" | "production" }) {
+/**
+ * Creates an instance with its signing key and first secret key (returned once). Without `applicationId` it starts a
+ * new application; with one it adds the other environment (production next to development) of that application.
+ */
+export async function createInstance(userId: string, input: { name: string; environment: "development" | "production"; applicationId?: string }) {
   const name = sanitizeName.parse(input.name);
   if (!["development", "production"].includes(input.environment)) throw errors.badRequest("invalid_environment", "Pick development or production");
   if ((await rateLimit(`dash:create_instance:${userId}`, 10, 3600)) < 0) throw errors.tooMany();
   const accountId = await ensureAccount(userId);
-  const [{ n }] = await db().select({ n: count() }).from(schema.instances).where(eq(schema.instances.accountId, accountId));
-  if (n >= MAX_INSTANCES) throw errors.badRequest("too_many_instances", `You can have up to ${MAX_INSTANCES} instances`);
-  const id = newId("ins");
-  const [inst] = await db().insert(schema.instances).values({ id, accountId, name, environment: input.environment }).returning();
-  await createSigningKey(id);
-  const secretKey = await insertKey(inst, "Default");
-  return { id, publishableKey: publishableKey(inst), secretKey };
+  if ((await instanceCount(accountId)) >= MAX_INSTANCES) throw errors.badRequest("too_many_instances", `You can have up to ${MAX_INSTANCES} instances`);
+  const r = await createEnvironmentInstance(accountId, { name, environment: input.environment, applicationId: input.applicationId });
+  return { id: r.instance.id, publishableKey: r.publishableKey, secretKey: r.secretKey };
 }
+
+export async function environmentsFor(userId: string, instanceId: string) {
+  return environmentsView(await ownedInstance(userId, instanceId));
+}
+
+/** Adds the production instance next to a development one (same application). */
+export async function addProductionInstance(userId: string, instanceId: string) {
+  const dev = await ownedInstance(userId, instanceId);
+  if (dev.environment !== "development" || !dev.applicationId) throw errors.badRequest("not_development", "Start from the application's development instance");
+  return createInstance(userId, { name: dev.name, environment: "production", applicationId: dev.applicationId });
+}
+
+export async function cloneConfigFor(userId: string, instanceId: string, input: CloneInput) {
+  const target = await ownedInstance(userId, instanceId);
+  if ((await rateLimit(`dash:clone:${target.id}`, 10, 3600)) < 0) throw errors.tooMany();
+  return cloneConfig(target, input, { type: "developer", id: userId });
+}
+
+export { applicationsFor };
 
 export async function deleteInstance(userId: string, instanceId: string, confirmName: string) {
   const inst = await ownedInstance(userId, instanceId);
@@ -403,6 +423,10 @@ export async function saveProvider(
 export async function setProviderEnabled(userId: string, instanceId: string, provider: string, enabled: boolean) {
   await ownedInstance(userId, instanceId);
   if (!isProvider(provider)) throw errors.notFound("Unknown provider");
+  if (enabled) {
+    const [row] = await db().select({ s: schema.oauthProviders.clientSecretEnc }).from(schema.oauthProviders).where(and(eq(schema.oauthProviders.instanceId, instanceId), eq(schema.oauthProviders.provider, provider)));
+    if (row && decrypt(row.s, `oauth_providers.client_secret:${instanceId}:${provider}`) === "") throw errors.badRequest("provider_needs_secret", "Set this provider's client secret before enabling it");
+  }
   await db()
     .update(schema.oauthProviders)
     .set({ enabled, updatedAt: new Date() })

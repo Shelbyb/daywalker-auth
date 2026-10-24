@@ -92,3 +92,5 @@
 /* Step-up (reverification) prompt */
 .dw-modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgba(20, 18, 26, .45); }
 .dw-modal { max-height: calc(100vh - 32px); overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, .25); }
+
+.dw-dev-banner { margin: 0 0 12px; padding: 6px 10px; font-size: 12px; font-weight: 600; text-align: center; color: #78350f; background: #fef3c7; border: 1px solid #fcd34d; border-radius: var(--dw-radius); }

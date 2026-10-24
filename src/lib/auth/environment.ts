@@ -14,6 +14,8 @@ export async function publicEnvironment(inst: Instance) {
   const list = await enabledProviders(inst.id);
   return {
     name: inst.name,
+    /** "development" makes the components show a banner: this instance is not for real users. */
+    instanceEnvironment: inst.environment,
     oauthProviders: list.map((p) => p.id),
     oauthProviderLabels: Object.fromEntries(list.map((p) => [p.id, p.label])),
     passwordMinLength: inst.settings.passwordMinLength,

@@ -11,8 +11,10 @@ import { publishableKey } from "../src/lib/auth/instance";
 export async function seedInstance(name = "My App", allowedOrigins: string[] = []) {
   const accountId = newId("acct");
   const instanceId = newId("ins");
+  const applicationId = newId("app");
   await db().insert(schema.accounts).values({ id: accountId, name: "Default" });
-  const [inst] = await db().insert(schema.instances).values({ id: instanceId, accountId, name, allowedOrigins }).returning();
+  await db().insert(schema.applications).values({ id: applicationId, accountId, name });
+  const [inst] = await db().insert(schema.instances).values({ id: instanceId, accountId, name, allowedOrigins, applicationId }).returning();
   await createSigningKey(instanceId);
   const secret = `sk_test_${newToken(32)}`;
   await db().insert(schema.apiKeys).values({
@@ -22,7 +24,7 @@ export async function seedInstance(name = "My App", allowedOrigins: string[] = [
     keyHash: sha256(secret),
     keyPrefix: secret.slice(0, 12),
   });
-  return { instanceId, publishableKey: publishableKey(inst), secretKey: secret };
+  return { instanceId, accountId, applicationId, publishableKey: publishableKey(inst), secretKey: secret };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
