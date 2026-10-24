@@ -86,6 +86,7 @@ Returns the underlying [browser client](/docs/sdk/client), for example to build 
 | `<SignInButton mode? redirectUrl? className?>` | A button that opens the hosted sign-in (or `mode="sign-up"`) page and returns to `redirectUrl` (default: current page) |
 | `<SignUpButton redirectUrl? className?>` | Opens the hosted sign-up page and returns to `redirectUrl` |
 | `<AccountButton redirectUrl? className?>` | Opens the hosted account page, with a link back to your app |
+| `<HostedLink page redirectUrl? className?>` | A plain `<a>` link to a hosted page (`sign-in`, `sign-up`, `forgot-password` or `account`) that returns to `redirectUrl` |
 | `<RedirectToSignIn redirectUrl? mode?>` | Sends signed-out visitors to the hosted sign-in page, then back |
 | `<OAuthButton provider redirectUrl? className?>` | "Continue with Google" (or any [social provider](/docs/guides/social-sign-in)) |
 | `<SignOutButton afterSignOutUrl? className?>` | A button that signs out, then optionally navigates |
@@ -98,6 +99,68 @@ All buttons accept `children` to change their label:
 ```tsx
 <SignInButton className="btn">Log in to continue</SignInButton>
 ```
+
+## Embedded component or hosted page
+
+For each screen you can either embed the component in your app or link to the hosted page. Both have the same features.
+
+| Screen | Embedded component | Link to hosted page |
+|---|---|---|
+| Sign in | `<SignIn />` | `<HostedSignIn />` or `<SignInButton />` |
+| Sign up | `<SignUp />` | `<HostedSignUp />` or `<SignUpButton />` |
+| Forgot password | Built into `<SignIn />` | `<HostedForgotPassword />` |
+| Account / profile | `<UserProfile />` | `<HostedUserProfile />` or `<AccountButton />` |
+
+The `Hosted*` components render a plain `<a>` (same as `<HostedLink page="…" />`) and accept `redirectUrl`, `className` and `children`.
+
+```tsx
+<SignedOut>
+  <HostedSignIn className="btn">Log in</HostedSignIn>
+</SignedOut>
+```
+
+## Your own sign-in and sign-up pages
+
+This works like Clerk's custom sign-in/sign-up pages. Make a page for each, render the component, and tell `<AuthProvider>` where they are:
+
+```tsx
+// app/sign-in/[[...sign-in]]/page.tsx
+import { SignIn } from "@daywalker/auth/react";
+export default function Page() { return <SignIn />; }
+```
+
+```bash
+NEXT_PUBLIC_DAYWALKER_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_DAYWALKER_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_DAYWALKER_SIGN_IN_FALLBACK_REDIRECT_URL=/
+NEXT_PUBLIC_DAYWALKER_SIGN_UP_FALLBACK_REDIRECT_URL=/
+```
+
+You can pass the same values as `signInUrl`, `signUpUrl`, `signInFallbackRedirectUrl` and `signUpFallbackRedirectUrl` props on `<AuthProvider>` instead.
+
+- `<SignInButton>`, `<SignUpButton>`, `<RedirectToSignIn>`, `<HostedSignIn>` and `<HostedSignUp>` go to your pages instead of the hosted ones, with `?redirect_url=` set to the current page.
+- `<SignIn>` and `<SignUp>` send the user back to `redirect_url` after signing in, as long as it's on your own site. Otherwise they go to the fallback URL.
+- The "Sign up" / "Sign in" links between the two components point at your pages and keep the `redirect_url`.
+
+If you leave these unset, everything uses the hosted pages.
+
+## What the hosted pages look like
+
+Each instance's hosted pages live at `https://users.daywalker.dev/h/<publishable key>/<page>`, or on your custom domain. The logo and colors follow your **Hosted pages** settings.
+
+**Sign in** (`/sign-in`)
+
+![Hosted sign-in page](/docs/hosted/sign-in.png)
+
+**Sign up** (`/sign-up`)
+
+![Hosted sign-up page](/docs/hosted/sign-up.png)
+
+**Forgot password** (`/forgot-password`)
+
+![Hosted forgot-password page](/docs/hosted/forgot-password.png)
+
+**Account** (`/account`): only available when signed in, so there's no screenshot. It covers profile, password, passkeys, two-factor, connected accounts and signed-in devices. Signed-out visitors are sent to sign-in.
 
 ## Hosted pages on a custom domain
 

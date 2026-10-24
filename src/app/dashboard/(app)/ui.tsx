@@ -3,6 +3,7 @@
 import { createContext, useContext, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ActionState } from "./actions";
+import { HelpLink, PageHelp } from "./help";
 
 /** Shared look-and-feel primitives for the dashboard. */
 
@@ -12,16 +13,16 @@ export { btnCls, inputCls, type Tone };
 export function PageHeader({ title, description }: { title: string; description: React.ReactNode }) {
   return (
     <header className="mb-6">
-      <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+      <h1 className="text-xl font-semibold tracking-tight">{title} <PageHelp label={`Docs for ${title}`} /></h1>
       <p className="mt-1 max-w-2xl text-sm text-stone-600">{description}</p>
     </header>
   );
 }
 
-export function Card({ title, description, children, tone }: { title?: string; description?: React.ReactNode; children: React.ReactNode; tone?: "danger" }) {
+export function Card({ title, description, children, tone, help }: { title?: string; description?: React.ReactNode; children: React.ReactNode; tone?: "danger"; /** Doc slug for a "?" icon next to the title. */ help?: string }) {
   return (
     <section className={`rounded-xl border bg-white p-5 shadow-sm ${tone === "danger" ? "border-ember/40" : "border-stone-200"}`}>
-      {title && <h2 className={`text-base font-semibold ${tone === "danger" ? "text-ember" : ""}`}>{title}</h2>}
+      {title && <h2 className={`text-base font-semibold ${tone === "danger" ? "text-ember" : ""}`}>{title}{help && <HelpLink slug={help} label={`Help: ${title}`} />}</h2>}
       {description && <p className="mt-1 text-sm text-stone-600">{description}</p>}
       <div className={title || description ? "mt-4" : ""}>{children}</div>
     </section>

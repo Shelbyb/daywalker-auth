@@ -27,8 +27,8 @@ export async function saveBranding(userId: string, instanceId: string, input: un
 }
 
 const HOST = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-const appHostname = () => new URL(process.env.APP_URL ?? "http://localhost").hostname;
-/** The hostname customers point their CNAME at. */
+const appHostname = () => process.env.CUSTOM_DOMAIN_CNAME_TARGET || new URL(process.env.APP_URL ?? "http://localhost").hostname;
+/** The hostname customers point their CNAME at (CUSTOM_DOMAIN_CNAME_TARGET, e.g. the Cloudflare fallback origin, else the APP_URL host). */
 export const cnameTarget = () => appHostname();
 
 /** True when `hostname` has a CNAME pointing at this service. */
@@ -39,22 +39,23 @@ async function cnamePointsHere(hostname: string) {
   } catch { return false; }
 }
 
-/** Best-effort: attaches the hostname to the DigitalOcean App Platform app so it gets a TLS certificate. Needs DO_API_TOKEN and DO_APP_ID. */
+/**
+ * Best-effort: registers the hostname as a Cloudflare for SaaS custom hostname so Cloudflare issues and
+ * renews its TLS certificate. Needs CLOUDFLARE_API_TOKEN (Custom Hostnames edit) and CLOUDFLARE_ZONE_ID.
+ */
 async function attachToHost(hostname: string, remove = false) {
-  const token = process.env.DO_API_TOKEN, appId = process.env.DO_APP_ID;
-  if (!token || !appId) return;
+  const token = process.env.CLOUDFLARE_API_TOKEN, zone = process.env.CLOUDFLARE_ZONE_ID;
+  if (!token || !zone) return;
   try {
+    const base = `https://api.cloudflare.com/client/v4/zones/${zone}/custom_hostnames`;
     const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-    const res = await fetch(`https://api.digitalocean.com/v2/apps/${appId}`, { headers });
-    if (!res.ok) return;
-    const { app } = (await res.json()) as { app: { spec: { domains?: { domain: string; type?: string }[] } } };
-    const spec = app.spec;
-    const domains = spec.domains ?? [];
-    const has = domains.some((d) => d.domain === hostname);
-    if (remove ? !has : has) return;
-    spec.domains = remove ? domains.filter((d) => d.domain !== hostname) : [...domains, { domain: hostname, type: "ALIAS" }];
-    await fetch(`https://api.digitalocean.com/v2/apps/${appId}`, { method: "PUT", headers, body: JSON.stringify({ spec }) });
-  } catch { /* the dashboard still shows the manual steps */ }
+    if (!remove) {
+      await fetch(base, { method: "POST", headers, body: JSON.stringify({ hostname, ssl: { method: "http", type: "dv", settings: { min_tls_version: "1.2" } } }) });
+      return;
+    }
+    const list = (await (await fetch(`${base}?hostname=${encodeURIComponent(hostname)}`, { headers })).json()) as { result?: { id: string }[] };
+    for (const r of list.result ?? []) await fetch(`${base}/${r.id}`, { method: "DELETE", headers });
+  } catch { /* the domain still verifies by CNAME */ }
 }
 
 async function markVerified(d: typeof schema.customDomains.$inferSelect) {
@@ -132,6 +133,18 @@ export async function hostedInstance(pkParam: string | undefined) {
   const inst = id ? await getInstance(id) : (custom?.inst ?? null);
   if (!inst) return null;
   const onCustom = custom && custom.inst.id === inst.id;
+  if (!onCustom) {
+    // The default URL is an alias: once the instance has a verified custom domain, send visitors there.
+    const [d] = await db().select({ hostname: schema.customDomains.hostname, verifiedAt: schema.customDomains.verifiedAt })
+      .from(schema.customDomains).where(eq(schema.customDomains.instanceId, inst.id));
+    if (d?.verifiedAt) {
+      const { redirect } = await import("next/navigation");
+      const qs = new URLSearchParams(h.get("x-dw-search") ?? "");
+      qs.delete("pk");
+      const q = qs.toString();
+      redirect(`https://${d.hostname}${h.get("x-dw-path") ?? "/sign-in"}${q ? `?${q}` : ""}`);
+    }
+  }
   const origin = onCustom ? `https://${host!.split(":")[0]}` : env().APP_URL;
   return { inst, pk: publishableKey(inst), origin };
 }

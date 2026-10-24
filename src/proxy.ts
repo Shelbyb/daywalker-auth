@@ -29,8 +29,17 @@ function policy(nonce: string | null) {
   ].join("; ");
 }
 
+/** Default hosted-page URL: /h/<publishable key>/<page>, unique per instance and needing no subdomain. */
+const HOSTED = /^\/h\/(pk_(?:test|live)_[A-Za-z0-9_-]+)(\/(?:sign-in|sign-up|forgot-password|account)(?:\/.*)?)?$/;
+
 export function proxy(req: NextRequest) {
-  const strict = STRICT.test(req.nextUrl.pathname);
+  const hosted = HOSTED.exec(req.nextUrl.pathname);
+  const url = req.nextUrl.clone();
+  if (hosted) {
+    url.pathname = hosted[2] ?? "/sign-in";
+    url.searchParams.set("pk", hosted[1]);
+  }
+  const strict = STRICT.test(url.pathname);
   const nonce = strict ? btoa(crypto.randomUUID()) : null;
   const csp = policy(nonce);
 
@@ -39,9 +48,10 @@ export function proxy(req: NextRequest) {
   headers.set("content-security-policy", csp);
   if (nonce) headers.set("x-nonce", nonce);
   // Always overwritten here, so a client-supplied value is never seen. Lets layouts know where to return to after a session refresh.
-  headers.set("x-dw-path", req.nextUrl.pathname);
+  headers.set("x-dw-path", url.pathname);
+  headers.set("x-dw-search", url.search);
 
-  const res = NextResponse.next({ request: { headers } });
+  const res = hosted ? NextResponse.rewrite(url, { request: { headers } }) : NextResponse.next({ request: { headers } });
   res.headers.set("Content-Security-Policy", csp);
   return res;
 }

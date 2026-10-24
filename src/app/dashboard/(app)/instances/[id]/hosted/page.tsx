@@ -8,6 +8,7 @@ import { autoVerifyPending, listDomains } from "@/lib/hosted";
 import { publishableKey } from "@/lib/auth/instance";
 import { env } from "@/lib/env";
 import { ownedInstance } from "@/lib/dashboard";
+import { HelpLink } from "../../../help";
 
 export const metadata = { title: "Hosted pages" };
 
@@ -30,16 +31,16 @@ export default async function HostedPage({ params }: { params: Promise<{ id: str
         description="Skip the SDK components: send people to pages we host. They support everything the components do (sign-in, sign-up, email codes, social, passkeys, two-factor, password reset and the account page)."
       />
       <Card>
-        <h2 className="mb-3 font-semibold">Page links</h2>
+        <h2 className="mb-3 font-semibold">Page links <HelpLink slug="sdk/react" label="Hosted pages and SDK links" /></h2>
         <ul className="space-y-1 break-all font-mono text-xs text-stone-600">
           {["sign-in", "sign-up", "forgot-password", "account"].map((p) => (
-            <li key={p}>{base}/{p}?pk={pk}&amp;redirect_url=https://your-app.example/</li>
+            <li key={p}>{base}/h/{pk}/{p}?redirect_url=https://your-app.example/</li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-stone-500">The redirect URL must match one of your allowed origins. With a verified custom domain you can drop <code>pk</code> and use <code>https://your-domain/sign-in</code>.</p>
+        <p className="mt-3 text-xs text-stone-500">The redirect URL must match one of your allowed origins. With a verified custom domain these links redirect to <code>https://your-domain/sign-in</code> automatically.</p>
       </Card>
       <Card>
-        <h2 className="mb-3 font-semibold">Appearance</h2>
+        <h2 className="mb-3 font-semibold">Appearance <HelpLink slug="guides/dashboard" label="Hosted page appearance" /></h2>
         <ActionForm action={saveBrandingAction} submit="Save appearance" className="max-w-xl space-y-5">
           <input type="hidden" name="instanceId" value={inst.id} />
           <Field label="Logo URL" hint="https image shown above the form."><input name="logoUrl" type="url" defaultValue={b.logoUrl ?? ""} placeholder="https://example.com/logo.png" className={inputCls} /></Field>
@@ -49,7 +50,7 @@ export default async function HostedPage({ params }: { params: Promise<{ id: str
         </ActionForm>
       </Card>
       <Card>
-        <h2 className="mb-1 font-semibold">Custom domain</h2>
+        <h2 className="mb-1 font-semibold">Custom domain <HelpLink slug="sdk/react" label="Custom domains" /></h2>
         <p className="mb-4 text-sm text-stone-500">Serve the hosted pages from your own hostname, such as auth.example.com.</p>
         <ul className="mb-5 space-y-4">
           {domains.map((d) => (

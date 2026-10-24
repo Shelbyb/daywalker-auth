@@ -6,10 +6,33 @@ import { createAuthClient, type AuthClient, type AuthState, type OAuthProvider, 
 const Ctx = createContext<AuthClient | null>(null);
 
 /**
+ * Clerk-style routing. Set `signInUrl` / `signUpUrl` to your own pages (that render `<SignIn />` / `<SignUp />`)
+ * and every button, link and redirect goes there; leave them unset to use the hosted pages.
+ * Env: NEXT_PUBLIC_DAYWALKER_SIGN_IN_URL, _SIGN_UP_URL, _SIGN_IN_FALLBACK_REDIRECT_URL, _SIGN_UP_FALLBACK_REDIRECT_URL.
+ */
+export type AuthUrls = { signInUrl?: string; signUpUrl?: string; signInFallbackRedirectUrl?: string; signUpFallbackRedirectUrl?: string };
+const UrlsCtx = createContext<AuthUrls>({});
+export const useAuthUrls = () => useContext(UrlsCtx);
+
+/** Where a page lives: your own route when configured, else the hosted page. `redirect_url` is appended either way. */
+function usePageUrl() {
+  const c = useAuthClient();
+  const u = useAuthUrls();
+  return (page: "sign-in" | "sign-up" | "forgot-password" | "account", redirectUrl?: string) => {
+    const own = page === "sign-in" ? u.signInUrl : page === "sign-up" ? u.signUpUrl : undefined;
+    if (!own) return c.hostedUrl(page, redirectUrl);
+    if (!redirectUrl || typeof window === "undefined") return own;
+    const url = new URL(own, window.location.href);
+    url.searchParams.set("redirect_url", redirectUrl);
+    return url.origin === window.location.origin ? url.pathname + url.search : url.href;
+  };
+}
+
+/**
  * Wrap your app once (e.g. in app/layout.tsx). Reads config from props or from
  * NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY / NEXT_PUBLIC_DAYWALKER_AUTH_URL.
  */
-export function AuthProvider(props: { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Verified custom domain for hosted pages. */ hostedDomain?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean }) {
+export function AuthProvider(props: AuthUrls & { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Verified custom domain for hosted pages. */ hostedDomain?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean }) {
   const [client] = useState(() =>
     createAuthClient({
       publishableKey: props.publishableKey ?? process.env.NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY!,
@@ -21,7 +44,13 @@ export function AuthProvider(props: { children: ReactNode; publishableKey?: stri
   useEffect(() => {
     void client.load();
   }, [client]);
-  return <Ctx.Provider value={client}>{props.children}</Ctx.Provider>;
+  const [urls] = useState<AuthUrls>(() => ({
+    signInUrl: props.signInUrl ?? process.env.NEXT_PUBLIC_DAYWALKER_SIGN_IN_URL,
+    signUpUrl: props.signUpUrl ?? process.env.NEXT_PUBLIC_DAYWALKER_SIGN_UP_URL,
+    signInFallbackRedirectUrl: props.signInFallbackRedirectUrl ?? process.env.NEXT_PUBLIC_DAYWALKER_SIGN_IN_FALLBACK_REDIRECT_URL,
+    signUpFallbackRedirectUrl: props.signUpFallbackRedirectUrl ?? process.env.NEXT_PUBLIC_DAYWALKER_SIGN_UP_FALLBACK_REDIRECT_URL,
+  }));
+  return <Ctx.Provider value={client}><UrlsCtx.Provider value={urls}>{props.children}</UrlsCtx.Provider></Ctx.Provider>;
 }
 
 export function useAuthClient() {
@@ -117,9 +146,9 @@ type ButtonProps = { children?: ReactNode; className?: string };
 
 /** Sends the user to the hosted page and back to the current URL (or `redirectUrl`). */
 export function SignInButton({ children = "Sign in", className, mode = "sign-in", redirectUrl }: ButtonProps & { mode?: "sign-in" | "sign-up"; redirectUrl?: string }) {
-  const c = useAuthClient();
+  const pageUrl = usePageUrl();
   return (
-    <button type="button" className={className} onClick={() => window.location.assign(c.hostedUrl(mode, redirectUrl ?? window.location.href))}>
+    <button type="button" className={className} onClick={() => window.location.assign(pageUrl(mode, redirectUrl ?? window.location.href))}>
       {children}
     </button>
   );
@@ -142,13 +171,36 @@ export function AccountButton({ children = "Manage account", className, redirect
 
 /** Immediately sends signed-out visitors to the hosted sign-in page; they return to `redirectUrl` (default: this page). */
 export function RedirectToSignIn({ redirectUrl, mode = "sign-in" }: { redirectUrl?: string; mode?: "sign-in" | "sign-up" }) {
-  const c = useAuthClient();
+  const pageUrl = usePageUrl();
   const s = useAuthState();
   useEffect(() => {
-    if (s.isLoaded && !s.sessionId) window.location.replace(c.hostedUrl(mode, redirectUrl ?? window.location.href));
-  }, [c, s.isLoaded, s.sessionId, mode, redirectUrl]);
+    if (s.isLoaded && !s.sessionId) window.location.replace(pageUrl(mode, redirectUrl ?? window.location.href));
+  }, [s.isLoaded, s.sessionId, mode, redirectUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
+
+/**
+ * A plain `<a>` link to a hosted page, for when you'd rather not embed the SDK component.
+ * The user comes back to the current URL (or `redirectUrl`) when done.
+ */
+export function HostedLink({ page, children, className, redirectUrl }: ButtonProps & { page: "sign-in" | "sign-up" | "forgot-password" | "account"; redirectUrl?: string }) {
+  const c = useAuthClient();
+  const pageUrl = usePageUrl();
+  const [href, setHref] = useState(() => c.hostedUrl(page, redirectUrl));
+  useEffect(() => setHref(pageUrl(page, redirectUrl ?? window.location.href)), [page, redirectUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  const label = { "sign-in": "Sign in", "sign-up": "Sign up", "forgot-password": "Forgot password?", account: "Manage account" }[page];
+  return <a href={href} className={className}>{children ?? label}</a>;
+}
+
+type HostedProps = ButtonProps & { redirectUrl?: string };
+/** Link to the hosted sign-in page (hosted counterpart of `<SignIn />`). */
+export const HostedSignIn = (p: HostedProps) => <HostedLink {...p} page="sign-in" />;
+/** Link to the hosted sign-up page (hosted counterpart of `<SignUp />`). */
+export const HostedSignUp = (p: HostedProps) => <HostedLink {...p} page="sign-up" />;
+/** Link to the hosted forgot-password page. */
+export const HostedForgotPassword = (p: HostedProps) => <HostedLink {...p} page="forgot-password" />;
+/** Link to the hosted account page (hosted counterpart of `<UserProfile />`). */
+export const HostedUserProfile = (p: HostedProps) => <HostedLink {...p} page="account" />;
 
 const PROVIDER_LABEL: Record<OAuthProvider, string> = {
   google: "Google", github: "GitHub", microsoft: "Microsoft", apple: "Apple", discord: "Discord", gitlab: "GitLab", oidc: "single sign-on",

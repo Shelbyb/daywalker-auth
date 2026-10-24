@@ -4,6 +4,7 @@ import { dashboardProfile, requireDashboardUser } from "@/lib/dashboard";
 import { env } from "@/lib/env";
 import { platformRole } from "@/lib/platform-staff";
 import { SignOutButton } from "./sign-out";
+import { HelpProvider } from "./help";
 
 async function Email() {
   const { userId } = await requireDashboardUser();
@@ -48,7 +49,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+      <HelpProvider><main className="mx-auto max-w-5xl px-4 py-8">{children}</main></HelpProvider>
     </div>
   );
 }

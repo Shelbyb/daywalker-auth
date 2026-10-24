@@ -20,7 +20,7 @@ export default async function Overview({ params }: { params: Promise<{ id: strin
   return (
     <div className="space-y-6">
       <PageHeader title="Overview" description="Everything you need to connect your app to this instance." />
-      <Card title="Connection details" description="The publishable key and URL are safe to use in your frontend code.">
+      <Card title="Connection details" help="quickstart" description="The publishable key and URL are safe to use in your frontend code.">
         <div className="space-y-4">
           <CodeBlock label="Publishable key" value={inst.publishableKey} />
           <CodeBlock label="Frontend API URL" value={inst.frontendApi} />

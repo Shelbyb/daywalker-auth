@@ -1,4 +1,5 @@
 import { requireUser } from "../../../guard";
+import { HelpLink } from "../../../help";
 import { protectionFor, signingKeysFor } from "@/lib/dashboard";
 import { rotateSigningKeyAction, updateProtectionAction, updateSettingsAction } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
@@ -65,7 +66,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
         </ActionForm>
       </Card>
       <Card>
-        <h2 className="text-lg font-semibold">Sign-up protection and two-factor</h2>
+        <h2 className="text-lg font-semibold">Sign-up protection and two-factor <HelpLink slug="guides/sign-up-protection" label="Sign-up protection" /><HelpLink slug="guides/two-factor" label="Two-factor" /></h2>
         <p className="mt-1 max-w-xl text-sm text-stone-600">Keep bots and throwaway accounts out, and decide whether everyone must use two-step verification.</p>
         <ActionForm action={updateProtectionAction} submit="Save protection" className="mt-4 max-w-xl space-y-5">
           <input type="hidden" name="instanceId" value={inst.id} />
@@ -106,7 +107,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
         </ActionForm>
       </Card>
       <Card>
-        <h2 className="text-lg font-semibold">Signing keys</h2>
+        <h2 className="text-lg font-semibold">Signing keys <HelpLink slug="guides/rotating-keys" label="Rotating keys" /></h2>
         <p className="mt-1 max-w-xl text-sm text-stone-600">
           These keys sign your users&apos; session tokens. Rotating switches to a new key without signing anyone out: the old key stays published for a day so tokens already issued keep working.
           Rotate on a schedule, or right away if you think a key was exposed.

@@ -10,7 +10,29 @@
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AuthError, type OAuthProvider, type OrgInfo, type SessionInfo, type User } from "../core/client";
-import { useAuthClient, useUser } from "./index";
+import { useAuthClient, useAuthUrls, useUser } from "./index";
+
+/** `?redirect_url=` from the current page if it is same-origin, else the configured fallback (Clerk-style). */
+function useAfterAuthUrl(explicit: string | undefined, fallback: string | undefined) {
+  const [url, setUrl] = useState(explicit ?? fallback);
+  useEffect(() => {
+    if (explicit) return setUrl(explicit);
+    const q = new URLSearchParams(window.location.search).get("redirect_url");
+    try { if (q && new URL(q, window.location.href).origin === window.location.origin) return setUrl(q); } catch { /* ignore */ }
+    setUrl(fallback);
+  }, [explicit, fallback]);
+  return url;
+}
+
+/** Carries the current `redirect_url` over to the other page (sign-in ↔ sign-up). */
+function withRedirect(href: string | undefined) {
+  if (!href || typeof window === "undefined") return href;
+  const q = new URLSearchParams(window.location.search).get("redirect_url");
+  if (!q) return href;
+  const u = new URL(href, window.location.href);
+  u.searchParams.set("redirect_url", q);
+  return u.origin === window.location.origin ? u.pathname + u.search : u.href;
+}
 
 export type Appearance = {
   /** Extra classes per part, e.g. { button: "btn btn-primary", input: "form-control" }. */
@@ -267,7 +289,10 @@ function SetupTwoFactor({ a, redirectUrl }: { a?: Appearance; redirectUrl?: stri
 
 // ---------- <SignIn /> ----------
 
-export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "No account yet?". */ signUpUrl?: string }) {
+export function SignIn({ redirectUrl: explicitRedirect, onSignedIn, appearance: a, signUpUrl: explicitSignUp, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "No account yet?". Defaults to `signUpUrl` on `<AuthProvider>`. */ signUpUrl?: string }) {
+  const urls = useAuthUrls();
+  const redirectUrl = useAfterAuthUrl(explicitRedirect, urls.signInFallbackRedirectUrl);
+  const signUpUrl = withRedirect(explicitSignUp ?? urls.signUpUrl);
   const c = useAuthClient();
   const { env, failed } = useEnvironment(initialEnvironment);
   const [step, setStep] = useState<"password" | "email-code" | "code-sent" | "second-factor" | "setup" | "done">(signedIn ? "done" : "password");
@@ -388,7 +413,10 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
 
 // ---------- <SignUp /> ----------
 
-export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "Already have an account?". */ signInUrl?: string }) {
+export function SignUp({ redirectUrl: explicitRedirect, onSignedIn, appearance: a, signInUrl: explicitSignIn, initialEnvironment, initialError, signedIn }: CommonProps & { /** Link for "Already have an account?". Defaults to `signInUrl` on `<AuthProvider>`. */ signInUrl?: string }) {
+  const urls = useAuthUrls();
+  const redirectUrl = useAfterAuthUrl(explicitRedirect, urls.signUpFallbackRedirectUrl);
+  const signInUrl = withRedirect(explicitSignIn ?? urls.signInUrl);
   const c = useAuthClient();
   const { env, failed } = useEnvironment(initialEnvironment);
   const [step, setStep] = useState<"form" | "verify" | "setup" | "done">(signedIn ? "done" : "form");
