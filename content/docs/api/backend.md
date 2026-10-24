@@ -77,6 +77,14 @@ Stops a [self-service deletion](/docs/guides/account-deletion). `200` → `{ id,
 
 See [Roles, permissions and domains](/docs/guides/organization-roles).
 
+## Audit log integrity and export
+
+- `GET /v1/audit_events/verify` checks the hash chain and returns `{ ok, checked, head, problem? }`.
+- `GET /v1/audit_events/export?from=&to=` streams the log as NDJSON.
+- `GET|PUT|DELETE /v1/instance/audit_export` reads, sets or removes the bucket export; `POST /v1/instance/audit_export/push` uploads now and `POST /v1/instance/audit_export/test` writes a test object. Credentials are write-only.
+
+See [Tamper-evident audit log](/docs/guides/audit-integrity).
+
 ## Revoke a session
 
 ```http

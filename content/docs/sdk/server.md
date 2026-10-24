@@ -52,6 +52,10 @@ Failed calls throw `BackendError` with `status`, `code` and `message`. Passing a
 
 `verifyToken()` returns `deviceKey` (the key thumbprint, from the `cnf.jkt` claim) for sessions bound to a browser key. See [Device-bound sessions](/docs/guides/device-binding).
 
+## Audit log integrity
+
+`createBackendClient` exposes `auditEvents.verify()`, `auditEvents.exportText({ from, to })` and the `auditExport` client (`get`, `set`, `remove`, `test`, `push`). `verifyAuditExport(ndjson, { after, expectedHead })` checks an exported file offline with no key. See [Tamper-evident audit log](/docs/guides/audit-integrity).
+
 ## Webhooks
 
 `verifyWebhook(rawBody, headers, secret, { toleranceSeconds? })` verifies a webhook request and returns the parsed event, or throws `WebhookVerificationError`. The backend client adds `webhooks.list`, `get`, `create`, `update`, `delete`, `rotateSecret`, `deliveries`, `sendTest` and `retry`. See the [Webhooks guide](/docs/guides/webhooks).

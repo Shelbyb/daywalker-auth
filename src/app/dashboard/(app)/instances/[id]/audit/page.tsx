@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { auditFor } from "@/lib/dashboard";
+import { auditFor, auditExportFor } from "@/lib/dashboard";
 import { AUDIT_TYPES, RETENTION_DAYS } from "@/lib/audit";
 import { requireUser } from "../../../guard";
-import { Badge, EmptyState, PageHeader, Skeleton } from "../../../ui";
+import { Badge, Card, EmptyState, Field, PageHeader, Skeleton, Toggle } from "../../../ui";
+import { ActionForm } from "../../../forms";
+import { verifyAuditAction, saveAuditExportAction, removeAuditExportAction, pushAuditExportAction, testAuditExportAction } from "../../../actions";
 import { inputCls, btnCls } from "../../../styles";
 import { fmtDateTime, guarded } from "../../../server";
 import { Pager, pageSize } from "../../../pager";
@@ -65,6 +67,45 @@ async function Events({ userId, id, q, size }: { userId: string; id: string; q: 
   );
 }
 
+async function BucketExport({ userId, id }: { userId: string; id: string }) {
+  const c = await guarded(() => auditExportFor(userId, id));
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold">Copy to your own bucket</h2>
+      <p className="mt-1 max-w-2xl text-sm text-stone-600">
+        Pushes new entries every 15 minutes to an S3-compatible bucket (AWS S3, Cloudflare R2, MinIO, Backblaze B2) as signed-in-order NDJSON files. A copy outside our database is what lets you prove later that nothing was rewritten.
+        The keys are stored encrypted and are never shown again; give them write-only access to this bucket.
+      </p>
+      {c.configured && (
+        <p className="mt-3 text-sm text-stone-600">
+          {c.enabled ? "Active" : "Paused"} · key {c.accessKeyId} · pushed through entry {c.lastPushedSeq}
+          {c.lastPushedAt ? ` (${fmtDateTime(c.lastPushedAt)})` : ""}
+          {c.lastError && <span className="text-ember"> · last error: {c.lastError}</span>}
+        </p>
+      )}
+      <ActionForm action={saveAuditExportAction} submit={c.configured ? "Save changes" : "Save bucket"} className="mt-4 grid max-w-2xl gap-4 sm:grid-cols-2">
+        <input type="hidden" name="instanceId" value={id} />
+        <Field label="Endpoint" hint="Blank for AWS S3. Otherwise your service's https origin."><input name="endpoint" defaultValue={c.configured ? (c.endpoint ?? "") : ""} placeholder="https://<account>.r2.cloudflarestorage.com" className={inputCls} /></Field>
+        <Field label="Region" hint="us-east-1, or auto for R2."><input name="region" required defaultValue={c.configured ? c.region : ""} className={inputCls} /></Field>
+        <Field label="Bucket"><input name="bucket" required defaultValue={c.configured ? c.bucket : ""} className={inputCls} /></Field>
+        <Field label="Folder prefix" hint="Optional, e.g. daywalker/audit"><input name="prefix" defaultValue={c.configured ? c.prefix : ""} className={inputCls} /></Field>
+        <Field label="Access key ID" hint={c.configured ? "Leave both key fields blank to keep the current keys." : undefined}><input name="accessKeyId" autoComplete="off" required={!c.configured} className={inputCls} /></Field>
+        <Field label="Secret access key"><input name="secretAccessKey" type="password" autoComplete="new-password" required={!c.configured} className={inputCls} /></Field>
+        <Toggle name="enabled" defaultChecked={c.configured ? c.enabled : true} label="Push automatically" />
+        <Toggle name="pathStyle" defaultChecked={c.configured ? c.pathStyle : false} label="Path-style URLs" description="Needed by MinIO and some others." />
+        <Toggle name="serverSideEncryption" defaultChecked={c.configured ? c.serverSideEncryption : false} label="Ask for server-side encryption (AES256)" />
+      </ActionForm>
+      {c.configured && (
+        <div className="mt-4 flex flex-wrap gap-3">
+          <ActionForm action={testAuditExportAction} submit="Test connection" tone="ghost" className="flex"><input type="hidden" name="instanceId" value={id} /></ActionForm>
+          <ActionForm action={pushAuditExportAction} submit="Push now" tone="ghost" className="flex"><input type="hidden" name="instanceId" value={id} /></ActionForm>
+          <ActionForm action={removeAuditExportAction} submit="Remove" tone="ghost" className="flex"><input type="hidden" name="instanceId" value={id} /></ActionForm>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default async function AuditPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -76,7 +117,13 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/audit${p.size ? `?${p}` : ""}`);
   return (
     <div className="space-y-6">
-      <PageHeader title="Audit log" description={`Sign-ins, failed attempts, security changes and settings changes, newest first. Kept for ${RETENTION_DAYS} days. Details are stored encrypted.`} />
+      <PageHeader title="Audit log" description={`Sign-ins, failed attempts, security changes and settings changes, newest first. Kept for ${RETENTION_DAYS} days. Details are stored encrypted. Every entry is hash-chained to the one before it, so edits, deletions and truncation are detectable.`} />
+      <div className="flex flex-wrap items-start gap-3">
+        <ActionForm action={verifyAuditAction} submit="Verify integrity" tone="ghost" className="flex flex-wrap items-start gap-3">
+          <input type="hidden" name="instanceId" value={id} />
+        </ActionForm>
+        <a href={`/dashboard/instances/${encodeURIComponent(id)}/audit/export`} className={btnCls.ghost}>Download NDJSON</a>
+      </div>
       <form method="get" className="flex flex-wrap items-end gap-3">
         <label className="text-sm">
           <span className="mb-1 block font-medium">Event</span>
@@ -95,6 +142,9 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
       </form>
       <Suspense key={JSON.stringify({ q, size })} fallback={<Skeleton lines={8} />}>
         <Events userId={userId} id={id} q={q} size={size} />
+      </Suspense>
+      <Suspense fallback={<Skeleton lines={4} />}>
+        <BucketExport userId={userId} id={id} />
       </Suspense>
     </div>
   );

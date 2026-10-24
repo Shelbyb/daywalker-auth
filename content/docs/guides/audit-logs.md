@@ -9,6 +9,8 @@ Every instance keeps an audit log: a record of sign-ins, failed attempts, securi
 
 Events are kept for **90 days**. Details that could identify a person (IP addresses, browsers, key names) are stored encrypted.
 
+To prove the log has not been edited, export it, or copy it to your own bucket, see [Tamper-evident audit log](/docs/guides/audit-integrity).
+
 ## In the dashboard
 
 Open your instance and choose **Audit log**. Filter by event type, or click any target ID to see everything that happened to that user, key or webhook.

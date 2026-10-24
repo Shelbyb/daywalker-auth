@@ -31,6 +31,7 @@ description: What's protected, how, and what's still your responsibility.
 ## Sessions
 
 - **Refresh token:** `HttpOnly`, `Secure`, scoped to `/v1/client`. Page scripts can never read it.
+- **Tamper-evident audit log:** audit entries form a SHA-256 hash chain per instance, verifiable from the dashboard, the API or offline from an NDJSON export, with optional push to your own S3-compatible bucket (credentials encrypted).
 - **Device binding (optional):** sessions can be tied to a non-extractable browser key with DPoP (RFC 9449), so a stolen refresh cookie is rejected without a fresh proof from that key. See [Device-bound sessions](/docs/guides/device-binding).
 - **Session token:** lives 60 seconds, so sign-out, revocation, bans, deletions and password resets take effect everywhere within a minute.
 - **Password reset** revokes every session.

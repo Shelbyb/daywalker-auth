@@ -64,6 +64,7 @@ check("export ok, no-store, attachment", ex.status === 200 && ex.headers.get("ca
 check("export has decrypted email and name", ex.body.emailAddresses?.[0]?.email === u.email && ex.body.profile?.firstName === "Ada" && ex.body.profile?.lastName === "Lovelace", ex.body?.profile);
 check("export lists sessions with device info", Array.isArray(ex.body.sessions) && ex.body.sessions.length >= 1);
 check("export has no secrets or hashes", !/argon2|\$2[aby]\$|refreshTokenHash|passwordHash|"secret"|totpSecret/i.test(text) && ex.body.password?.set === true && !("hash" in (ex.body.password ?? {})), Object.keys(ex.body));
+await new Promise((r) => setTimeout(r, 500));
 const auditEx = await rows(sql`select count(*)::int c from audit_events where instance_id = ${instanceId} and type = 'user.data_exported' and target_id = ${u.id}`);
 check("export audited", auditEx[0].c === 1, auditEx);
 await resetLimit();

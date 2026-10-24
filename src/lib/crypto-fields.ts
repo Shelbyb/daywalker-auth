@@ -40,6 +40,8 @@ export const ENCRYPTED_FIELDS: EncryptedField[] = [
   byId("webhook_endpoints", "secret_enc", "secret"),
   byId("webhook_deliveries", "payload_enc", "payload"),
   byId("audit_events", "data_enc", "data"),
+  { table: "audit_export_configs", column: "access_key_id_enc", key: ["instance_id"], context: (r) => `audit_export_configs.access_key_id:${r.instance_id}` },
+  { table: "audit_export_configs", column: "secret_access_key_enc", key: ["instance_id"], context: (r) => `audit_export_configs.secret_access_key:${r.instance_id}` },
   byId("platform_audit_events", "data_enc", "data"),
   byId("platform_settings", "resend_api_key_enc", "resend_api_key"),
   byId("platform_settings", "twilio_auth_token_enc", "twilio_auth_token"),

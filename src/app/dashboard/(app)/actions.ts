@@ -10,6 +10,7 @@ import {
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
+  verifyAuditFor, saveAuditExportFor, removeAuditExportFor, pushAuditExportFor, testAuditExportFor,
 } from "@/lib/dashboard";
 import { addDomain, removeDomain, saveBranding, saveRedirects, verifyDomain } from "@/lib/hosted";
 import {
@@ -566,5 +567,67 @@ export async function billingPortalAction(_prev: ActionState, _fd: FormData): Pr
     const { userId } = await requireDashboardUser();
     const url = await billingPortalUrl(await ensureAccount(userId));
     return { message: "Redirecting…", redirectTo: url };
+  });
+}
+
+
+// ---------- Audit log integrity and export ----------
+
+export async function verifyAuditAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const r = await verifyAuditFor(userId, str(fd, "instanceId", 200));
+    if (!r.chained) return { message: "No entries have been added to the integrity chain yet." };
+    if (!r.ok)
+      throw new ApiError(409, "audit_integrity_failed", `Integrity check FAILED at entry ${r.problem?.seq}: ${r.problem?.message}${r.problem?.id ? ` (${r.problem.id})` : ""}. ${r.checked} entries verified before it.`);
+    return { message: `Verified ${r.checked.toLocaleString("en-US")} entries (${r.firstSeq}-${r.lastSeq}); every link and hash checks out. Chain head: ${r.head!.hash.slice(0, 16)}… at entry ${r.head!.seq}.` };
+  });
+}
+
+export async function saveAuditExportAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await saveAuditExportFor(userId, id, {
+      endpoint: str(fd, "endpoint", 500),
+      region: str(fd, "region", 64),
+      bucket: str(fd, "bucket", 100),
+      prefix: str(fd, "prefix", 200),
+      pathStyle: flag(fd, "pathStyle"),
+      serverSideEncryption: flag(fd, "serverSideEncryption"),
+      enabled: flag(fd, "enabled"),
+      accessKeyId: str(fd, "accessKeyId", 128),
+      secretAccessKey: str(fd, "secretAccessKey", 256),
+    });
+    refresh(id);
+    return { message: "Bucket export saved." };
+  });
+}
+
+export async function removeAuditExportAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await removeAuditExportFor(userId, id);
+    refresh(id);
+    return { message: "Bucket export removed." };
+  });
+}
+
+export async function pushAuditExportAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const r = await pushAuditExportFor(userId, id);
+    refresh(id);
+    return { message: r.pushed ? `Pushed ${r.pushed} entries in ${r.objects} file${r.objects === 1 ? "" : "s"}.` : "Nothing new to push." };
+  });
+}
+
+export async function testAuditExportAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const r = await testAuditExportFor(userId, str(fd, "instanceId", 200));
+    return { message: `Test file written: ${r.key}` };
   });
 }

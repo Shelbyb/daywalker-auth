@@ -198,6 +198,7 @@ export const sessions = pgTable(
 );
 
 export type Instance = typeof instances.$inferSelect;
+export type AuditExportConfig = typeof auditExportConfigs.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 
@@ -439,14 +440,54 @@ export const auditEvents = pgTable(
     actorId: text("actor_id"),
     targetId: text("target_id"),
     dataEnc: text("data_enc"),
+    /** Hash chain (see lib/audit.ts): per-instance sequence, hash of the previous entry, hash of this one, keyed digest of the plaintext details. Null on entries from before chaining. */
+    seq: bigint("seq", { mode: "number" }),
+    prevHash: text("prev_hash"),
+    hash: text("hash"),
+    dataDigest: text("data_digest"),
+    /** The details were erased (account deletion). The digest stays so the chain still verifies. */
+    dataErased: boolean("data_erased").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [
+    uniqueIndex("audit_events_seq_idx").on(t.instanceId, t.seq),
     index("audit_events_instance_idx").on(t.instanceId, t.createdAt),
     index("audit_events_type_idx").on(t.instanceId, t.type, t.createdAt),
     index("audit_events_target_idx").on(t.instanceId, t.targetId, t.createdAt),
   ],
 );
+
+/** Head of an instance's audit hash chain, locked while an entry is appended. `purged_*` anchor the entries retention has removed. */
+export const auditChains = pgTable("audit_chains", {
+  instanceId: text("instance_id").primaryKey().references(() => instances.id, { onDelete: "cascade" }),
+  seq: bigint("seq", { mode: "number" }).notNull().default(0),
+  hash: text("hash").notNull().default("0000000000000000000000000000000000000000000000000000000000000000"),
+  purgedSeq: bigint("purged_seq", { mode: "number" }).notNull().default(0),
+  purgedHash: text("purged_hash").notNull().default("0000000000000000000000000000000000000000000000000000000000000000"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: updatedAt(),
+});
+
+/** Optional push of the audit log to an S3-compatible bucket. Credentials are encrypted and never returned. */
+export const auditExportConfigs = pgTable("audit_export_configs", {
+  instanceId: text("instance_id").primaryKey().references(() => instances.id, { onDelete: "cascade" }),
+  /** Blank = AWS (https://s3.<region>.amazonaws.com). */
+  endpoint: text("endpoint"),
+  region: text("region").notNull(),
+  bucket: text("bucket").notNull(),
+  prefix: text("prefix").notNull().default(""),
+  pathStyle: boolean("path_style").notNull().default(false),
+  serverSideEncryption: boolean("server_side_encryption").notNull().default(false),
+  accessKeyIdEnc: text("access_key_id_enc").notNull(),
+  secretAccessKeyEnc: text("secret_access_key_enc").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  lastPushedSeq: bigint("last_pushed_seq", { mode: "number" }).notNull().default(0),
+  lastPushedAt: timestamp("last_pushed_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 /** A developer's wording for one kind of email. Missing row = the built-in default. */
 export const emailTemplates = pgTable(

@@ -71,7 +71,7 @@ export async function checkPublicUrl(raw: string): Promise<{ ok: true; url: URL 
  */
 export async function guardedFetch(
   raw: string,
-  init: { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string; timeoutMs?: number; maxBytes?: number } = {},
+  init: { method?: "GET" | "POST" | "PUT"; headers?: Record<string, string>; body?: string; timeoutMs?: number; maxBytes?: number } = {},
 ): Promise<{ status: number; text: string }> {
   const c = await checkPublicUrl(raw);
   if (!c.ok) throw new Error(`blocked_url:${c.problem}`);

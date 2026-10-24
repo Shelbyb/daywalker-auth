@@ -22,6 +22,7 @@ import { env } from "../env";
 import { errors } from "../http";
 import { newToken, sha256 } from "../ids";
 import { listAudit, record } from "../audit";
+import { eraseDetailsFor } from "../audit-chain";
 import { sendMail } from "../mail";
 import { composeEmail } from "../email-templates";
 import { emit } from "../webhooks";
@@ -204,7 +205,8 @@ async function purgeUser(inst: Instance, userId: string, reason: string) {
     where m.user_id = ${userId} and not exists (select 1 from memberships x where x.org_id = m.org_id and x.user_id <> ${userId})`)) as unknown as { id: string }[];
   if (alone.length) await db().delete(schema.organizations).where(and(inArray(schema.organizations.id, alone.map((a) => a.id)), eq(schema.organizations.instanceId, inst.id)));
   // Keep the fact that things happened; drop the IP addresses, browsers and other detail.
-  await db().update(schema.auditEvents).set({ dataEnc: null }).where(and(eq(schema.auditEvents.instanceId, inst.id), or(eq(schema.auditEvents.targetId, userId), eq(schema.auditEvents.actorId, userId))));
+  // (Marked as erased, not just emptied, so the audit hash chain still verifies.)
+  await eraseDetailsFor(inst.id, userId);
   const { deleteUser } = await import("./users");
   await deleteUser(inst.id, userId);
   void record(inst.id, "user.deleted", { actor: { type: "system" }, target: userId, data: { reason } });

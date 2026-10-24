@@ -94,5 +94,6 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `invalid_cancel_link` | 400 | Cancel link used or expired | Ask support, or sign in if already canceled |
 | `credentials_required` | 400 | Re-authentication missing (password, code or emailed code) | Ask for what `me/reauth_code` lists |
 | `invalid_unlock_link` | 400 | Unlock link used or expired | Sign in again to get a new link |
+| `export_failed` | 400 | The audit log bucket rejected or could not be reached | Check the bucket settings and credentials; the message has the bucket's reason |
 | `rate_limited` | 429 | Too many attempts | Wait and retry |
 | `internal_error` | 500 | Unexpected failure (details only in server logs) | Retry; report if it persists |

@@ -4,6 +4,8 @@
  * instance ID from the URL or a form.
  */
 import { DEVICE_BINDING_MODES, type DeviceBindingMode } from "./auth/dpop";
+import { verifyChain } from "./audit-chain";
+import { configInput as auditExportInput, configView, getConfig as getAuditExportConfig, saveConfig as saveAuditExportConfig, removeConfig as removeAuditExportConfig, pushAuditLog, testConfig as testAuditExport } from "./audit-export";
 import { cancelDeletion } from "./auth/account-deletion";
 import { requireFeature } from "./plans";
 import { protectionView, updateProtection } from "./auth/instance-policy";
@@ -487,6 +489,50 @@ export async function removeUser(userId: string, instanceId: string, targetId: s
 export async function auditFor(userId: string, instanceId: string, q: AuditQuery) {
   await ownedInstance(userId, instanceId);
   return listAudit(instanceId, q);
+}
+
+/** Recomputes the audit hash chain for the "Verify integrity" button. */
+export async function verifyAuditFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  if ((await rateLimit(`audit-verify:${instanceId}`, 10, 60)) < 0) throw errors.tooMany();
+  return verifyChain(instanceId);
+}
+
+export async function auditExportFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  return configView(await getAuditExportConfig(instanceId), instanceId);
+}
+
+const bucketKeys = (fd: { accessKeyId: string; secretAccessKey: string }) => (fd.accessKeyId || fd.secretAccessKey ? { accessKeyId: fd.accessKeyId, secretAccessKey: fd.secretAccessKey } : {});
+
+export async function saveAuditExportFor(
+  userId: string,
+  instanceId: string,
+  input: { endpoint: string; region: string; bucket: string; prefix: string; pathStyle: boolean; serverSideEncryption: boolean; enabled: boolean; accessKeyId: string; secretAccessKey: string },
+) {
+  await ownedInstance(userId, instanceId);
+  const parsed = auditExportInput.parse({
+    endpoint: input.endpoint || null, region: input.region, bucket: input.bucket, prefix: input.prefix,
+    pathStyle: input.pathStyle, serverSideEncryption: input.serverSideEncryption, enabled: input.enabled, ...bucketKeys(input),
+  });
+  await saveAuditExportConfig(instanceId, parsed, { type: "developer", id: userId });
+}
+
+export async function removeAuditExportFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  await removeAuditExportConfig(instanceId, { type: "developer", id: userId });
+}
+
+export async function pushAuditExportFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  if ((await rateLimit(`audit-push-now:${instanceId}`, 12, 3600)) < 0) throw errors.tooMany();
+  return pushAuditLog(instanceId, { force: true });
+}
+
+export async function testAuditExportFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  if ((await rateLimit(`audit-export-test:${instanceId}`, 20, 3600)) < 0) throw errors.tooMany();
+  return testAuditExport(instanceId);
 }
 
 // ---------- Email templates ----------

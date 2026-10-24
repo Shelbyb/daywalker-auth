@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, errors as joseErrors } from "jose";
 import { instanceIdFromKey, issuerFor, type Config } from "../core/keys";
 import { isRecentlyVerified, type RecentAuthCheck, type ReverificationLevel } from "../core/fresh";
@@ -196,6 +196,96 @@ export type BackendUser = {
   createdAt: string;
 };
 
+export type AuditChainStatus = {
+  /** Every chained entry checks out. */
+  ok: boolean;
+  /** False until the instance has recorded its first chained entry. */
+  chained: boolean;
+  checked: number;
+  firstSeq: number | null;
+  lastSeq: number | null;
+  /** Where the chain ends now. Keep `hash` somewhere safe (a secret manager, a ticket): it detects a later rewrite or truncation. */
+  head: { seq: number; hash: string } | null;
+  startedAt: string | null;
+  purged: { seq: number; hash: string } | null;
+  problem?: { seq: number; id: string | null; reason: string; message: string };
+};
+export type AuditExportConfigStatus =
+  | { configured: false }
+  | { configured: true; endpoint: string | null; region: string; bucket: string; prefix: string; pathStyle: boolean; serverSideEncryption: boolean; enabled: boolean; accessKeyId: string; lastPushedSeq: number; lastPushedAt: string | null; lastError: string | null; lastErrorAt: string | null };
+export type AuditExportConfigInput = { endpoint?: string | null; region: string; bucket: string; prefix?: string; pathStyle?: boolean; serverSideEncryption?: boolean; enabled?: boolean; accessKeyId?: string; secretAccessKey?: string };
+
+export type AuditExportCheck = {
+  ok: boolean;
+  /** Chained entries in the file. */
+  entries: number;
+  /** Entries from before the hash chain existed (not covered). */
+  unchained: number;
+  firstSeq: number | null;
+  lastSeq: number | null;
+  /** The `prevHash` of the first chained entry: for a file that starts mid-chain, this is the previous file's `headHash`. */
+  firstPrevHash: string | null;
+  /** The hash of the last chained entry: pin it, and pass it as `after` when checking the next file. */
+  headHash: string | null;
+  problem?: { line: number; seq: number | null; reason: "malformed" | "missing_header" | "missing_footer" | "count_mismatch" | "wrong_instance" | "hash_mismatch" | "prev_hash_mismatch" | "sequence_gap" | "wrong_start" | "wrong_head"; message: string };
+};
+
+/**
+ * Checks an audit export (NDJSON from the dashboard, `auditEvents.exportText()` or a bucket file) offline, with no
+ * key: every entry's hash is recomputed from its fields, each entry must point at the one before, sequence numbers
+ * must be consecutive, and the footer must account for every line. Pass `after` (the previous file's `headHash` and
+ * last `seq`) to prove a file continues the one before it, and `expectedHead` to prove the log ends where you
+ * recorded it. It cannot read the details against their `dataDigest` (that needs the service's key); the
+ * dashboard's "Verify integrity" and `auditEvents.verify()` do that.
+ */
+export function verifyAuditExport(ndjson: string, opts: { after?: { seq: number; hash: string }; expectedHead?: string } = {}): AuditExportCheck {
+  const lines = ndjson.split("\n").filter((l) => l.trim() !== "");
+  const out: AuditExportCheck = { ok: false, entries: 0, unchained: 0, firstSeq: null, lastSeq: null, firstPrevHash: null, headHash: null };
+  const bad = (line: number, seq: number | null, reason: NonNullable<AuditExportCheck["problem"]>["reason"], message: string): AuditExportCheck => ({ ...out, problem: { line, seq, reason, message } });
+  let header = null as { instanceId?: string; chain?: { purgedSeq?: number; purgedHash?: string } | null } | null;
+  let footer = null as { count?: number } | null;
+  let events = 0;
+  let prev: { seq: number; hash: string } | null = opts.after ?? null;
+  for (let i = 0; i < lines.length; i++) {
+    let j: Record<string, unknown>;
+    try {
+      j = JSON.parse(lines[i]);
+    } catch {
+      return bad(i + 1, null, "malformed", "A line isn't valid JSON");
+    }
+    if (j.type === "daywalker.audit.header") { header = j as typeof header; continue; }
+    if (j.type === "daywalker.audit.footer") { footer = j as typeof footer; continue; }
+    if (j.type !== "event") return bad(i + 1, null, "malformed", "Unknown line type");
+    if (!header?.instanceId) return bad(i + 1, null, "missing_header", "The file doesn't start with a header");
+    events++;
+    if (j.seq === null || j.seq === undefined) { out.unchained++; continue; }
+    const seq = j.seq as number;
+    const actor = (j.actor ?? {}) as { type?: string; id?: string | null };
+    const hash = createHash("sha256")
+      .update(JSON.stringify(["dw-audit-v1", header.instanceId, seq, j.prevHash, j.id, j.event, actor.type, actor.id ?? null, j.target ?? null, j.createdAt, j.dataDigest ?? ""]))
+      .digest("hex");
+    if (hash !== j.hash) return bad(i + 1, seq, "hash_mismatch", "An entry's contents don't match its hash");
+    if (prev) {
+      if (seq !== prev.seq + 1) return bad(i + 1, seq, "sequence_gap", "An entry is missing from the sequence");
+      if (j.prevHash !== prev.hash) return bad(i + 1, seq, "prev_hash_mismatch", "An entry doesn't follow from the one before it");
+    } else if (header.chain && header.chain.purgedSeq === 0 && seq === 1 && j.prevHash !== "0".repeat(64)) {
+      return bad(i + 1, seq, "wrong_start", "The first entry doesn't start from the empty chain");
+    } else if (header.chain && header.chain.purgedSeq !== undefined && header.chain.purgedSeq > 0 && seq === header.chain.purgedSeq + 1 && j.prevHash !== header.chain.purgedHash) {
+      return bad(i + 1, seq, "wrong_start", "The first entry doesn't follow from the entries retention removed");
+    }
+    if (out.firstSeq === null) { out.firstSeq = seq; out.firstPrevHash = j.prevHash as string; }
+    out.lastSeq = seq;
+    out.entries++;
+    prev = { seq, hash };
+    out.headHash = hash;
+  }
+  if (!header) return bad(0, null, "missing_header", "The file doesn't start with a header");
+  if (!footer) return bad(lines.length, null, "missing_footer", "The file has no footer: it may have been cut short");
+  if (footer.count !== events) return bad(lines.length, null, "count_mismatch", "The footer's entry count doesn't match the file");
+  if (opts.expectedHead && out.headHash !== opts.expectedHead) return bad(lines.length, out.lastSeq, "wrong_head", "The log doesn't end at the hash you recorded");
+  return { ...out, ok: true };
+}
+
 export class BackendError extends Error {
   constructor(public status: number, public code: string, message: string) {
     super(message);
@@ -282,6 +372,30 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
         for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== "") p.set(k, String(v));
         return call<{ data: AuditEvent[]; nextCursor: string | null }>("GET", `audit_events${p.size ? `?${p}` : ""}`);
       },
+      /** Recomputes the tamper-evident hash chain of the audit log. See `AuditChainStatus`. */
+      verify: () => call<AuditChainStatus>("GET", "audit_events/verify"),
+      /** The log as NDJSON text (details decrypted, with `prevHash` / `hash` per entry). Check it with `verifyAuditExport`. */
+      exportText: async (q: { from?: string; to?: string } = {}) => {
+        const p = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);
+        const res = await fetch(`${base}/v1/audit_events/export${p.size ? `?${p}` : ""}`, { headers: { authorization: `Bearer ${opts.secretKey}` }, cache: "no-store" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new BackendError(res.status, body.error?.code ?? "unknown", body.error?.message ?? "Request failed");
+        }
+        return res.text();
+      },
+    },
+    /** Push of the audit log to your own S3-compatible bucket. The secret access key is write-only. */
+    auditExport: {
+      get: () => call<AuditExportConfigStatus>("GET", "instance/audit_export"),
+      /** Omit both keys on an update to keep the current ones. */
+      set: (c: AuditExportConfigInput) => call<AuditExportConfigStatus>("PUT", "instance/audit_export", c),
+      remove: () => call<{ removed: boolean }>("DELETE", "instance/audit_export"),
+      /** Writes a small test object to the bucket. */
+      test: () => call<{ ok: true; key: string }>("POST", "instance/audit_export/test", {}),
+      /** Pushes entries not yet in the bucket (the server also does this every 15 minutes). */
+      push: () => call<{ pushed: number; objects: number; lastSeq: number }>("POST", "instance/audit_export/push", {}),
     },
     webhooks: {
       list: () => call<{ data: WebhookEndpoint[] }>("GET", "webhooks").then((r) => r.data),
