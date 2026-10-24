@@ -4,7 +4,8 @@ import { ActionForm } from "../../../forms";
 import { Card, Field, PageHeader, PlanBadge, Toggle } from "../../../ui";
 import { inputCls } from "../../../styles";
 import { details } from "../../../server";
-import { planNeeded } from "@/lib/plans";
+import { planAllows, planNeeded } from "@/lib/plans";
+import { ensureAccount } from "@/lib/dashboard";
 import { sessionSettings } from "@/lib/session-settings";
 
 export const metadata = { title: "Sessions" };
@@ -14,7 +15,8 @@ export default async function SessionsPage({ params }: { params: Promise<{ id: s
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/sessions`);
   const inst = await details(userId, id);
   const s = sessionSettings(inst);
-  const need = await planNeeded("session_customization");
+  const locked = !(await planAllows(await ensureAccount(userId), "session_customization"));
+  const need = locked ? await planNeeded("session_customization") : null;
   return (
     <div className="space-y-6">
       <PageHeader title="Sessions" description="How long people stay signed in, when idle sessions end, and extra claims in the session token." />
@@ -24,14 +26,14 @@ export default async function SessionsPage({ params }: { params: Promise<{ id: s
           <input type="hidden" name="instanceId" value={inst.id} />
           <Toggle name="maxLifetimeEnabled" defaultChecked={s.maxLifetimeEnabled} label="Maximum lifetime" description={`Sessions end after ${inst.settings.sessionLifetimeDays} days (set under Sign-in & security). When off, they last up to 90 days.`} />
           <Field label="Inactivity timeout (minutes)" hint="End a session after this many idle minutes. Blank = never.">
-            <input name="inactivityTimeoutMinutes" inputMode="numeric" defaultValue={s.inactivityTimeoutMinutes ?? ""} placeholder="Never" className={inputCls} />
+            <fieldset disabled={locked} className="disabled:opacity-60"><input name="inactivityTimeoutMinutes" inputMode="numeric" defaultValue={s.inactivityTimeoutMinutes ?? ""} placeholder="Never" className={inputCls} /></fieldset>
           </Field>
           <Toggle name="multiSession" defaultChecked={s.multiSession} label="Multi-session" description="When off, signing in ends the user's other sessions." />
           <Field label="Token lifetime (seconds)" hint="30 to 600.">
             <input name="tokenTtlSeconds" inputMode="numeric" defaultValue={inst.settings.tokenTtlSeconds} className={inputCls} />
           </Field>
           <Field label="Custom claims (JSON)" hint={'Name to template, e.g. {"email": "{{user.email}}"}. Variables: user.id, user.email, user.first_name, user.last_name, org.id, org.role. Reserved names (sub, iss, exp, sid...) are refused.'}>
-            <textarea name="customClaims" rows={6} defaultValue={Object.keys(s.customClaims).length ? JSON.stringify(s.customClaims, null, 2) : ""} className={`${inputCls} font-mono`} />
+            <fieldset disabled={locked} className="disabled:opacity-60"><textarea name="customClaims" rows={6} defaultValue={Object.keys(s.customClaims).length ? JSON.stringify(s.customClaims, null, 2) : ""} className={`${inputCls} font-mono`} /></fieldset>
           </Field>
         </ActionForm>
       </Card>

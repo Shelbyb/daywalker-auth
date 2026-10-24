@@ -4,7 +4,8 @@ import { ActionForm } from "../../../forms";
 import { Card, Field, PageHeader, PlanBadge, Toggle } from "../../../ui";
 import { inputCls } from "../../../styles";
 import { details } from "../../../server";
-import { planNeeded } from "@/lib/plans";
+import { planAllows, planNeeded } from "@/lib/plans";
+import { ensureAccount } from "@/lib/dashboard";
 import { orgSettings } from "@/lib/org-settings";
 
 export const metadata = { title: "Organizations" };
@@ -14,7 +15,8 @@ export default async function OrganizationsPage({ params }: { params: Promise<{ 
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/organizations`);
   const inst = await details(userId, id);
   const o = orgSettings(inst);
-  const need = await planNeeded("organization_settings");
+  const locked = !(await planAllows(await ensureAccount(userId), "organization_settings"));
+  const need = locked ? await planNeeded("organization_settings") : null;
   const roleSelect = (name: string, value: string) => (
     <select name={name} defaultValue={value} className={inputCls}>
       <option value="admin">Admin</option>
@@ -28,6 +30,7 @@ export default async function OrganizationsPage({ params }: { params: Promise<{ 
       <Card>
         <ActionForm action={updateOrgSettingsAction} submit="Save organization settings" className="max-w-xl space-y-5">
           <input type="hidden" name="instanceId" value={inst.id} />
+          <fieldset disabled={locked} className="space-y-5 disabled:opacity-60">
           <Toggle name="enabled" defaultChecked={o.enabled} label="Enable organizations" description="When off, users can't create, join or accept invitations to organizations." />
           <Field label="Membership limit" hint="Most members one organization can have. Leave blank for unlimited.">
             <input name="membershipLimit" inputMode="numeric" defaultValue={o.membershipLimit ?? ""} placeholder="Unlimited" className={inputCls} />
@@ -40,6 +43,7 @@ export default async function OrganizationsPage({ params }: { params: Promise<{ 
           <Field label="Default role for new members" hint="Used for invitations without a role and SSO just-in-time membership.">{roleSelect("defaultRole", o.defaultRole)}</Field>
           <Toggle name="allowAdminDelete" defaultChecked={o.allowAdminDelete} label="Allow admins to delete their organization" />
           <Toggle name="allowPersonalAccounts" defaultChecked={o.allowPersonalAccounts} label="Allow personal accounts" description="When off, a signed-in user must always have an active organization." />
+          </fieldset>
         </ActionForm>
       </Card>
     </div>
