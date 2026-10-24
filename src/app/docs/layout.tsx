@@ -11,6 +11,14 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-dawn to-ember" />
             Daywalker Auth <span className="font-normal text-stone-400">Docs</span>
           </Link>
+          <div className="ml-auto flex items-center gap-5 text-sm font-medium">
+            <Link href="/" className="text-stone-600 hover:text-ink">
+              Home
+            </Link>
+            <Link href="/dashboard" className="text-stone-600 hover:text-ink">
+              Dashboard
+            </Link>
+          </div>
         </div>
       </header>
       <div className="mx-auto flex max-w-7xl gap-10 px-4">

@@ -6,26 +6,26 @@ region: nyc
 domains:
   - domain: users.daywalker.dev
     type: PRIMARY
+    zone: daywalker.dev
 
 databases:
-  # Dev database: created and owned by the app. For production, set production: true and
-  # cluster_name: <existing managed cluster> so it survives app deletion.
+  # Existing managed clusters. daywalker_auth_usr owns daywalker_auth_db and has no CONNECT on any other database.
   - name: db
     engine: PG
-    version: "16"
-    production: false
-    # cluster_name: <your-postgres-cluster>
+    production: true
+    cluster_name: daywalker-prod-db-cluster
+    db_name: daywalker_auth_db
+    db_user: daywalker_auth_usr
   - name: cache
     engine: VALKEY
-    version: "8"
-    production: false
-    # cluster_name: <your-valkey-cluster>
+    production: true
+    cluster_name: daywalker-valkey-cache-nyc3
 
 services:
   - name: web
     dockerfile_path: Dockerfile
     github:
-      repo: Shelbyb/<repo>
+      repo: Shelbyb/daywalker-auth
       branch: main
       deploy_on_push: true
     http_port: 8080
@@ -64,7 +64,7 @@ services:
         value: Daywalker Auth <no-reply@users.daywalker.dev>
       - key: PASSKEY_RP_ID
         scope: RUN_TIME
-        value: <yourdomain> # parent domain; decide before launch, changing it orphans passkeys
+        value: daywalker.dev # parent domain; changing it orphans passkeys
       - key: MASTER_KEY
         scope: RUN_TIME
         type: SECRET
@@ -79,7 +79,7 @@ jobs:
     kind: PRE_DEPLOY
     dockerfile_path: Dockerfile
     github:
-      repo: Shelbyb/<repo>
+      repo: Shelbyb/daywalker-auth
       branch: main
       deploy_on_push: true
     instance_size_slug: basic-xxs
