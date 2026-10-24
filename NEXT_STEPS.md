@@ -11,6 +11,18 @@ Updated as work happens, so it can be picked up after a pause. The public roadma
   custom email templates, more social providers, drop-in React components, enterprise SSO (SAML), SMS two-factor, and
   the four follow-ups below ("SSO required", SMS country allow-list, security keys, SCIM).
 
+## In progress: security and org feature batch (resume here)
+
+Order of work, one commit per feature, each with migration, API, UI, SDK, docs page and an e2e suite (added to
+`test:all`, its own `test:<name>` and CI). Status is updated as each lands.
+
+1. [ ] Real account lockout (progressive, per account, Valkey + persistent state, email unlock link, admin unlock, `user.locked` / `user.unlocked`)
+2. [ ] Custom organization roles and permissions (`org_permissions` claim, SDK `has()` / protect helpers) + verified-domain auto-join
+3. [ ] SDK `<CreateOrganization/>` and `<OrganizationProfile/>` + hosted organization pages
+4. [ ] Self-service account deletion (re-auth, grace period, `user.deleted`, purge job) + data export (rate limited, audited)
+
+New-device sign-in alerts were dropped on purpose (not wanted).
+
 ## Just finished: follow-ups (after the roadmap)
 
 - **"SSO required"** (migration 0013). `saml_connections.sso_required`; `src/lib/auth/sso-policy.ts` refuses password,
@@ -160,7 +172,7 @@ redirect URL the form stayed on the 2FA step.
 
 ## Possible follow-ups (not started; ask Shelby)
 
-- After 4/6/10, the rest of the feature list: new-device sign-in alerts, invite-only/waitlist sign-up, self-service account deletion + data export, username/phone sign-in, custom org roles/permissions + verified-domain auto-join, acting as an OIDC provider.
+- After 4/6/10, the rest of the feature list: invite-only/waitlist sign-up, username/phone sign-in, acting as an OIDC provider.
 
 - Try SCIM (Users and Groups) against a real Okta or Entra ID trial; only simulated IdP calls are tested so far.
 - IdP-initiated SAML sign-in stays refused on purpose (unsolicited assertions); revisit only if a customer needs it.
