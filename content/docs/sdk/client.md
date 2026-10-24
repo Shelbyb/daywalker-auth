@@ -36,7 +36,8 @@ auth.subscribe((state) => render(state)); // { isLoaded, user, sessionId }
 | `setOrganizationTwoFactor(orgId, required)` | Admins: require two-step verification for an organization's members |
 | `signOut({ redirectUrl?, singleLogout? })` | Ends the session here and in other tabs. For a company SSO sign-in with single logout on, then goes via the identity provider to `redirectUrl`. Resolves `{ redirecting }` |
 | `getToken({ force? })` | A valid session token, or `null` |
-| `authFetch(url, init)` | `fetch` plus `Authorization: Bearer <token>` |
+| `authFetch(url, init)` | `fetch` plus `Authorization: Bearer <token>`. On a 403 `reverification_required` it runs the handler set with `setReverificationHandler` and retries once |
+| `setReverificationHandler(fn)`, `requestReverification(need)`, `getReverificationOptions()`, `reverifyWithPassword(pw)`, `reverifyWithPasskey()`, `reverifyWithCode(code)`, `reverifyWithSecurityKey()`, `sendReverificationEmailCode()`, `reverifyWithEmailCode(code)` | [Step-up authentication](/docs/guides/step-up-auth) |
 | `sendVerificationCode()` / `verifyEmail(code)` | [Email verification](/docs/guides/email-verification) |
 | `requestPasswordReset(email)` / `resetPassword({ email, code, password })` | [Password reset](/docs/guides/password-reset) |
 | `signInWithOAuth(provider, redirectUrl?)` | Redirect to a social provider (`google`, `github`, `microsoft`, `apple`, `discord`, `gitlab`, `oidc`); returns signed in. See [Social sign-in](/docs/guides/social-sign-in). |

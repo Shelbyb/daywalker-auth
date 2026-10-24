@@ -78,6 +78,10 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `verification_failed` | 400 | DNS record not found yet | Wait for DNS, then retry |
 | `account_locked` | 429 | Too many wrong passwords or codes; the account is locked for a while (same response for unknown emails) | Tell the user to wait or use the emailed unlock link |
 | `account_pending_deletion` | 403 | Account is scheduled for deletion; sign-in refused | Use the cancel link from the email |
+| `reverification_required` | 403 | (From *your* API, via `requireRecentAuth`.) The person must prove a factor again; body has `error.reverification: { level, maxAge }` | `authFetch` handles it; or call the `reverify*` methods and retry |
+| `no_second_factor` | 400 | Re-verifying with a code on an account with no two-factor | Offer another way |
+| `security_key_required` | 400 | `factor: security_key` without a recent security key touch | Run `mfa/security_keys/confirm` first |
+| `no_passkey` | 400 | Re-verifying with a passkey but none is registered | Offer another way |
 | `device_key_required` | 400 | The app requires device-bound sessions and the request had no DPoP proof | Use the SDK, or send a `DPoP` header |
 | `device_proof_required` | 401 | The session is bound to a device key and the request had no proof | Send a DPoP proof signed by the session's key |
 | `invalid_dpop_proof` | 401 | Bad, stale, replayed or wrong-key DPoP proof | Make a new proof for this method and URL |

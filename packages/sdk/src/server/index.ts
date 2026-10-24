@@ -1,13 +1,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, errors as joseErrors } from "jose";
 import { instanceIdFromKey, issuerFor, type Config } from "../core/keys";
+import { isRecentlyVerified, type RecentAuthCheck, type ReverificationLevel } from "../core/fresh";
 
 if (typeof window !== "undefined") {
   // Secret keys must never reach a browser bundle.
   throw new Error("@daywalker/auth/server must only be imported on the server");
 }
 
-export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: string; /** Permissions of `orgRole` in the active organization, e.g. "org:billing:manage". */ orgPermissions?: string[]; /** Custom claims set in the dashboard. */ claims?: Record<string, unknown>; /** Thumbprint of the device key this session is bound to (DPoP `cnf.jkt`); undefined when unbound. */ deviceKey?: string };
+export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: string; /** Permissions of `orgRole` in the active organization, e.g. "org:billing:manage". */ orgPermissions?: string[]; /** Custom claims set in the dashboard. */ claims?: Record<string, unknown>; /** Thumbprint of the device key this session is bound to (DPoP `cnf.jkt`); undefined when unbound. */ deviceKey?: string; /** When the first factor was last proved (seconds since epoch; the claim `auth_time`). */ authTime?: number; /** Age in seconds of the first and second factor when the token was issued, -1 = never in this session (claim `fva`). Use `requireRecentAuth` instead of reading it. */ fva?: [number, number] };
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -44,7 +45,7 @@ export async function verifyToken(token: string | null | undefined, opts: Verify
     const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
     const orgRole = typeof payload.org_role === "string" ? payload.org_role : undefined;
     const orgPermissions = Array.isArray(payload.org_permissions) ? payload.org_permissions.filter((p): p is string => typeof p === "string") : orgId ? [] : undefined;
-    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole, orgPermissions, claims: customClaims(payload), deviceKey: (payload.cnf as { jkt?: unknown } | undefined)?.jkt && typeof (payload.cnf as { jkt: unknown }).jkt === "string" ? (payload.cnf as { jkt: string }).jkt : undefined };
+    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole, orgPermissions, claims: customClaims(payload), authTime: typeof payload.auth_time === "number" ? payload.auth_time : undefined, fva: Array.isArray(payload.fva) && payload.fva.length === 2 && payload.fva.every((n) => typeof n === "number") ? (payload.fva as [number, number]) : undefined, deviceKey: (payload.cnf as { jkt?: unknown } | undefined)?.jkt && typeof (payload.cnf as { jkt: unknown }).jkt === "string" ? (payload.cnf as { jkt: string }).jkt : undefined };
   } catch (e) {
     if (e instanceof joseErrors.JOSEError) return null;
     throw e; // network/JWKS outages surface instead of looking like "signed out"
@@ -73,6 +74,32 @@ export class ForbiddenError extends Error {
 }
 export function protect(claims: Pick<SessionClaims, "orgId" | "orgRole" | "orgPermissions"> | null | undefined, check: { permission?: string; role?: string }) {
   if (!has(claims, check)) throw new ForbiddenError(check.permission ? `Missing permission ${check.permission}` : "Forbidden");
+}
+
+export { isRecentlyVerified, type ReverificationLevel, type RecentAuthCheck };
+
+/** 403 `reverification_required`: the React SDK's `authFetch` sees this, asks the person to prove themselves, and retries. */
+export class ReverificationRequiredError extends ForbiddenError {
+  code = "reverification_required";
+  constructor(public reverification: Required<RecentAuthCheck>) {
+    super("Reverification required");
+    this.name = "ReverificationRequiredError";
+  }
+  /** The response to send: `return error.toResponse()` in a route handler. */
+  toResponse() {
+    return reverificationResponse(this.reverification);
+  }
+}
+
+/** The JSON 403 that tells the browser SDK to run its reverification prompt and retry the request. */
+export function reverificationResponse(check: RecentAuthCheck) {
+  const reverification = { level: check.level ?? "first_factor", maxAge: check.maxAge };
+  return Response.json({ error: { code: "reverification_required", message: "Reverification required", reverification } }, { status: 403, headers: { "cache-control": "no-store" } });
+}
+
+/** Throws `ReverificationRequiredError` unless `isRecentlyVerified`. Call it at the top of a sensitive route or server action. */
+export function requireRecentAuth(claims: Pick<SessionClaims, "fva" | "issuedAt"> | null | undefined, check: RecentAuthCheck): void {
+  if (!isRecentlyVerified(claims, check)) throw new ReverificationRequiredError({ level: check.level ?? "first_factor", maxAge: check.maxAge });
 }
 
 export type WebhookEvent<T = Record<string, unknown>> = { id: string; type: string; createdAt: string; data: T };
@@ -277,7 +304,7 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
   };
 }
 
-const STD = new Set(["sub", "sid", "exp", "iat", "nbf", "iss", "aud", "jti", "azp", "org_id", "org_role", "org_permissions", "cnf"]);
+const STD = new Set(["sub", "sid", "exp", "iat", "nbf", "iss", "aud", "jti", "azp", "org_id", "org_role", "org_permissions", "cnf", "auth_time", "fva"]);
 function customClaims(payload: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(payload).filter(([k]) => !STD.has(k)));
 }

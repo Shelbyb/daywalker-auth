@@ -33,7 +33,8 @@ const {
   userId,        // string | null
   sessionId,     // string | null
   getToken,      // () => Promise<string | null>
-  authFetch,     // fetch with Authorization header
+  authFetch,     // fetch with Authorization header; runs the step-up prompt on a 403 reverification_required and retries once
+  requestReverification, // show the step-up prompt yourself, see Step-up authentication
   signIn,        // ({ email, password }) => Promise<SignInResult>
                  //   { status: "complete", user } | { status: "needs_second_factor" }
   completeSecondFactor, // (code) => Promise<{ status: "complete", user }>

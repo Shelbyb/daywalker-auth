@@ -50,4 +50,4 @@ const user = await backend().users.get(userId);
 
 ## Organizations
 
-`auth()` includes `orgId`, `orgRole`, `orgPermissions`, and `has(check)` / `protect(check)` helpers (for example `(await auth()).protect({ permission: "org:billing:manage" })`) when the user has an active organization. See the [Organizations guide](/docs/guides/organizations).
+`auth()` includes `orgId`, `orgRole`, `orgPermissions`, and `has(check)` / `protect(check)` helpers (for example `(await auth()).protect({ permission: "org:billing:manage" })`) when the user has an active organization. See the [Organizations guide](/docs/guides/organizations). It also has `requireRecentAuth({ maxAge, level })` and `isRecentlyVerified(check)` for [step-up authentication](/docs/guides/step-up-auth); catch `ReverificationRequiredError` and `return err.toResponse()`.

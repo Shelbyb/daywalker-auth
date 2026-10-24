@@ -1,4 +1,5 @@
 import { ACTIVE_COOKIE, SESSION_COOKIE, instanceIdFromKey, normalizeOrigin, type Config } from "./keys";
+import type { RecentAuthCheck } from "./fresh";
 import { createDpopProof, deviceKeysSupported, generateDeviceKey, indexedDbKeyStore, type DeviceKey, type DeviceKeyStore } from "./dpop";
 import { startRegistration, startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 
@@ -85,6 +86,11 @@ export class AuthError extends Error {
     this.name = "AuthError";
   }
 }
+
+/** What a server action needs: proof within `maxAge` seconds at `level` (see `requireRecentAuth` in `@daywalker/auth/server`). */
+export type ReverificationNeed = Required<RecentAuthCheck>;
+/** The ways this person can prove themselves again. `sms` is the masked phone or null. */
+export type ReverificationOptions = { password: boolean; passkey: boolean; totp: boolean; sms: string | null; securityKey: boolean; backupCodes: boolean; emailCode: boolean };
 
 /** Refresh this many seconds before the JWT expires. */
 const REFRESH_LEEWAY = 10;
@@ -720,12 +726,91 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return r;
   }
 
-  /** `fetch` that attaches `Authorization: Bearer <jwt>` for calls to your own backend. */
-  async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
-    const jwt = await getToken();
-    const headers = new Headers(init.headers);
-    if (jwt) headers.set("authorization", `Bearer ${jwt}`);
-    return fetch(input, { ...init, headers });
+  // ---------- Step-up (reverification) ----------
+
+  let reverifyHandler: ((need: ReverificationNeed) => Promise<boolean>) | null = null;
+
+  /**
+   * Registers the function `authFetch` calls when your server answers 403 `reverification_required`: show a prompt,
+   * resolve true once the person proved themselves (or false to give up). `<AuthProvider>` registers its own prompt;
+   * use this for a custom UI. Returns a function that unregisters it.
+   */
+  function setReverificationHandler(fn: ((need: ReverificationNeed) => Promise<boolean>) | null) {
+    reverifyHandler = fn;
+    return () => {
+      if (reverifyHandler === fn) reverifyHandler = null;
+    };
+  }
+
+  /** Runs the registered reverification prompt (see `setReverificationHandler`) and resolves true once the person proved themselves. False when there is no prompt or they gave up. */
+  function requestReverification(need: ReverificationNeed) {
+    return reverifyHandler ? reverifyHandler(need) : Promise.resolve(false);
+  }
+
+  /** Which ways the signed-in person can prove themselves again (so a prompt only offers real choices). */
+  function getReverificationOptions() {
+    return request<ReverificationOptions>("session/reverify", { method: "GET" });
+  }
+
+  async function reverifyRequest(path: string, body: unknown) {
+    const r = await request<{ verified: true; jwt: string }>(path, json(body));
+    acceptToken(r.jwt); // the new token carries the fresh ages
+  }
+
+  /** Prove the password again. */
+  function reverifyWithPassword(password: string) {
+    return reverifyRequest("session/reverify", { factor: "password", password });
+  }
+
+  /** Prove a second factor again: an authenticator, texted or backup code. */
+  function reverifyWithCode(code: string, method?: "totp" | "sms") {
+    return reverifyRequest("session/reverify", { factor: "code", code, method });
+  }
+
+  /** For accounts with no password and no two-factor: emails a code (then call `reverifyWithEmailCode`). */
+  function sendReverificationEmailCode() {
+    return request("me/reauth_code", { method: "POST" });
+  }
+
+  function reverifyWithEmailCode(code: string) {
+    return reverifyRequest("session/reverify", { factor: "email_code", code });
+  }
+
+  /** Touch a registered security key: counts as the second factor. */
+  async function reverifyWithSecurityKey() {
+    await confirmWithSecurityKey();
+    await reverifyRequest("session/reverify", { factor: "security_key" });
+  }
+
+  /** Use a passkey: it is a device plus a biometric or PIN, so it counts as both factors. */
+  async function reverifyWithPasskey() {
+    const optionsJSON = await request<Parameters<typeof startAuthentication>[0]["optionsJSON"]>("session/reverify/passkey/options", { method: "POST" });
+    let response;
+    try {
+      response = await startAuthentication({ optionsJSON });
+    } catch (e) {
+      webauthnError(e);
+    }
+    await reverifyRequest("session/reverify/passkey", { response });
+  }
+
+  /**
+   * `fetch` that attaches `Authorization: Bearer <jwt>` for calls to your own backend. If your server answers
+   * 403 `reverification_required` (see `requireRecentAuth`), it runs the reverification prompt and retries once with
+   * a fresh token. A request body that is a stream can't be replayed, so the retry is skipped for those.
+   */
+  async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+    const send = async () => {
+      const jwt = await getToken();
+      const headers = new Headers(init.headers);
+      if (jwt) headers.set("authorization", `Bearer ${jwt}`);
+      return fetch(input, { ...init, headers });
+    };
+    const res = await send();
+    if (res.status !== 403 || !reverifyHandler || (typeof ReadableStream !== "undefined" && init.body instanceof ReadableStream)) return res;
+    const need = await res.clone().json().then((b) => (b?.error?.code === "reverification_required" ? (b.error.reverification as ReverificationNeed) : null)).catch(() => null);
+    if (!need || !(await reverifyHandler(need))) return res;
+    return send();
   }
 
   /** URL of the hosted sign-in / sign-up page that returns to `redirectUrl` afterwards. */
@@ -762,6 +847,15 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     signUp,
     signOut,
     authFetch,
+    setReverificationHandler,
+    requestReverification,
+    getReverificationOptions,
+    reverifyWithPassword,
+    reverifyWithCode,
+    sendReverificationEmailCode,
+    reverifyWithEmailCode,
+    reverifyWithSecurityKey,
+    reverifyWithPasskey,
     hostedUrl,
     sendVerificationCode,
     verifyEmail,

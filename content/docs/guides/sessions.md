@@ -23,7 +23,9 @@ Enter JSON mapping a claim name to a template, for example:
 { "email": "{{user.email}}", "plan": "{{org.role}}" }
 ```
 
-Variables: `user.id`, `user.email`, `user.first_name`, `user.last_name`, `org.id`, `org.role`. Unknown values become empty strings. Reserved names (`sub`, `iss`, `aud`, `exp`, `nbf`, `iat`, `jti`, `sid`, `azp`, `org_id`, `org_role`, `org_permissions`, `cnf`) are refused, as are more than 10 claims or more than 1 KB in total.
+Variables: `user.id`, `user.email`, `user.first_name`, `user.last_name`, `org.id`, `org.role`. Unknown values become empty strings. Reserved names (`sub`, `iss`, `aud`, `exp`, `nbf`, `iat`, `jti`, `sid`, `azp`, `org_id`, `org_role`, `org_permissions`, `cnf`, `auth_time`, `fva`) are refused, as are more than 10 claims or more than 1 KB in total.
+
+Every token also carries `auth_time` and `fva` for [step-up authentication](/docs/guides/step-up-auth).
 
 Claims are readable by the user, so never put secrets in them.
 

@@ -9,7 +9,8 @@
  * - They read the instance's settings (enabled providers, email codes, terms) and adapt.
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { AuthError, type OAuthProvider, type OrgInfo, type OrgRoleInfo, type OrgDomainInfo, type OrgMember, type OrgInvitation, type OrgSuggestion, type OrganizationSettings, type SessionInfo, type User } from "../core/client";
+import { AuthError, type ReverificationNeed, type ReverificationOptions, type OAuthProvider, type OrgInfo, type OrgRoleInfo, type OrgDomainInfo, type OrgMember, type OrgInvitation, type OrgSuggestion, type OrganizationSettings, type SessionInfo, type User } from "../core/client";
+import { staleFactors } from "../core/fresh";
 import { useAuthClient, useAuthUrls, useUser } from "./index";
 
 /** `?redirect_url=` from the current page if it is same-origin, else the configured fallback (Clerk-style). */
@@ -41,7 +42,7 @@ export type Appearance = {
 type Part =
   | "root" | "header" | "title" | "subtitle" | "form" | "field" | "label" | "input" | "button" | "buttonSecondary"
   | "providers" | "divider" | "error" | "info" | "footer" | "link" | "checkbox"
-  | "userButton" | "avatar" | "menu" | "menuItem" | "orgSwitcher" | "tabs" | "tab" | "list" | "listItem" | "select";
+  | "userButton" | "avatar" | "menu" | "menuItem" | "orgSwitcher" | "tabs" | "tab" | "list" | "listItem" | "select" | "modalBackdrop";
 
 const cx = (appearance: Appearance | undefined, part: Part, base: string) => [base, appearance?.classNames?.[part]].filter(Boolean).join(" ");
 
@@ -1134,4 +1135,140 @@ function OrgSettingsTab({ a, c, org, busy, run, rules, leave, setOrg }: TabProps
       )}
     </div>
   );
+}
+
+// ---------- Step-up (reverification) ----------
+
+function claimsOf(jwt: string | null) {
+  try {
+    const p = JSON.parse(atob(jwt!.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return { fva: Array.isArray(p.fva) ? (p.fva as [number, number]) : undefined, issuedAt: Number(p.iat) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+type Method = "passkey" | "password" | "email" | "key" | "code";
+
+/**
+ * The prompt behind step-up authentication: asks the signed-in person to prove a password, passkey, security key,
+ * authenticator/text/backup code or emailed code, depending on what `need` asks for and what their account has.
+ * `<AuthProvider>` mounts one for you and `authFetch` opens it when your server answers 403 `reverification_required`;
+ * render it yourself for a custom flow. `onDone(true)` once satisfied, `onDone(false)` when they cancel.
+ */
+export function ReverificationPrompt({ need, onDone, appearance: a }: { need: ReverificationNeed; onDone: (ok: boolean) => void; appearance?: Appearance }) {
+  const c = useAuthClient();
+  const titleId = useId();
+  const [opts, setOpts] = useState<ReverificationOptions | null>(null);
+  const [stale, setStale] = useState<{ first: boolean; second: boolean } | null>(null);
+  const [method, setMethod] = useState<Method | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [texted, setTexted] = useState(false);
+  const [backup, setBackup] = useState(false);
+  const done = useRef(onDone);
+  done.current = onDone;
+
+  async function refresh() {
+    const s = staleFactors(claimsOf(await c.getToken()), need);
+    setStale(s);
+    if (!s.first && !s.second) done.current(true);
+    setMethod(null);
+    setError(null);
+    return s;
+  }
+  useEffect(() => {
+    void refresh();
+    c.getReverificationOptions().then(setOpts).catch((e) => setError(message(e)));
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && done.current(false);
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [c]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      await refresh();
+    } catch (e) {
+      if (!(e instanceof AuthError && (e.code === "webauthn_cancelled" || e.code === "passkey_cancelled" || e.code === "security_key_cancelled"))) setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const first = stale?.first === true;
+  const methods: Method[] = !opts || !stale ? [] : first
+    ? ([opts.passkey && "passkey", opts.password && "password", opts.emailCode && "email"].filter(Boolean) as Method[])
+    : ([opts.passkey && "passkey", opts.securityKey && "key", (opts.totp || opts.sms || opts.backupCodes) && "code"].filter(Boolean) as Method[]);
+  const label: Record<Method, string> = { passkey: "Use a passkey", password: "Use your password", email: "Email me a code", key: "Use a security key", code: "Use a verification code" };
+  const what = first ? "your password or a passkey" : "your second factor";
+
+  let body: ReactNode;
+  if (!opts || !stale) body = error ? <Alert a={a}>{error}</Alert> : <p className={cx(a, "subtitle", "dw-subtitle")}>Loading…</p>;
+  else if (!methods.length)
+    body = <Alert a={a} tone="info">{first ? "There is no way to verify this account right now." : "This action needs two-step verification, and this account doesn't have it yet. Set it up in your account settings, then try again."}</Alert>;
+  else if (!method)
+    body = (
+      <div className={cx(a, "form", "dw-form")}>
+        {methods.map((m) => (
+          <button key={m} type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary")} onClick={() => {
+            if (m === "passkey") void run(() => c.reverifyWithPasskey());
+            else if (m === "key") void run(() => c.reverifyWithSecurityKey());
+            else if (m === "email") { setMethod(m); void c.sendReverificationEmailCode().then(() => setSent(true)).catch((e) => setError(message(e))); }
+            else setMethod(m);
+          }}>{label[m]}</button>
+        ))}
+        {error && <Alert a={a}>{error}</Alert>}
+      </div>
+    );
+  else
+    body = (
+      <form className={cx(a, "form", "dw-form")} noValidate onSubmit={(e) => {
+        e.preventDefault();
+        const v = String(new FormData(e.currentTarget).get("value") ?? "");
+        void run(() => (method === "password" ? c.reverifyWithPassword(v) : method === "email" ? c.reverifyWithEmailCode(v) : c.reverifyWithCode(v, !backup && texted ? "sms" : undefined)));
+      }}>
+        {method === "email" && <p className={cx(a, "subtitle", "dw-subtitle")}>{sent ? "We emailed you a code." : "Sending a code…"}</p>}
+        {method === "code" && <p className={cx(a, "subtitle", "dw-subtitle")}>{backup ? "Enter one of your backup codes." : texted ? `Enter the code we texted to ${opts.sms}.` : "Enter the code from your authenticator app."}</p>}
+        <Field a={a} key={method + String(backup)} label={method === "password" ? "Password" : method === "email" ? "Emailed code" : backup ? "Backup code" : "Verification code"} name="value" type={method === "password" ? "password" : "text"} autoComplete={method === "password" ? "current-password" : "one-time-code"} inputMode={method === "password" || backup ? undefined : "numeric"} maxLength={method === "password" ? 256 : 20} required autoFocus />
+        {error && <Alert a={a}>{error}</Alert>}
+        <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Verify"}</button>
+        {method === "code" && opts.sms && !backup && (
+          <button type="button" className={cx(a, "link", "dw-link")} onClick={() => c.sendSecondFactorSms().then(() => setTexted(true)).catch((e) => setError(message(e)))}>{texted ? "Send another code" : `Text a code to ${opts.sms}`}</button>
+        )}
+        {method === "code" && opts.backupCodes && (
+          <button type="button" className={cx(a, "link", "dw-link")} onClick={() => setBackup((b) => !b)}>{backup ? "Use your authenticator app" : "Use a backup code"}</button>
+        )}
+        <button type="button" className={cx(a, "link", "dw-link")} onClick={() => { setMethod(null); setError(null); }}>Choose another way</button>
+      </form>
+    );
+
+  return (
+    <div className={cx(a, "modalBackdrop", "dw-modal-backdrop")} onMouseDown={(e) => e.target === e.currentTarget && done.current(false)}>
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className={cx(a, "root", "dw-root dw-modal")}>
+        <div className={cx(a, "header", "dw-header")}>
+          <h2 id={titleId} className={cx(a, "title", "dw-title")}>Confirm it's you</h2>
+          <p className={cx(a, "subtitle", "dw-subtitle")}>For your security, please verify {what} to continue.</p>
+        </div>
+        {body}
+        <button type="button" className={cx(a, "link", "dw-link")} onClick={() => done.current(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/** Registers the prompt with the client and shows it whenever `authFetch` needs it. Mounted by `<AuthProvider>`. */
+export function ReverificationHost({ appearance }: { appearance?: Appearance }) {
+  const c = useAuthClient();
+  const [pending, setPending] = useState<{ need: ReverificationNeed; settle: (ok: boolean) => void } | null>(null);
+  useEffect(() => {
+    let shared: Promise<boolean> | null = null; // concurrent failing requests share one prompt
+    return c.setReverificationHandler((need) => (shared ??= new Promise<boolean>((resolve) => {
+      setPending({ need, settle: (ok) => { shared = null; setPending(null); resolve(ok); } });
+    })));
+  }, [c]);
+  return pending ? <ReverificationPrompt need={pending.need} onDone={pending.settle} appearance={appearance} /> : null;
 }

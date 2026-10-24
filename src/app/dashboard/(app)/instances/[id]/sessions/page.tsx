@@ -44,6 +44,13 @@ export default async function SessionsPage({ params }: { params: Promise<{ id: s
           </Field>
         </ActionForm>
       </Card>
+      <Card>
+        <h2 className="text-sm font-semibold">Step-up authentication</h2>
+        <p className="mt-1 max-w-xl text-sm text-stone-600">
+          Every session token carries <code>auth_time</code> and <code>fva</code>: how long ago the person last proved a first factor (password, passkey) and a second factor (authenticator, security key). Your server calls <code>requireRecentAuth({"{"} maxAge, level {"}"})</code> before a sensitive action, and the SDK asks the person to verify again. Nothing to switch on here.{" "}
+          <a className="underline" href="/docs/guides/step-up-auth">Read the guide</a>
+        </p>
+      </Card>
     </div>
   );
 }

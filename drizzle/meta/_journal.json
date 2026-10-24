@@ -183,6 +183,13 @@
       "when": 1792900400000,
       "tag": "0025_device_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792900500000,
+      "tag": "0026_step_up_auth",
+      "breakpoints": true
     }
   ]
 }

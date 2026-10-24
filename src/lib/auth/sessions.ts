@@ -20,7 +20,7 @@ import { appRequiresSetup, orgAllowed, setupRequiredError } from "./two-factor-p
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
 
-type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string; activeOrgId?: string | null; impersonatorId?: string | null; dpopJkt?: string | null };
+type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string; activeOrgId?: string | null; impersonatorId?: string | null; dpopJkt?: string | null; ffAt?: string | null; sfAt?: string | null };
 const sessKey = (refreshHash: string) => `sess:${refreshHash}`;
 
 /** How long after sign-in a session may still be bound to a device key (for redirect sign-ins that can't carry a proof). */
@@ -29,7 +29,7 @@ export const BIND_WINDOW_MS = 120_000;
 export async function createSession(
   inst: Instance,
   userId: string,
-  meta: { userAgent?: string | null; ip?: string | null; method?: string; impersonatorId?: string; lifetimeMs?: number; /** Social/SSO/magic-link style sign-in that returns through a browser redirect: no DPoP proof is possible, the SDK binds right after. */ redirectFlow?: boolean },
+  meta: { userAgent?: string | null; ip?: string | null; method?: string; impersonatorId?: string; lifetimeMs?: number; /** Social/SSO/magic-link style sign-in that returns through a browser redirect: no DPoP proof is possible, the SDK binds right after. */ redirectFlow?: boolean; /** The sign-in itself proved a second factor (2FA code, security key, user-verified passkey). */ secondFactor?: boolean },
 ) {
   // Backstop for every sign-in path: only the identity provider may open a session for an SSO-required address.
   // Platform impersonation (see lib/platform.ts) is not a sign-in by the user, so it is exempt.
@@ -61,6 +61,8 @@ export async function createSession(
     ipAddressEnc: encryptNullable(meta.ip, `sessions.ip_address:${id}`),
     impersonatorId: meta.impersonatorId ?? null,
     dpopJkt,
+    firstFactorAt: new Date(),
+    secondFactorAt: meta.secondFactor ? new Date() : null,
     expiresAt,
   });
   // Impersonation is recorded only in the platform audit log: the customer and the user never see it.
@@ -144,7 +146,7 @@ export async function resolveSession(instanceId: string, refreshToken: string, o
   const hit = await cache().get(sessKey(h));
   if (hit) s = JSON.parse(hit);
   // Entries cached before createdAt was tracked are re-read once from Postgres.
-  if (!s?.createdAt || s.dpopJkt === undefined) {
+  if (!s?.createdAt || s.dpopJkt === undefined || s.ffAt === undefined) {
     const [row] = await db()
       .select({
         id: schema.sessions.id,
@@ -155,6 +157,8 @@ export async function resolveSession(instanceId: string, refreshToken: string, o
         activeOrgId: schema.sessions.activeOrgId,
         impersonatorId: schema.sessions.impersonatorId,
         dpopJkt: schema.sessions.dpopJkt,
+        firstFactorAt: schema.sessions.firstFactorAt,
+        secondFactorAt: schema.sessions.secondFactorAt,
         banned: schema.users.banned,
       })
       .from(schema.sessions)
@@ -171,6 +175,8 @@ export async function resolveSession(instanceId: string, refreshToken: string, o
         activeOrgId: row.activeOrgId,
         impersonatorId: row.impersonatorId,
         dpopJkt: row.dpopJkt,
+        ffAt: (row.firstFactorAt ?? row.createdAt).toISOString(),
+        sfAt: row.secondFactorAt?.toISOString() ?? null,
       };
       await cache().set(sessKey(h), JSON.stringify(s), "EX", 300);
     }
@@ -190,6 +196,26 @@ export async function resolveSession(instanceId: string, refreshToken: string, o
     await db().update(schema.sessions).set({ lastActiveAt: new Date() }).where(eq(schema.sessions.id, s.id));
   }
   return s;
+}
+
+/** Claims for step-up auth: when each factor was last proved, as ages in seconds at issue time (-1 = never in this session). */
+function freshness(s: CachedSession) {
+  const now = Date.now();
+  const age = (iso: string | null | undefined) => (iso ? Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000)) : -1);
+  const ff = s.ffAt ?? s.createdAt ?? null;
+  return { authTime: ff ? Math.floor(new Date(ff).getTime() / 1000) : Math.floor(now / 1000), fva: [age(ff), age(s.sfAt)] as [number, number] };
+}
+
+/** Records that this session just proved a factor (step-up). The session cache entry is dropped so the next token shows it. */
+export async function markVerified(sessionId: string, instanceId: string, kinds: { first?: boolean; second?: boolean }) {
+  const now = new Date();
+  const [row] = await db()
+    .update(schema.sessions)
+    .set({ ...(kinds.first ? { firstFactorAt: now } : {}), ...(kinds.second ? { secondFactorAt: now } : {}) })
+    .where(and(eq(schema.sessions.id, sessionId), eq(schema.sessions.instanceId, instanceId), eq(schema.sessions.status, "active")))
+    .returning({ h: schema.sessions.refreshTokenHash });
+  if (!row) throw errors.unauthorized("Session is no longer active");
+  await cache().del(sessKey(row.h));
 }
 
 export async function issueToken(inst: Instance, refreshToken: string | undefined, azp?: string) {
@@ -214,7 +240,7 @@ export async function issueToken(inst: Instance, refreshToken: string | undefine
     }
     custom = renderClaims(ss.customClaims, ctx);
   }
-  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org, custom, dpopJkt: s.dpopJkt ?? undefined }, inst.settings.tokenTtlSeconds);
+  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org, custom, dpopJkt: s.dpopJkt ?? undefined, fresh: freshness(s) }, inst.settings.tokenTtlSeconds);
   return { jwt, sessionId: s.id, userId: s.userId, orgId: org?.org_id ?? null, orgRole: org?.org_role ?? null };
 }
 

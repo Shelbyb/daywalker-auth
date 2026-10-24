@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyToken, createBackendClient, has, protect, ForbiddenError, type SessionClaims } from "../server";
-export { ForbiddenError };
+import { verifyToken, createBackendClient, has, protect, isRecentlyVerified, requireRecentAuth, reverificationResponse, ForbiddenError, ReverificationRequiredError, type RecentAuthCheck, type SessionClaims } from "../server";
+export { ForbiddenError, ReverificationRequiredError, reverificationResponse, type RecentAuthCheck };
 import { SESSION_COOKIE, ACTIVE_COOKIE, instanceIdFromKey, type Config } from "../core/keys";
 import { INLINE_PROOF_SOURCE } from "../core/dpop";
 
@@ -25,11 +25,13 @@ function tokenFrom(headers: Headers, cookie: (name: string) => string | undefine
 
 type Check = { permission?: string; role?: string };
 export type Auth =
-  | (SessionClaims & { isSignedIn: true; /** True when the active organization role has this permission/role. */ has: (c: Check) => boolean; /** Throws ForbiddenError (403) unless `has`. */ protect: (c: Check) => void })
-  | { isSignedIn: false; userId: null; sessionId: null; has: (c: Check) => false; protect: (c: Check) => never };
+  | (SessionClaims & { isSignedIn: true; /** True when the active organization role has this permission/role. */ has: (c: Check) => boolean; /** Throws ForbiddenError (403) unless `has`. */ protect: (c: Check) => void; /** Has the person proved themselves in the last `maxAge` seconds (at `level`)? */ isRecentlyVerified: (c: RecentAuthCheck) => boolean; /** Throws ReverificationRequiredError (403) unless `isRecentlyVerified`. In a route handler: catch it and `return err.toResponse()`. */ requireRecentAuth: (c: RecentAuthCheck) => void })
+  | { isSignedIn: false; userId: null; sessionId: null; has: (c: Check) => false; protect: (c: Check) => never; isRecentlyVerified: (c: RecentAuthCheck) => false; requireRecentAuth: (c: RecentAuthCheck) => never };
 const signedOut: Auth = {
   isSignedIn: false, userId: null, sessionId: null, has: () => false,
   protect: () => { throw new ForbiddenError("Not signed in"); },
+  isRecentlyVerified: () => false,
+  requireRecentAuth: () => { throw new ForbiddenError("Not signed in"); },
 };
 
 /**
@@ -40,7 +42,7 @@ export async function auth(opts: { config?: Config & { authorizedParties?: strin
   const { headers, cookies } = await import("next/headers");
   const [h, c] = await Promise.all([headers(), cookies()]);
   const claims = await verifyToken(tokenFrom(h, (n) => c.get(n)?.value), opts.config ?? config());
-  return claims ? { ...claims, isSignedIn: true, has: (c: Check) => has(claims, c), protect: (c: Check) => protect(claims, c) } : signedOut;
+  return claims ? { ...claims, isSignedIn: true, has: (c: Check) => has(claims, c), protect: (c: Check) => protect(claims, c), isRecentlyVerified: (c: RecentAuthCheck) => isRecentlyVerified(claims, c), requireRecentAuth: (c: RecentAuthCheck) => requireRecentAuth(claims, c) } : signedOut;
 }
 
 /** Backend API client configured from DAYWALKER_SECRET_KEY. */

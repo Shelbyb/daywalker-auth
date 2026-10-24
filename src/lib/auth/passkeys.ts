@@ -114,8 +114,15 @@ export async function verifyRegistration(inst: Instance, userId: string, session
 
 // ---------- Sign in (usernameless) ----------
 
-export async function authenticationOptions(inst: Instance) {
-  const options = await generateAuthenticationOptions({ rpID: rpId(), userVerification: "required" });
+export async function authenticationOptions(inst: Instance, forUserId?: string) {
+  let allowCredentials: { id: string; transports?: AuthenticatorTransport[] }[] | undefined;
+  if (forUserId) {
+    // Re-verification of a signed-in user: only their own passkeys are offered.
+    const mine = await db().select({ id: schema.passkeys.credentialId, transports: schema.passkeys.transports }).from(schema.passkeys).where(eq(schema.passkeys.userId, forUserId));
+    if (!mine.length) throw errors.badRequest("no_passkey", "No passkey is set up");
+    allowCredentials = mine.map((k) => ({ id: k.id, transports: k.transports as AuthenticatorTransport[] }));
+  }
+  const options = await generateAuthenticationOptions({ rpID: rpId(), userVerification: "required", ...(allowCredentials ? { allowCredentials } : {}) });
   // Keyed by the challenge itself, so the browser holds no extra state; single use.
   await cache().set(`pk:auth:${sha256(options.challenge)}`, inst.id, "EX", CHALLENGE_TTL);
   return options;

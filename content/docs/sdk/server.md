@@ -44,6 +44,14 @@ Failed calls throw `BackendError` with `status`, `code` and `message`. Passing a
 
 `verifyToken()` also returns `orgId` and `orgRole` (`"admin"`, `"member"` or a custom role key) and `orgPermissions` when the session has an active organization. `has(claims, { permission?, role? })` and `protect(claims, check)` (throws `ForbiddenError`, status 403) test them; `organizationRoles` and `organizationDomains` on the backend client manage roles and domains. See [Roles, permissions and domains](/docs/guides/organization-roles). The backend client adds `organizations.list({ limit, offset })` and `organizations.members(orgId)`. See the [Organizations guide](/docs/guides/organizations).
 
+## Step-up authentication
+
+`verifyToken()` also returns `authTime` and `fva`. `requireRecentAuth(claims, { maxAge, level })` throws `ReverificationRequiredError` (status 403; `toResponse()` builds the 403 JSON the browser SDK reacts to), `isRecentlyVerified(claims, check)` returns a boolean, and `reverificationResponse(check)` builds the response directly. `maxAge` is in seconds; `level` is `first_factor` (default), `second_factor` or `multi_factor`. See [Step-up authentication](/docs/guides/step-up-auth).
+
+## Device-bound sessions
+
+`verifyToken()` returns `deviceKey` (the key thumbprint, from the `cnf.jkt` claim) for sessions bound to a browser key. See [Device-bound sessions](/docs/guides/device-binding).
+
 ## Webhooks
 
 `verifyWebhook(rawBody, headers, secret, { toleranceSeconds? })` verifies a webhook request and returns the parsed event, or throws `WebhookVerificationError`. The backend client adds `webhooks.list`, `get`, `create`, `update`, `delete`, `rotateSecret`, `deliveries`, `sendTest` and `retry`. See the [Webhooks guide](/docs/guides/webhooks).

@@ -10,6 +10,7 @@ export function CallApi() {
   return (
     <div>
       <button onClick={async () => setResult(JSON.stringify(await (await authFetch("/api/me")).json(), null, 2))}>Call /api/me</button>
+      <button onClick={async () => setResult(JSON.stringify(await (await authFetch("/api/sensitive", { method: "POST" })).json(), null, 2))}>Do something sensitive</button>
       {result && <pre>{result}</pre>}
     </div>
   );

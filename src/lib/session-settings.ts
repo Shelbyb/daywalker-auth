@@ -16,7 +16,7 @@ export type SessionSettings = {
 
 export const SESSION_SETTINGS_DEFAULTS: SessionSettings = { maxLifetimeEnabled: true, inactivityTimeoutMinutes: null, multiSession: true, customClaims: {}, deviceBinding: "off" };
 
-export const RESERVED_CLAIMS = ["sub", "iss", "aud", "exp", "nbf", "iat", "jti", "sid", "azp", "org_id", "org_role", "org_permissions", "cnf"];
+export const RESERVED_CLAIMS = ["sub", "iss", "aud", "exp", "nbf", "iat", "jti", "sid", "azp", "org_id", "org_role", "org_permissions", "cnf", "auth_time", "fva"];
 export const MAX_CLAIMS = 10;
 export const MAX_CLAIMS_BYTES = 1024;
 export const HARD_CAP_DAYS = 90;

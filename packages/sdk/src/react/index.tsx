@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { ReverificationHost } from "./components";
 import { createAuthClient, type AuthClient, type AuthState, type OAuthProvider, type User } from "../core/client";
 
 const Ctx = createContext<AuthClient | null>(null);
@@ -32,7 +33,7 @@ function usePageUrl() {
  * Wrap your app once (e.g. in app/layout.tsx). Reads config from props or from
  * NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY / NEXT_PUBLIC_DAYWALKER_AUTH_URL.
  */
-export function AuthProvider(props: AuthUrls & { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Verified custom domain for hosted pages. */ hostedDomain?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean }) {
+export function AuthProvider(props: AuthUrls & { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Verified custom domain for hosted pages. */ hostedDomain?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean; /** Set false to skip the built-in step-up prompt (then register your own with `setReverificationHandler`). */ reverificationPrompt?: boolean }) {
   const [client] = useState(() =>
     createAuthClient({
       publishableKey: props.publishableKey ?? process.env.NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY!,
@@ -50,7 +51,7 @@ export function AuthProvider(props: AuthUrls & { children: ReactNode; publishabl
     signInFallbackRedirectUrl: props.signInFallbackRedirectUrl ?? process.env.NEXT_PUBLIC_DAYWALKER_SIGN_IN_FALLBACK_REDIRECT_URL,
     signUpFallbackRedirectUrl: props.signUpFallbackRedirectUrl ?? process.env.NEXT_PUBLIC_DAYWALKER_SIGN_UP_FALLBACK_REDIRECT_URL,
   }));
-  return <Ctx.Provider value={client}><UrlsCtx.Provider value={urls}>{props.children}</UrlsCtx.Provider></Ctx.Provider>;
+  return <Ctx.Provider value={client}><UrlsCtx.Provider value={urls}>{props.children}{props.reverificationPrompt === false ? null : <ReverificationHost />}</UrlsCtx.Provider></Ctx.Provider>;
 }
 
 export function useAuthClient() {
@@ -93,7 +94,17 @@ export function useAuth() {
     getToken: c.getToken,
     /** Decoded claims of the current token, including custom claims set in the dashboard. Null until signed in. */
     sessionClaims,
+    /** `fetch` with your session token. Answers 403 `reverification_required` by showing the step-up prompt and retrying once. */
     authFetch: c.authFetch,
+    /** Show the step-up prompt yourself; resolves true once the person proved themselves. */
+    requestReverification: c.requestReverification,
+    getReverificationOptions: c.getReverificationOptions,
+    reverifyWithPassword: c.reverifyWithPassword,
+    reverifyWithCode: c.reverifyWithCode,
+    reverifyWithPasskey: c.reverifyWithPasskey,
+    reverifyWithSecurityKey: c.reverifyWithSecurityKey,
+    sendReverificationEmailCode: c.sendReverificationEmailCode,
+    reverifyWithEmailCode: c.reverifyWithEmailCode,
     signIn: c.signIn,
     sendSignInCode: c.sendSignInCode,
     checkSSO: c.checkSSO,
@@ -262,7 +273,7 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
 }
 
 export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo, type Reauth, type ReauthRequirements, type OrgRoleInfo, type OrgDomainInfo, type OrgSuggestion, type OrganizationSettings } from "../core/client";
-export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, CreateOrganization, OrganizationProfile, Captcha, type Appearance, type EnvironmentInfo } from "./components";
+export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, CreateOrganization, OrganizationProfile, Captcha, ReverificationPrompt, type Appearance, type EnvironmentInfo } from "./components";
 
 /** Account Portal names for the hosted links (same components). */
 export const AccountPortalLink = HostedLink;

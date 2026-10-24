@@ -23,7 +23,7 @@ export const POST = handler(async (req: Request) => {
     const { code, method } = z.object({ code: z.string().trim().min(6).max(20), method: z.enum(["totp", "sms"]).optional() }).parse(raw);
     userId = await completePendingSecondFactor(ctx.inst.id, ctx.twoFactorToken, code, method);
   }
-  const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
+  const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req), secondFactor: true });
   await linkAfterSecondFactor(ctx.twoFactorToken, s.id); // a SAML sign-in that needed 2FA
   const { jwt, twoFactorSetupRequired } = await issueTokenOrSetup(ctx.inst, s.refreshToken, ctx.origin);
   const res = ctx.clearTwoFactorCookie(ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt, ...(twoFactorSetupRequired ? { twoFactorSetupRequired } : {}) }));

@@ -44,6 +44,8 @@ POST /v1/client/me/delete                 { "password"|"code"|"emailCode" }   //
 POST /v1/client/me/export                 { "password"|"code"|"emailCode" }   // JSON download of the user's data (3/hour)
 GET|POST /v1/client/me/reauth_code        // what re-auth needs / email a code
 POST /v1/client/cancel_deletion           { "token": "…" }   // one-time link from the deletion email
+GET|POST /v1/client/session/reverify      // step-up: what can prove me / prove a factor (password, code, email_code, security_key)
+POST /v1/client/session/reverify/passkey[/options]   // step-up with a passkey
 POST /v1/client/session/bind              // DPoP header required: bind a just-opened session to a device key
 POST /v1/client/unlock                   { "token": "…" }   // one-time link from the "account locked" email
 POST /v1/client/sign_in/second_factor   { "code": "123456" }   // or a backup code

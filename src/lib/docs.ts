@@ -32,6 +32,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/organization-roles", title: "Roles, permissions and domains" },
       { slug: "guides/sessions", title: "Sessions" },
       { slug: "guides/device-binding", title: "Device-bound sessions" },
+      { slug: "guides/step-up-auth", title: "Step-up authentication" },
       { slug: "guides/enterprise-sso", title: "Enterprise SSO (SAML)" },
       { slug: "guides/webhooks", title: "Webhooks" },
       { slug: "guides/rotating-keys", title: "Rotating keys" },

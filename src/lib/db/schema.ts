@@ -182,6 +182,9 @@ export const sessions = pgTable(
     impersonatorId: text("impersonator_id"),
     /** RFC 7638 thumbprint of the device key (DPoP) this session is bound to. A public-key hash, not a secret. Null = unbound. */
     dpopJkt: text("dpop_jkt"),
+    /** When the person last proved a first factor (password, passkey, email code, identity provider) and a second factor in this session. Null = use created_at / never. */
+    firstFactorAt: timestamp("first_factor_at", { withTimezone: true }),
+    secondFactorAt: timestamp("second_factor_at", { withTimezone: true }),
     userAgentEnc: text("user_agent_enc"),
     ipAddressEnc: text("ip_address_enc"),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),

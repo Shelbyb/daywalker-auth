@@ -106,13 +106,13 @@ async function getSigner(instanceId: string) {
   return signer;
 }
 
-export type SessionClaims = { sub: string; sid: string; azp?: string; org?: { org_id: string; org_role: string; org_permissions: string[] }; custom?: Record<string, string>; /** Device key thumbprint (RFC 9449 `cnf.jkt`) when the session is bound. */ dpopJkt?: string };
+export type SessionClaims = { sub: string; sid: string; azp?: string; org?: { org_id: string; org_role: string; org_permissions: string[] }; custom?: Record<string, string>; /** Device key thumbprint (RFC 9449 `cnf.jkt`) when the session is bound. */ dpopJkt?: string; /** Seconds since the first and second factor were last proved, -1 for never (claim `fva`), and the first factor time (claim `auth_time`). */ fresh?: { authTime: number; fva: [number, number] } };
 
 /** Short-lived session JWT. Apps verify it locally against the JWKS. */
 export async function mintSessionToken(instanceId: string, claims: SessionClaims, ttlSeconds: number) {
   const { kid, key } = await getSigner(instanceId);
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ ...(claims.custom ?? {}), sid: claims.sid, ...(claims.azp ? { azp: claims.azp } : {}), ...(claims.org ?? {}), ...(claims.dpopJkt ? { cnf: { jkt: claims.dpopJkt } } : {}) })
+  return new SignJWT({ ...(claims.custom ?? {}), sid: claims.sid, ...(claims.azp ? { azp: claims.azp } : {}), ...(claims.org ?? {}), ...(claims.dpopJkt ? { cnf: { jkt: claims.dpopJkt } } : {}), ...(claims.fresh ? { auth_time: claims.fresh.authTime, fva: claims.fresh.fva } : {}) })
     .setProtectedHeader({ alg: ALG, kid, typ: "JWT" })
     .setIssuer(issuerFor(instanceId))
     .setSubject(claims.sub)

@@ -17,7 +17,7 @@ export const POST = handler(async (req: Request) => {
   await ctx.limit("passkey_auth", 30, 300);
   const body = await readCredential<AuthenticationResponseJSON>(req);
   const userId = await verifyAuthentication(ctx.inst, body.response);
-  const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
+  const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req), secondFactor: true });
   const { jwt, twoFactorSetupRequired } = await issueTokenOrSetup(ctx.inst, s.refreshToken, ctx.origin);
   const res = ctx.json({ status: "complete", user: await getUser(ctx.inst.id, userId), sessionId: s.id, jwt, ...(twoFactorSetupRequired ? { twoFactorSetupRequired } : {}) });
   return ctx.setRefreshCookie(res, s.refreshToken, s.expiresAt);
