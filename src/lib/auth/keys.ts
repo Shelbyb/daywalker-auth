@@ -121,3 +121,23 @@ export async function mintSessionToken(instanceId: string, claims: SessionClaims
     .setExpirationTime(now + ttlSeconds)
     .sign(key);
 }
+
+/**
+ * Short-lived machine access token (RFC 9068 shape, `typ: at+jwt`) for a client-credentials grant. It has no `sid`,
+ * so user-session verification (which requires one) rejects it, and carries `token_use: "m2m"`, so machine
+ * verification rejects user tokens. Signed with the instance key, so the existing JWKS verifies it.
+ */
+export async function mintMachineToken(instanceId: string, claims: { clientId: string; scope: string[] }, ttlSeconds: number) {
+  const { kid, key } = await getSigner(instanceId);
+  const now = Math.floor(Date.now() / 1000);
+  return new SignJWT({ client_id: claims.clientId, scope: claims.scope.join(" "), token_use: "m2m" })
+    .setProtectedHeader({ alg: ALG, kid, typ: "at+jwt" })
+    .setIssuer(issuerFor(instanceId))
+    .setAudience(issuerFor(instanceId))
+    .setSubject(claims.clientId)
+    .setJti(newId("evt"))
+    .setIssuedAt(now)
+    .setNotBefore(now - 5)
+    .setExpirationTime(now + ttlSeconds)
+    .sign(key);
+}

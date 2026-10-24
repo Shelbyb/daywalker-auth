@@ -17,6 +17,8 @@ import { z } from "zod";
 import { db, schema } from "./db";
 import { cache, rateLimit } from "./cache";
 import { decrypt } from "./crypto";
+import { createClient, deleteClient, listClients, rotateSecret } from "./auth/m2m";
+import { apiKeySettings, listKeys as listUserApiKeys, revokeByBackend, settingsInput as apiKeySettingsInput } from "./auth/api-keys";
 import { applicationsFor, cloneConfig, createEnvironmentInstance, environmentsView, instanceCount, type CloneInput } from "./auth/application";
 import { env } from "./env";
 import { errors } from "./http";
@@ -653,4 +655,41 @@ export async function updateProtectionFor(userId: string, instanceId: string, ra
   const view = await updateProtection(await ownedInstance(userId, instanceId), raw);
   void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { protection: { ...view, captcha: view.captcha ? { siteKey: view.captcha.siteKey } : null } } });
   return view;
+}
+
+
+// ---------- Machine auth: M2M clients and customer API keys ----------
+
+export async function m2mFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  return listClients(instanceId);
+}
+export async function createM2mFor(userId: string, instanceId: string, input: { name: string; scopes: string[]; tokenTtlSeconds?: number }) {
+  await ownedInstance(userId, instanceId);
+  return createClient(instanceId, input, { type: "developer", id: userId });
+}
+export async function rotateM2mFor(userId: string, instanceId: string, clientId: string, graceMinutes: number) {
+  await ownedInstance(userId, instanceId);
+  return rotateSecret(instanceId, clientId, graceMinutes, { type: "developer", id: userId });
+}
+export async function deleteM2mFor(userId: string, instanceId: string, clientId: string) {
+  await ownedInstance(userId, instanceId);
+  return deleteClient(instanceId, clientId, { type: "developer", id: userId });
+}
+export async function apiKeysFor(userId: string, instanceId: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  return { settings: apiKeySettings(inst), keys: await listUserApiKeys(inst, {}) };
+}
+export async function updateApiKeySettings(userId: string, instanceId: string, raw: unknown) {
+  const cached = await ownedInstance(userId, instanceId);
+  const input = apiKeySettingsInput.parse(raw);
+  const [inst] = await db().select().from(schema.instances).where(eq(schema.instances.id, cached.id));
+  const next = { ...inst.settings.apiKeys, ...input };
+  await db().update(schema.instances).set({ settings: { ...inst.settings, apiKeys: next }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
+  await invalidateInstance(instanceId);
+  void record(instanceId, "instance.settings_updated", { actor: { type: "developer", id: userId }, data: { apiKeys: next } });
+}
+export async function revokeUserApiKeyFor(userId: string, instanceId: string, keyId: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  return revokeByBackend(inst, keyId, { type: "developer", id: userId });
 }

@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, addProductionInstance, cloneConfigFor, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, createM2mFor, rotateM2mFor, deleteM2mFor, updateApiKeySettings, revokeUserApiKeyFor, addProductionInstance, cloneConfigFor, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
@@ -654,5 +654,66 @@ export async function testAuditExportAction(_prev: ActionState, fd: FormData): P
     const { userId } = await requireDashboardUser();
     const r = await testAuditExportFor(userId, str(fd, "instanceId", 200));
     return { message: `Test file written: ${r.key}` };
+  });
+}
+
+// ---------- Machine auth ----------
+
+const scopesOf = (raw: string) => raw.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+
+export async function createM2mAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const ttl = Number(str(fd, "ttl", 6)) || undefined;
+    const c = await createM2mFor(userId, id, { name: str(fd, "name", 100), scopes: scopesOf(str(fd, "scopes", 2000)), tokenTtlSeconds: ttl });
+    refresh(id);
+    return { message: `Client created. Client ID: ${c.id}`, secret: c.clientSecret };
+  });
+}
+
+export async function rotateM2mAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const c = await rotateM2mFor(userId, id, str(fd, "clientId", 100), Number(str(fd, "grace", 6)) || 0);
+    refresh(id);
+    return { message: "Secret rotated.", secret: c.clientSecret };
+  });
+}
+
+export async function deleteM2mAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await deleteM2mFor(userId, id, str(fd, "clientId", 100));
+    refresh(id);
+    return { message: "Client deleted." };
+  });
+}
+
+export async function apiKeySettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const days = Number(str(fd, "maxExpiryDays", 6));
+    await updateApiKeySettings(userId, id, {
+      enabled: flag(fd, "enabled"),
+      maxPerSubject: Number(str(fd, "maxPerSubject", 4)) || 10,
+      maxExpiryDays: days > 0 ? days : null,
+      allowedScopes: scopesOf(str(fd, "allowedScopes", 2000)),
+    });
+    refresh(id);
+    return { message: "Saved." };
+  });
+}
+
+export async function revokeUserApiKeyAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await revokeUserApiKeyFor(userId, id, str(fd, "keyId", 100));
+    refresh(id);
+    return { message: "Revoked." };
   });
 }

@@ -84,6 +84,8 @@ export const instances = pgTable(
         /** Organization rules (see lib/org-settings.ts for defaults). */
         organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: string; defaultRole?: string; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean };
         /** Session rules (see lib/session-settings.ts). */
+        /** Customer-issued API keys for end users and organizations (see auth/api-keys.ts). */
+        apiKeys?: { enabled?: boolean; maxPerSubject?: number; maxExpiryDays?: number | null; allowedScopes?: string[] };
         sessions?: { maxLifetimeEnabled?: boolean; inactivityTimeoutMinutes?: number | null; multiSession?: boolean; customClaims?: Record<string, string>; deviceBinding?: "off" | "optional" | "required" } }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
@@ -772,5 +774,54 @@ export const orgDomains = pgTable(
     // Only one organization per instance can hold a domain once verified.
     uniqueIndex("org_domains_verified_idx").on(t.instanceId, t.domain).where(sql`${t.verifiedAt} is not null`),
     index("org_domains_instance_idx").on(t.instanceId),
+  ],
+);
+
+/**
+ * Machine-to-machine clients (OAuth client credentials). The client ID is the row ID; only a SHA-256 of the secret is
+ * stored (the secret is 256 random bits, so a fast hash is sufficient). A rotated secret stays valid until `prev_secret_expires_at`.
+ */
+export const m2mClients = pgTable(
+  "m2m_clients",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    secretHash: text("secret_hash").notNull(),
+    secretPrefix: text("secret_prefix").notNull(),
+    prevSecretHash: text("prev_secret_hash"),
+    prevSecretExpiresAt: timestamp("prev_secret_expires_at", { withTimezone: true }),
+    scopes: jsonb("scopes").$type<string[]>().notNull().default([]),
+    tokenTtlSeconds: integer("token_ttl_seconds").notNull().default(300),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("m2m_clients_instance_idx").on(t.instanceId)],
+);
+
+/** API keys issued to end users or organizations. Only a SHA-256 of the key is stored; the prefix is for display. */
+export const userApiKeys = pgTable(
+  "user_api_keys",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    /** Exactly one of user_id / org_id is set (checked in the migration). */
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    orgId: text("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    createdBy: text("created_by"),
+    name: text("name").notNull(),
+    keyHash: text("key_hash").notNull(),
+    keyPrefix: text("key_prefix").notNull(),
+    scopes: jsonb("scopes").$type<string[]>().notNull().default([]),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("user_api_keys_hash_idx").on(t.keyHash),
+    index("user_api_keys_user_idx").on(t.instanceId, t.userId),
+    index("user_api_keys_org_idx").on(t.instanceId, t.orgId),
   ],
 );

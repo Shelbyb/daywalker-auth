@@ -159,3 +159,5 @@ The identity provider itself calls `/v1/scim/v2/{connectionId}/Users` and `/Grou
 See the [Webhooks guide](/docs/guides/webhooks).
 
 `GET /v1/instance/environments` returns this instance's environment and its application's others. `POST /v1/instance/clone` (production secret key) copies configuration from development; see [Development and production](/docs/guides/environments).
+
+`/v1/m2m_clients` (list, create, `GET|PATCH|DELETE /{id}`, `POST /{id}/rotate_secret`) manage machine clients; `POST /v1/m2m/token` is the public OAuth token endpoint. `/v1/api_keys` (list, create, `GET|DELETE /{id}`, `POST /verify`) and `GET|PATCH /v1/instance/api_keys` manage keys held by your users and organizations. See [Machine auth and API keys](/docs/guides/machine-auth).

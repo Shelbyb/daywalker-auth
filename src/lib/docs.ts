@@ -28,6 +28,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/account-deletion", title: "Account deletion and export" },
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
       { slug: "guides/environments", title: "Development and production" },
+      { slug: "guides/machine-auth", title: "Machine auth and API keys" },
       { slug: "guides/dashboard", title: "The developer dashboard" },
       { slug: "guides/organizations", title: "Organizations" },
       { slug: "guides/organization-roles", title: "Roles, permissions and domains" },

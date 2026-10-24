@@ -103,3 +103,7 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `secrets_without_part` | 400 | `copySecrets` lists a part that isn't being copied | Include the part or drop the secret |
 | `environment_exists` | 409 | The application already has an instance for that environment | None |
 | `provider_needs_secret` | 400 | Tried to enable a social provider that has no client secret | Set the secret first |
+| `api_keys_disabled` | 403 | End-user API keys aren't enabled for this app | Enable them in the dashboard |
+| `scope_not_allowed` | 400 | A self-service API key asked for a scope outside the allowed list | Use an allowed scope |
+| `expiry_required` | 400 | The app requires API keys to expire within a set number of days | Pass `expiresInDays` |
+| `invalid_subject` | 400 | An API key needs exactly one of `userId` or `orgId` | Fix the request |

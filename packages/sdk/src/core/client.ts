@@ -29,6 +29,7 @@ export type OAuthProvider = "google" | "github" | "microsoft" | "apple" | "disco
 /** `needs_two_factor_setup`: signed in, but the app requires two-step verification first (see `hostedUrl("account")`). */
 export type SignInResult = { status: "complete"; user: User } | { status: "needs_second_factor" } | { status: "needs_two_factor_setup"; user: User };
 
+export type ApiKeyInfo = { id: string; name: string; prefix: string; scopes: string[]; subject: { type: "user" | "org"; id: string }; createdBy: string | null; expiresAt: string | null; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 export type SessionInfo = { id: string; current: boolean; device: string; ipHint: string | null; lastActiveAt: string; createdAt: string };
 export type SecurityInfo = {
   hasPassword: boolean;
@@ -509,6 +510,21 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return (await request<{ sessions: SessionInfo[] }>("sessions", { method: "GET" })).sessions;
   }
 
+  /** API keys the signed-in user holds, or an organization's (needs permission to manage it). Only when the app enabled them. */
+  async function listApiKeys(opts: { orgId?: string } = {}) {
+    const q = opts.orgId ? `?orgId=${encodeURIComponent(opts.orgId)}` : "";
+    return (await request<{ data: ApiKeyInfo[] }>(`api_keys${q}`, { method: "GET" })).data;
+  }
+
+  /** Creates an API key. `key` is returned once; show it to the user and don't store it. Needs a recent sign-in. */
+  async function createApiKey(input: { name: string; scopes?: string[]; expiresInDays?: number; orgId?: string }) {
+    return request<ApiKeyInfo & { key: string }>("api_keys", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async function revokeApiKey(keyId: string) {
+    return request<ApiKeyInfo>(`api_keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+  }
+
   /** Sign out another device. */
   async function revokeSession(sessionId: string) {
     await request(`sessions/${encodeURIComponent(sessionId)}/revoke`, { method: "POST" });
@@ -942,6 +958,9 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     changePassword,
     getSecurity,
     listSessions,
+    listApiKeys,
+    createApiKey,
+    revokeApiKey,
     revokeSession,
     revokeOtherSessions,
     passkeysSupported,

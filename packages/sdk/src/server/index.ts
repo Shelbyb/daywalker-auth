@@ -286,6 +286,70 @@ export function verifyAuditExport(ndjson: string, opts: { after?: { seq: number;
   return { ...out, ok: true };
 }
 
+export type MachineClaims = { clientId: string; scopes: string[]; issuedAt: number; expiresAt: number; tokenId?: string };
+
+/**
+ * Verifies a machine-to-machine access token (from the client credentials grant) against the instance's JWKS.
+ * User session tokens are rejected, and so are machine tokens given to `verifyToken`. Pass `scopes` to require them
+ * (all must be present). Returns null for anything invalid, expired, foreign or short of scopes.
+ */
+export async function verifyMachineToken(token: string | null | undefined, opts: Config & { scopes?: string[] }): Promise<MachineClaims | null> {
+  if (!token) return null;
+  const issuer = issuerFor(opts.frontendApi, instanceIdFromKey(opts.publishableKey));
+  let jwks = jwksCache.get(issuer);
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`), { cooldownDuration: 30_000, cacheMaxAge: 600_000 });
+    jwksCache.set(issuer, jwks);
+  }
+  try {
+    const { payload, protectedHeader } = await jwtVerify(token, jwks, { issuer, audience: issuer, algorithms: ["ES256"], typ: "at+jwt", clockTolerance: 5, requiredClaims: ["sub", "exp", "iat", "client_id"] });
+    if (payload.token_use !== "m2m" || "sid" in payload || protectedHeader.typ !== "at+jwt" || typeof payload.client_id !== "string") return null;
+    const scopes = typeof payload.scope === "string" ? payload.scope.split(" ").filter(Boolean) : [];
+    if (opts.scopes?.some((s) => !scopes.includes(s))) return null;
+    return { clientId: payload.client_id, scopes, issuedAt: payload.iat!, expiresAt: payload.exp!, tokenId: typeof payload.jti === "string" ? payload.jti : undefined };
+  } catch (e) {
+    if (e instanceof joseErrors.JOSEError) return null;
+    throw e;
+  }
+}
+
+export type ApiKeyResult = { valid: true; id: string; name: string; prefix: string; scopes: string[]; subject: { type: "user" | "org"; id: string }; expiresAt: string | null } | { valid: false };
+
+/**
+ * Checks an API key one of your users or organizations presented. Asks the service, so a revoked key stops working at
+ * once. Pass `scopes` to require them. Network failures throw (they aren't "invalid key").
+ */
+export async function verifyApiKey(key: string | null | undefined, opts: { secretKey: string; apiUrl: string; scopes?: string[] }): Promise<ApiKeyResult> {
+  if (!key || !/^ak_(test|live)_/.test(key)) return { valid: false };
+  const res = await fetch(`${new URL(opts.apiUrl).origin}/v1/api_keys/verify`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${opts.secretKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ key }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`API key check failed (${res.status})`);
+  const r = (await res.json()) as ApiKeyResult;
+  if (r.valid && opts.scopes?.some((s) => !r.scopes.includes(s))) return { valid: false };
+  return r;
+}
+
+/** Client credentials grant: exchanges a client ID and secret for an access token. Cache it until `expiresIn` minus a margin. */
+export async function requestMachineToken(opts: { apiUrl: string; clientId: string; clientSecret: string; scopes?: string[] }): Promise<{ accessToken: string; expiresIn: number; scopes: string[] }> {
+  const res = await fetch(`${new URL(opts.apiUrl).origin}/v1/m2m/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${Buffer.from(`${encodeURIComponent(opts.clientId)}:${encodeURIComponent(opts.clientSecret)}`).toString("base64")}` },
+    body: new URLSearchParams({ grant_type: "client_credentials", ...(opts.scopes?.length ? { scope: opts.scopes.join(" ") } : {}) }),
+    cache: "no-store",
+  });
+  const b = await res.json().catch(() => ({}));
+  if (!res.ok) throw new BackendError(res.status, b.error ?? "unknown", b.error_description ?? "Token request failed");
+  return { accessToken: b.access_token, expiresIn: b.expires_in, scopes: String(b.scope ?? "").split(" ").filter(Boolean) };
+}
+
+export type M2mClient = { id: string; name: string; secretPrefix: string; scopes: string[]; tokenTtlSeconds: number; rotating: boolean; lastUsedAt: string | null; createdAt: string };
+export type ApiKeyRecord = { id: string; name: string; prefix: string; scopes: string[]; subject: { type: "user" | "org"; id: string }; createdBy: string | null; expiresAt: string | null; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
+export type ApiKeySettings = { enabled: boolean; maxPerSubject: number; maxExpiryDays: number | null; allowedScopes: string[] };
+
 export type EnvironmentsInfo = {
   instanceId: string;
   environment: "development" | "production";
@@ -349,6 +413,32 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
       get: () => call<EnvironmentsInfo>("GET", "instance/environments"),
       /** Call with the PRODUCTION secret key: copies configuration from the development instance. Never copies users. */
       cloneFromDevelopment: (input: CloneConfigInput = {}) => call<CloneConfigResult>("POST", "instance/clone", input),
+    },
+    /** Machine-to-machine clients (client credentials). Secrets are returned once, on create and rotate. */
+    m2mClients: {
+      list: () => call<{ data: M2mClient[] }>("GET", "m2m_clients").then((r) => r.data),
+      get: (id: string) => call<M2mClient>("GET", `m2m_clients/${encodeURIComponent(id)}`),
+      create: (input: { name: string; scopes?: string[]; tokenTtlSeconds?: number }) => call<M2mClient & { clientSecret: string }>("POST", "m2m_clients", input),
+      update: (id: string, input: { name?: string; scopes?: string[]; tokenTtlSeconds?: number }) => call<M2mClient>("PATCH", `m2m_clients/${encodeURIComponent(id)}`, input),
+      /** `graceMinutes` (0 to 1440) keeps the old secret working while you deploy the new one. */
+      rotateSecret: (id: string, graceMinutes = 0) => call<M2mClient & { clientSecret: string }>("POST", `m2m_clients/${encodeURIComponent(id)}/rotate_secret`, { graceMinutes }),
+      delete: (id: string) => call<{ id: string; deleted: true }>("DELETE", `m2m_clients/${encodeURIComponent(id)}`),
+    },
+    /** API keys held by your users and organizations. `key` is returned once, on create. */
+    apiKeys: {
+      list: (q: { userId?: string; orgId?: string; includeRevoked?: boolean } = {}) => {
+        const p = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) if (v !== undefined) p.set(k, String(v));
+        return call<{ data: ApiKeyRecord[] }>("GET", `api_keys${p.size ? `?${p}` : ""}`).then((r) => r.data);
+      },
+      get: (id: string) => call<ApiKeyRecord>("GET", `api_keys/${encodeURIComponent(id)}`),
+      create: (input: { name: string; scopes?: string[]; expiresInDays?: number; userId?: string; orgId?: string }) => call<ApiKeyRecord & { key: string }>("POST", "api_keys", input),
+      revoke: (id: string) => call<ApiKeyRecord>("DELETE", `api_keys/${encodeURIComponent(id)}`),
+      verify: (key: string) => call<ApiKeyResult>("POST", "api_keys/verify", { key }),
+      settings: {
+        get: () => call<ApiKeySettings>("GET", "instance/api_keys"),
+        update: (v: Partial<ApiKeySettings>) => call<ApiKeySettings>("PATCH", "instance/api_keys", v),
+      },
     },
     /** Whether users can delete their own account, and the grace period (0 to 90 days). */
     accountDeletion: {
