@@ -103,6 +103,12 @@ export function requireRecentAuth(claims: Pick<SessionClaims, "fva" | "issuedAt"
   if (!isRecentlyVerified(claims, check)) throw new ReverificationRequiredError({ level: check.level ?? "first_factor", maxAge: check.maxAge });
 }
 
+/** True when a webhook request is a replay of an earlier delivery (re-sent from the dashboard or API). Same event ID, so de-duplicate deliberately. */
+export function isWebhookReplay(headers: Headers | Record<string, string | string[] | undefined>): boolean {
+  const v = headers instanceof Headers ? headers.get("webhook-replay") : headers["webhook-replay"];
+  return (Array.isArray(v) ? v[0] : v) === "true";
+}
+
 export type WebhookEvent<T = Record<string, unknown>> = { id: string; type: string; createdAt: string; data: T };
 
 export class WebhookVerificationError extends Error {
@@ -180,6 +186,8 @@ export type WebhookEndpoint = { id: string; url: string; events: string[]; descr
 export type WebhookDelivery = {
   id: string; eventId: string; eventType: string; status: "pending" | "succeeded" | "failed"; attempts: number;
   lastStatusCode: number | null; lastError: string | null; nextAttemptAt: string | null; deliveredAt: string | null; createdAt: string;
+  /** Set when this delivery is a replay: the ID of the original delivery. */
+  replayOf: string | null;
 };
 
 export type BackendUser = {
@@ -550,6 +558,14 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
         call<{ data: WebhookDelivery[] }>("GET", `webhooks/${encodeURIComponent(id)}/deliveries?limit=${q.limit ?? 50}`).then((r) => r.data),
       sendTest: (id: string) => call<{ eventId: string }>("POST", `webhooks/${encodeURIComponent(id)}/test`, {}),
       retry: (deliveryId: string) => call<{ id: string; status: "pending" }>("POST", `webhooks/deliveries/${encodeURIComponent(deliveryId)}/retry`, {}),
+      /** Re-sends a past delivery as a new one: same event ID and payload, signed with the endpoint's current secret, with `webhook-replay: true` headers. */
+      replay: (deliveryId: string) =>
+        call<{ id: string; replayOf: string; status: "pending" }>("POST", `webhooks/deliveries/${encodeURIComponent(deliveryId)}/replay`, {}),
+      /** Replays failed deliveries created in [from, to] (max 30 days, 500 per call). Already-replayed ones are skipped. */
+      replayFailed: (q: { from: Date | string; to: Date | string; endpointId?: string }) =>
+        call<{ replayed: number; skippedDisabled: number; skippedAlreadyReplayed: number; truncated: boolean }>("POST", "webhooks/deliveries/replay", {
+          from: new Date(q.from).toISOString(), to: new Date(q.to).toISOString(), endpointId: q.endpointId,
+        }),
     },
     sessions: {
       revoke: (sessionId: string) => call<{ id: string; status: "revoked" }>("POST", `sessions/${encodeURIComponent(sessionId)}/revoke`),

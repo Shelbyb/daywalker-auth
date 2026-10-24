@@ -442,9 +442,12 @@ export const webhookDeliveries = pgTable(
     lastStatusCode: bigint("last_status_code", { mode: "number" }),
     lastError: text("last_error"),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    /** Set on a replay: the original delivery this one re-sends. Replays carry a `webhook-replay` header. */
+    replayOf: text("replay_of"),
     createdAt: createdAt(),
   },
   (t) => [
+    index("webhook_deliveries_replay_idx").on(t.replayOf),
     index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt),
     index("webhook_deliveries_endpoint_idx").on(t.endpointId, t.createdAt),
   ],

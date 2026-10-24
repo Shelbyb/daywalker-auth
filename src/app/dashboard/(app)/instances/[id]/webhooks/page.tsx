@@ -4,7 +4,7 @@ import { ownedInstance } from "@/lib/dashboard";
 import { EVENT_TYPES, listDeliveries, listEndpoints } from "@/lib/webhooks";
 import { requireUser } from "../../../guard";
 import {
-  createWebhookAction, deleteWebhookAction, retryDeliveryAction, rotateWebhookSecretAction, sendTestWebhookAction, toggleWebhookAction,
+  bulkReplayAction, createWebhookAction, deleteWebhookAction, replayDeliveryAction, retryDeliveryAction, rotateWebhookSecretAction, sendTestWebhookAction, toggleWebhookAction,
 } from "../../../actions";
 import { ActionForm, ConfirmAction } from "../../../forms";
 import { Badge, Card, EmptyState, Field, PageHeader, Skeleton } from "../../../ui";
@@ -28,7 +28,7 @@ async function Deliveries({ id, endpointId }: { id: string; endpointId: string }
         <tbody>
           {rows.map((d) => (
             <tr key={d.id} className="border-t border-stone-100 align-top">
-              <td className="py-1.5 pr-3 font-mono">{d.eventType}</td>
+              <td className="py-1.5 pr-3 font-mono">{d.eventType}{d.replayOf && <> <Badge>replay</Badge></>}</td>
               <td className="pr-3"><Badge tone={statusTone[d.status as keyof typeof statusTone] ?? "neutral"}>{d.status}</Badge></td>
               <td className="pr-3">{d.attempts}</td>
               <td className="max-w-[14rem] break-words pr-3 text-stone-600">{d.lastError ?? "-"}</td>
@@ -36,10 +36,18 @@ async function Deliveries({ id, endpointId }: { id: string; endpointId: string }
               <td className="pr-3 text-stone-600">{fmtDateTime(d.createdAt)}</td>
               <td>
                 {d.status !== "pending" && (
-                  <ActionForm action={retryDeliveryAction} submit="Retry" tone="ghost" className="space-y-1">
-                    <input type="hidden" name="instanceId" value={id} />
-                    <input type="hidden" name="deliveryId" value={d.id} />
-                  </ActionForm>
+                  <div className="flex gap-1">
+                    {d.status === "failed" && (
+                      <ActionForm action={retryDeliveryAction} submit="Retry" tone="ghost" className="space-y-1">
+                        <input type="hidden" name="instanceId" value={id} />
+                        <input type="hidden" name="deliveryId" value={d.id} />
+                      </ActionForm>
+                    )}
+                    <ActionForm action={replayDeliveryAction} submit="Replay" tone="ghost" className="space-y-1">
+                      <input type="hidden" name="instanceId" value={id} />
+                      <input type="hidden" name="deliveryId" value={d.id} />
+                    </ActionForm>
+                  </div>
                 )}
               </td>
             </tr>
@@ -111,6 +119,15 @@ export default async function WebhooksPage({ params }: { params: Promise<{ id: s
       <Suspense fallback={<Skeleton lines={4} />}>
         <Endpoints userId={userId} id={id} />
       </Suspense>
+      <Card title="Replay failed deliveries" description="Send every failed delivery in a time range again, as new deliveries signed with each endpoint's current secret and marked as replays. Up to 500 at a time; ones already replayed are skipped. Times are UTC.">
+        <ActionForm action={bulkReplayAction} submit="Replay failed deliveries" className="max-w-xl space-y-4">
+          <input type="hidden" name="instanceId" value={id} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="From (UTC)"><input name="from" type="datetime-local" required className={inputCls} /></Field>
+            <Field label="To (UTC)"><input name="to" type="datetime-local" required className={inputCls} /></Field>
+          </div>
+        </ActionForm>
+      </Card>
       <Card title="Add an endpoint" description="Use a public https URL. The signing secret is shown once.">
         <ActionForm action={createWebhookAction} submit="Create endpoint" resetOnSuccess secretLabel="Signing secret" className="max-w-xl space-y-4">
           <input type="hidden" name="instanceId" value={id} />

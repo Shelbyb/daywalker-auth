@@ -148,9 +148,44 @@ You can have up to 10 endpoints. Each can subscribe to different events.
 - **Encrypted at rest.** Endpoint URLs, signing secrets and queued payloads are stored encrypted.
 - **Rotate if leaked.** If a secret might be exposed, rotate it right away.
 
+## Replay past deliveries
+
+Retrying re-queues the same delivery. **Replaying** sends a past delivery again as a new, separate one, for example after you fix a bug in your handler. A replay:
+
+- keeps the original event ID and payload, so your handler can recognise it;
+- is signed fresh, with a current timestamp and the endpoint's **current** secret (so it works after a secret rotation);
+- carries the headers `webhook-replay: true` and `webhook-replay-of: <original delivery ID>`;
+- is recorded in the audit log (`webhook.delivery_replayed`, `webhook.bulk_replayed`).
+
+```ts
+await api.webhooks.replay(delivery.id);
+
+// Everything that failed during an outage (max 30 days, 500 per call, oldest first).
+await api.webhooks.replayFailed({ from: "2026-10-20T08:00:00Z", to: "2026-10-20T10:00:00Z" });
+```
+
+The dashboard has a **Replay** button on each delivery and a **Replay failed deliveries** form on the Webhooks page (times are UTC). Running a bulk replay twice doesn't send twice: deliveries that already have a queued or successful replay are skipped, and so are those on disabled endpoints. A replay of an event your handler already processed will arrive with the same event ID, so de-duplicate on purpose; `isWebhookReplay(headers)` from `@daywalker/auth/server` tells you when you are looking at one. Payloads are kept for 30 days, so older deliveries can't be replayed.
+
 ## Testing locally
 
-We can't reach `localhost`, so use a tunnel such as `cloudflared` or `ngrok` to give your dev server a public HTTPS URL, and register that URL for your development instance.
+Use the CLI to receive events from your **development** instance on your own machine, with no tunnel and no public URL:
+
+```bash
+export DAYWALKER_SECRET_KEY=sk_test_...      # your development instance's secret key
+npx @daywalker/cli listen --forward-to http://localhost:3000/api/webhooks
+```
+
+It prints a temporary signing secret for the session (`whsec_...`). Use it as your webhook secret locally, and `verifyWebhook` works unchanged. Each event arrives over a server stream, is signed by the CLI with that temporary secret and POSTed to your URL, and one status line per event is printed (add `--verbose` to also print payloads, which can contain personal data). Use `--events user.created,session.created` to filter, and `--secret whsec_...` to reuse the same secret across runs.
+
+Things to know:
+
+- **Development instances only.** A production key (`sk_live_`) is refused by the CLI and by the service, so production user data is never streamed to a laptop.
+- The key is read from `DAYWALKER_SECRET_KEY`, never the command line, and is sent in a header, not a URL.
+- The CLI's secret is not one of your endpoints' secrets and can't be used to forge real deliveries. Redirects from your local server are not followed.
+- Events are delivered while the CLI is connected; nothing is queued for a CLI that is offline. Up to 5 CLIs can listen per instance at once, and a connection lasts up to an hour before it reconnects on its own.
+- This is separate from your registered endpoints, which keep receiving events as usual.
+
+If you would rather test against a real endpoint, use a tunnel such as `cloudflared` or `ngrok`: we can't reach `localhost`.
 
 ## Verifying without the SDK
 

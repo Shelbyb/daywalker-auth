@@ -2,12 +2,13 @@ import { createHmac, randomBytes } from "node:crypto";
 import { record, type Actor } from "./audit";
 import https from "node:https";
 import http from "node:http";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { db, schema } from "./db";
 import { decrypt, encrypt } from "./crypto";
 import { errors } from "./http";
 import { newId } from "./ids";
 import { checkPublicUrl, safeLookup, type UrlProblem } from "./net-guard";
+import { publishToStream } from "./webhook-stream";
 
 /** Everything we can emit. Endpoints subscribe to a list of these, or "*" for all. */
 export const EVENT_TYPES = [
@@ -178,6 +179,7 @@ export async function listDeliveries(instanceId: string, endpointId: string, lim
     lastError: d.lastError,
     nextAttemptAt: d.status === "pending" ? d.nextAttemptAt : null,
     deliveredAt: d.deliveredAt,
+    replayOf: d.replayOf,
     createdAt: d.createdAt,
   }));
 }
@@ -193,19 +195,131 @@ export async function retryDelivery(instanceId: string, deliveryId: string) {
   void processDue();
 }
 
+export const REPLAY_MAX_BULK = 500;
+
+async function loadDelivery(instanceId: string, deliveryId: string) {
+  const [row] = await db()
+    .select({ d: schema.webhookDeliveries, e: schema.webhookEndpoints })
+    .from(schema.webhookDeliveries)
+    .innerJoin(schema.webhookEndpoints, eq(schema.webhookEndpoints.id, schema.webhookDeliveries.endpointId))
+    .where(and(eq(schema.webhookDeliveries.id, deliveryId), eq(schema.webhookDeliveries.instanceId, instanceId), eq(schema.webhookEndpoints.instanceId, instanceId)));
+  if (!row) throw errors.notFound("Delivery not found");
+  return row;
+}
+
+/** Queues a copy of a past delivery as a new delivery (same event ID and payload, signed fresh with the endpoint's current secret). */
+async function queueReplay(d: typeof schema.webhookDeliveries.$inferSelect) {
+  const id = newId("wd");
+  const body = decrypt(d.payloadEnc, ctx("webhook_deliveries", "payload", d.id));
+  await db().insert(schema.webhookDeliveries).values({
+    id,
+    instanceId: d.instanceId,
+    endpointId: d.endpointId,
+    eventId: d.eventId,
+    eventType: d.eventType,
+    payloadEnc: encrypt(body, ctx("webhook_deliveries", "payload", id)),
+    replayOf: d.replayOf ?? d.id, // always the original, so replays of replays still point at the source
+  });
+  return id;
+}
+
+/**
+ * Re-sends a past delivery (any status) as a new, separate delivery. It keeps the original event ID
+ * so receivers can recognise it, carries `webhook-replay` headers, and is signed with the endpoint's
+ * current secret. The original row is untouched.
+ */
+export async function replayDelivery(instanceId: string, deliveryId: string, actor: Actor = API) {
+  const { d, e } = await loadDelivery(instanceId, deliveryId);
+  if (!e.enabled) throw errors.conflict("endpoint_disabled", "Enable the endpoint before replaying to it");
+  const root = d.replayOf ?? d.id;
+  const [pending] = await db()
+    .select({ id: schema.webhookDeliveries.id })
+    .from(schema.webhookDeliveries)
+    .where(and(eq(schema.webhookDeliveries.replayOf, root), eq(schema.webhookDeliveries.status, "pending")))
+    .limit(1);
+  if (pending) throw errors.conflict("replay_pending", "A replay of this delivery is already queued");
+  const id = await queueReplay(d);
+  void record(instanceId, "webhook.delivery_replayed", { actor, target: root, data: { endpointId: e.id, eventType: d.eventType, replayId: id } });
+  void processDue();
+  return { id, replayOf: root, status: "pending" as const };
+}
+
+/**
+ * Replays failed deliveries created between `from` and `to` (at most the retention window, at most
+ * REPLAY_MAX_BULK per call, oldest first). Deliveries that already have a queued or successful replay,
+ * and ones whose endpoint is disabled, are skipped, so running it twice doesn't send everything twice.
+ */
+export async function replayFailed(
+  instanceId: string,
+  input: { from: Date; to: Date; endpointId?: string },
+  actor: Actor = API,
+) {
+  const { from, to } = input;
+  if (!(from < to)) throw errors.badRequest("invalid_range", "`from` must be before `to`");
+  if (to.getTime() - from.getTime() > RETENTION_DAYS * 86_400_000) throw errors.badRequest("invalid_range", `The range can be at most ${RETENTION_DAYS} days`);
+  if (input.endpointId) await load(instanceId, input.endpointId);
+  const rows = await db()
+    .select({ d: schema.webhookDeliveries, enabled: schema.webhookEndpoints.enabled })
+    .from(schema.webhookDeliveries)
+    .innerJoin(schema.webhookEndpoints, eq(schema.webhookEndpoints.id, schema.webhookDeliveries.endpointId))
+    .where(
+      and(
+        eq(schema.webhookDeliveries.instanceId, instanceId),
+        eq(schema.webhookDeliveries.status, "failed"),
+        gte(schema.webhookDeliveries.createdAt, from),
+        lte(schema.webhookDeliveries.createdAt, to),
+        input.endpointId ? eq(schema.webhookDeliveries.endpointId, input.endpointId) : undefined,
+      ),
+    )
+    .orderBy(asc(schema.webhookDeliveries.createdAt))
+    .limit(REPLAY_MAX_BULK + 1);
+  const truncated = rows.length > REPLAY_MAX_BULK;
+  const candidates = rows.slice(0, REPLAY_MAX_BULK);
+  const roots = [...new Set(candidates.map((r) => r.d.replayOf ?? r.d.id))];
+  const covered = new Set(
+    roots.length
+      ? (
+          await db()
+            .select({ root: schema.webhookDeliveries.replayOf })
+            .from(schema.webhookDeliveries)
+            .where(and(inArray(schema.webhookDeliveries.replayOf, roots), inArray(schema.webhookDeliveries.status, ["pending", "succeeded"])))
+        ).map((r) => r.root)
+      : [],
+  );
+  let replayed = 0, skippedDisabled = 0, skippedAlreadyReplayed = 0;
+  const seen = new Set<string>();
+  for (const { d, enabled } of candidates) {
+    const root = d.replayOf ?? d.id;
+    if (seen.has(root)) continue;
+    seen.add(root);
+    if (!enabled) { skippedDisabled++; continue; }
+    if (covered.has(root)) { skippedAlreadyReplayed++; continue; }
+    await queueReplay(d);
+    replayed++;
+  }
+  void record(instanceId, "webhook.bulk_replayed", {
+    actor,
+    target: input.endpointId ?? null,
+    data: { from: from.toISOString(), to: to.toISOString(), replayed, skippedDisabled, skippedAlreadyReplayed, truncated },
+  });
+  if (replayed) void processDue();
+  return { replayed, skippedDisabled, skippedAlreadyReplayed, truncated };
+}
+
 export async function sendTest(instanceId: string, endpointId: string) {
   const e = await load(instanceId, endpointId);
   const eventId = newId("evt");
-  await enqueue(e, instanceId, eventId, "webhook.test", { message: "This is a test event from Daywalker Auth." });
+  await enqueue(e, instanceId, eventId, "webhook.test", eventBody(eventId, "webhook.test", { message: "This is a test event from Daywalker Auth." }));
   void processDue();
   return { eventId };
 }
 
 // ---------- Emitting ----------
 
-async function enqueue(endpoint: EndpointRow, instanceId: string, eventId: string, type: EventType, data: unknown) {
+const eventBody = (eventId: string, type: EventType, data: unknown) => JSON.stringify({ id: eventId, type, createdAt: new Date().toISOString(), data });
+
+async function enqueue(endpoint: EndpointRow, instanceId: string, eventId: string, type: EventType, body: string) {
   const id = newId("wd");
-  const body = JSON.stringify({ id: eventId, type, createdAt: new Date().toISOString(), data });
   await db().insert(schema.webhookDeliveries).values({
     id,
     instanceId,
@@ -222,14 +336,16 @@ async function enqueue(endpoint: EndpointRow, instanceId: string, eventId: strin
  */
 export async function emit(instanceId: string, type: EventType, data: Record<string, unknown>) {
   try {
+    const eventId = newId("evt");
+    const body = eventBody(eventId, type, data);
+    await publishToStream(instanceId, type, body); // development instances only, and only while a CLI is listening
     const endpoints = await db()
       .select()
       .from(schema.webhookEndpoints)
       .where(and(eq(schema.webhookEndpoints.instanceId, instanceId), eq(schema.webhookEndpoints.enabled, true)));
     const targets = endpoints.filter((e) => e.events.includes("*") || e.events.includes(type));
     if (!targets.length) return;
-    const eventId = newId("evt");
-    await Promise.all(targets.map((e) => enqueue(e, instanceId, eventId, type, data)));
+    await Promise.all(targets.map((e) => enqueue(e, instanceId, eventId, type, body)));
     void processDue();
   } catch (e) {
     console.error("[webhooks] emit failed", (e as Error).message);
@@ -293,6 +409,7 @@ async function attempt(deliveryId: string) {
         "webhook-id": d.eventId,
         "webhook-timestamp": String(ts),
         "webhook-signature": sign(secret, d.eventId, ts, body),
+        ...(d.replayOf ? { "webhook-replay": "true", "webhook-replay-of": d.replayOf } : {}),
       },
       body,
     ));

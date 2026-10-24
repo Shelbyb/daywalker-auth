@@ -20,6 +20,17 @@ One commit per feature, each with migration, API, dashboard UI, SDK, docs page a
 3. [x] Satellite domains (migration 0030 `satellite_domains`; `instances.settings.primaryDomain`; `auth/satellites.ts`; `/v1/satellite_domains[/{id}[/verify]]`, `GET|PUT /v1/instance/primary_domain`, handshake `GET /v1/client/satellite/sync` + `POST /v1/client/satellite/exchange`; `getInstance` widens `allowedOrigins` at runtime with the primary and verified satellites (stored list untouched); dashboard Domains page; SDK `Config.isSatellite/primaryDomain/domain`, `core/satellite.ts`, `authProxy` serves `/__daywalker/sync|handshake` and `syncPaths`, backend `satelliteDomains.*`; `guides/satellite-domains.md`, `scripts/satellite-e2e.ts`). Handshake is PKCE-style (verifier in an httpOnly cookie on the satellite, code single-use 60 s, token stored encrypted under the code). Verification uses the DNS TXT stub (`DNS_TXT_TEST_FILE`); localhost is auto-verified on development instances only. Not shared: device-bound, impersonated and 2FA-setup-pending sessions. Not tested: a real browser across two real domains, or the browser client's `satelliteResync()` path (only the proxy side is exercised, with `NextRequest` objects).
 4. [x] Test mode for development instances (no migration: `settings.testMode`; `auth/test-mode.ts`; fixed code `424242` for `+daywalker_test` emails and reserved phones `+1 555 555 0100-0199`, wired into email sign-in, verification, password reset, passkey sign-up, re-auth, SMS 2FA via `issueCode(..., fixed)` and `sendSmsCode/checkSmsCode({test})`; `GET|PATCH /v1/instance/test_mode`; dashboard card on Environments; SDK `testEmail/testPhone/TEST_CODE`, backend `testMode`; `guides/test-mode.md`, `scripts/testmode-e2e.ts`). Refused on production (setting 403, sign-up/send 400 `test_mode_unavailable`, phones `test_phone_unavailable`), ignored if stored there, never cloned, never on the platform instance, and a test address never counts for org domain auto-join. Not tested: the dashboard card and the components' banner text in a browser; Playwright snippet in the docs is illustrative.
 
+## In progress: ops batch 4 (resume here)
+
+One commit per item. Status updated as each lands.
+
+1. [x] Webhook replay + `daywalker listen` CLI (migration 0031 `webhook_deliveries.replay_of`; `replayDelivery`/`replayFailed` in `webhooks.ts`; `POST /v1/webhooks/deliveries/{id}/replay`, `POST /v1/webhooks/deliveries/replay`; `GET /v1/webhooks/stream` SSE, dev instances only, `webhook-stream.ts` over Valkey pub/sub with AES-GCM-encrypted payloads and a listener counter so nothing is published when nobody listens; `packages/cli` zero-dependency `.mjs`; dashboard Replay buttons + bulk form; SDK `webhooks.replay/replayFailed`, `isWebhookReplay`; `guides/webhooks.md`; `scripts/webhookreplay-e2e.ts`). Replays keep the original event ID, new delivery row, `webhook-replay` headers, signed with the current secret. Not tested: dashboard UI in a browser; the CLI against a real remote HTTPS deployment or through a buffering proxy (SSE needs `no-transform`, set).
+2. [ ] CI workflow correctness
+3. [ ] Dockerfile + DigitalOcean spec
+4. [ ] PASSKEY_RP_ID = daywalker.dev
+5. [ ] Status page + /v1/health
+6. [ ] Backup/restore drill
+
 ## In progress: security and org feature batch (resume here)
 
 Order of work, one commit per feature, each with migration, API, UI, SDK, docs page and an e2e suite (added to

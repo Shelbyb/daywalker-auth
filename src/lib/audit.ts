@@ -23,7 +23,7 @@ export const AUDIT_TYPES = [
   "scim_user.created", "scim_user.updated", "scim_user.deactivated", "scim_user.reactivated", "scim_user.deleted",
   "email_template.updated", "email_template.reset", "email_template.test_sent",
   "org_role.created", "org_role.updated", "org_role.deleted", "org_domain.added", "org_domain.verified", "org_domain.updated", "org_domain.removed", "org_domain.joined",
-  "webhook.created", "webhook.updated", "webhook.secret_rotated", "webhook.deleted",
+  "webhook.created", "webhook.updated", "webhook.secret_rotated", "webhook.deleted", "webhook.delivery_replayed", "webhook.bulk_replayed", "webhook.stream_connected",
 ] as const;
 export type AuditType = (typeof AUDIT_TYPES)[number];
 

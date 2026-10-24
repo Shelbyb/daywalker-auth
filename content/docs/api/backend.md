@@ -155,6 +155,9 @@ The identity provider itself calls `/v1/scim/v2/{connectionId}/Users` and `/Grou
 | `GET /v1/webhooks/{id}/deliveries?limit=` | Delivery log (status, attempts, errors) |
 | `POST /v1/webhooks/{id}/test` | Send a `webhook.test` event |
 | `POST /v1/webhooks/deliveries/{deliveryId}/retry` | Re-queue a delivery |
+| `POST /v1/webhooks/deliveries/{deliveryId}/replay` | Re-send any past delivery as a new one, signed with the current secret, marked as a replay |
+| `POST /v1/webhooks/deliveries/replay` | Replay failed deliveries `{ from, to, endpointId? }` (max 30 days, 500 per call) |
+| `GET /v1/webhooks/stream?events=` | Server-sent event stream for `daywalker listen`. **Development instances only** |
 
 See the [Webhooks guide](/docs/guides/webhooks).
 

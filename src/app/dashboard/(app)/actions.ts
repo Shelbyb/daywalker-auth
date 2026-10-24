@@ -14,7 +14,7 @@ import {
 } from "@/lib/dashboard";
 import { addDomain, removeDomain, saveBranding, saveRedirects, verifyDomain } from "@/lib/hosted";
 import {
-  EVENT_TYPES, createEndpoint, deleteEndpoint, retryDelivery, rotateSecret, sendTest, updateEndpoint,
+  EVENT_TYPES, createEndpoint, deleteEndpoint, replayDelivery, replayFailed, retryDelivery, rotateSecret, sendTest, updateEndpoint,
 } from "@/lib/webhooks";
 
 export type ActionState = {
@@ -382,6 +382,36 @@ export async function retryDeliveryAction(_prev: ActionState, fd: FormData): Pro
     await retryDelivery(id, str(fd, "deliveryId", 200));
     refresh(id);
     return { message: "Queued for retry." };
+  });
+}
+
+export async function replayDeliveryAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await ownedInstance(userId, id);
+    await replayDelivery(id, str(fd, "deliveryId", 200), { type: "developer", id: userId });
+    refresh(id);
+    return { message: "Replay queued. It is sent as a new delivery, signed with the current secret." };
+  });
+}
+
+export async function bulkReplayAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await ownedInstance(userId, id);
+    // <input type="datetime-local"> has no zone: we label the fields UTC and read them as UTC.
+    const when = (name: string) => {
+      const v = str(fd, name, 40).trim();
+      const d = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? new Date(`${v}:00Z`) : null;
+      if (!d || Number.isNaN(d.getTime())) throw new ApiError(400, "invalid_request", "Pick a start and end time.");
+      return d;
+    };
+    const r = await replayFailed(id, { from: when("from"), to: when("to"), endpointId: str(fd, "endpointId", 200) || undefined }, { type: "developer", id: userId });
+    refresh(id);
+    const extra = [r.skippedAlreadyReplayed && `${r.skippedAlreadyReplayed} already replayed`, r.skippedDisabled && `${r.skippedDisabled} on disabled endpoints`, r.truncated && "more remain, run it again"].filter(Boolean);
+    return { message: `Queued ${r.replayed} replay${r.replayed === 1 ? "" : "s"}${extra.length ? ` (${extra.join(", ")})` : ""}.` };
   });
 }
 

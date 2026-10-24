@@ -97,6 +97,11 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `invalid_unlock_link` | 400 | Unlock link used or expired | Sign in again to get a new link |
 | `export_failed` | 400 | The audit log bucket rejected or could not be reached | Check the bucket settings and credentials; the message has the bucket's reason |
 | `rate_limited` | 429 | Too many attempts | Wait and retry |
+| `endpoint_disabled` | 409 | Replay to a disabled webhook endpoint | Enable the endpoint first |
+| `replay_pending` | 409 | A replay of this delivery is already queued | Wait for it to finish |
+| `invalid_range` | 400 | Bulk replay range is reversed or longer than 30 days | Use a shorter range |
+| `development_only` | 403 | The event stream was requested with a production key | Use the development instance's `sk_test_` key |
+| `too_many_streams` | 429 | The instance already has 5 listeners connected | Stop another `daywalker listen` |
 | `internal_error` | 500 | Unexpected failure (details only in server logs) | Retry; report if it persists |
 | `clone_target_not_production` | 400 | Config cloning was called with a development secret key | Use the production instance's secret key |
 | `no_development_instance` | 400 | The application has no development instance to clone from | Create one |
