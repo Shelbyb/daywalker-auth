@@ -171,7 +171,7 @@ async function consumeTotp(userId: string, secret: string, code: string) {
  * Confirms a sensitive change: a current code, or (no code) a security key touch made earlier in
  * this same session. The key proof is stored for two minutes, tied to the session, and used once.
  */
-async function confirmed(userId: string, sessionId: string | undefined, code?: string) {
+export async function confirmed(userId: string, sessionId: string | undefined, code?: string) {
   if (code) return verifySecondFactor(userId, code);
   if (!sessionId) return false;
   return (await cache().getdel(`stepup:${sessionId}`)) === userId;

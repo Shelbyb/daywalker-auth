@@ -8,8 +8,10 @@ export async function register() {
   const { purgeRetiredKeys } = await import("./lib/auth/keys");
   const { purgeAudit } = await import("./lib/audit");
   const { purgePlatformAudit } = await import("./lib/platform-audit");
+  const { purgeDueDeletions } = await import("./lib/auth/account-deletion");
   const tick = () => processDue().catch((e) => console.error("[webhooks] worker", (e as Error).message));
   setInterval(tick, 15_000).unref();
+  setInterval(() => purgeDueDeletions().catch((e) => console.error("[deletion] job", (e as Error).message)), 10 * 60_000).unref();
   setInterval(() => purgeOld().catch(() => {}), 6 * 3_600_000).unref();
   setInterval(() => purgeAudit().catch(() => {}), 6 * 3_600_000).unref();
   setInterval(() => purgePlatformAudit().catch(() => {}), 6 * 3_600_000).unref();

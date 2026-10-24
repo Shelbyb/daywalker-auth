@@ -52,6 +52,8 @@ export const instances = pgTable(
     captchaSecretEnc: text("captcha_secret_enc"),
     settings: jsonb("settings")
       .$type<{ passwordMinLength: number; sessionLifetimeDays: number; tokenTtlSeconds: number; emailCodeSignIn?: boolean; breachedPasswordCheck?: boolean; emailAccentColor?: string; smsSecondFactor?: boolean; smsCountries?: string[];
+        /** Self-service account deletion (see auth/account-deletion.ts): on by default, 14 days of grace. */
+        accountDeletion?: { enabled?: boolean; graceDays?: number };
         /** Sign-up rules for new accounts (see auth/signup-protection.ts). */
         signUpAllowedDomains?: string[]; signUpBlockedDomains?: string[]; blockDisposableEmails?: boolean;
         /** Cloudflare Turnstile site key; the secret is in captcha_secret_enc. */
@@ -124,11 +126,16 @@ export const users = pgTable(
     publicMetadata: jsonb("public_metadata").$type<Record<string, unknown>>().notNull().default({}),
     privateMetadataEnc: text("private_metadata_enc"), // encrypted JSON
     banned: boolean("banned").notNull().default(false),
+    /** Self-service deletion: set while the account waits out its grace period (sign-in is refused meanwhile). */
+    deletionRequestedAt: timestamp("deletion_requested_at", { withTimezone: true }),
+    deletionScheduledAt: timestamp("deletion_scheduled_at", { withTimezone: true }),
+    /** SHA-256 of the cancel link's token. */
+    deletionTokenHash: text("deletion_token_hash"),
     lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("users_instance_idx").on(t.instanceId)],
+  (t) => [index("users_instance_idx").on(t.instanceId), index("users_deletion_due_idx").on(t.deletionScheduledAt).where(sql`${t.deletionScheduledAt} is not null`)],
 );
 
 export const emailAddresses = pgTable(

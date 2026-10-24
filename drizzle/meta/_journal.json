@@ -169,6 +169,13 @@
       "when": 1792900200000,
       "tag": "0023_org_roles_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792900300000,
+      "tag": "0024_account_deletion",
+      "breakpoints": true
     }
   ]
 }

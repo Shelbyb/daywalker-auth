@@ -77,6 +77,11 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `domain_taken` | 409 | Another organization already verified that domain | Use a different domain |
 | `verification_failed` | 400 | DNS record not found yet | Wait for DNS, then retry |
 | `account_locked` | 429 | Too many wrong passwords or codes; the account is locked for a while (same response for unknown emails) | Tell the user to wait or use the emailed unlock link |
+| `account_pending_deletion` | 403 | Account is scheduled for deletion; sign-in refused | Use the cancel link from the email |
+| `account_deletion_disabled` | 403 | The app turned off self-service deletion | Contact the app |
+| `sole_org_admin` | 409 | Only admin of an organization that has other members | Promote another admin or delete the organization |
+| `invalid_cancel_link` | 400 | Cancel link used or expired | Ask support, or sign in if already canceled |
+| `credentials_required` | 400 | Re-authentication missing (password, code or emailed code) | Ask for what `me/reauth_code` lists |
 | `invalid_unlock_link` | 400 | Unlock link used or expired | Sign in again to get a new link |
 | `rate_limited` | 429 | Too many attempts | Wait and retry |
 | `internal_error` | 500 | Unexpected failure (details only in server logs) | Retry; report if it persists |

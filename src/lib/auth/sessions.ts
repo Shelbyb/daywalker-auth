@@ -29,6 +29,11 @@ export async function createSession(
   // Backstop for every sign-in path: only the identity provider may open a session for an SSO-required address.
   // Platform impersonation (see lib/platform.ts) is not a sign-in by the user, so it is exempt.
   if (meta.method !== "saml" && !meta.impersonatorId) await assertSsoNotRequiredForUser(inst.id, userId);
+  // Backstop: an account waiting to be deleted can't sign in (the emailed link cancels it). Impersonation is exempt.
+  if (!meta.impersonatorId) {
+    const [pend] = await db().select({ at: schema.users.deletionScheduledAt }).from(schema.users).where(eq(schema.users.id, userId));
+    if (pend?.at) throw errors.forbidden(`This account is scheduled for deletion on ${pend.at.toISOString().slice(0, 10)}. Use the cancel link in the confirmation email to keep it`).withCode("account_pending_deletion");
+  }
   const refreshToken = newToken();
   const ss = sessionSettings(inst);
   const expiresAt = new Date(Date.now() + (meta.lifetimeMs ?? (ss.maxLifetimeEnabled ? inst.settings.sessionLifetimeDays : HARD_CAP_DAYS) * 86_400_000));

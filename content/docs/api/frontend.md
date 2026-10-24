@@ -40,6 +40,10 @@ PATCH|DELETE /v1/client/organizations/{id}/domains/{domainId}
 POST   /v1/client/organizations/{id}/domains/{domainId}/verify   // { method: "dns" } | { method: "email", mailbox | code }
 GET    /v1/client/organizations/suggestions                 // organizations offered by verified email domain
 POST   /v1/client/organizations/suggestions/{orgId}/accept
+POST /v1/client/me/delete                 { "password"|"code"|"emailCode" }   // schedule deletion, sign out everywhere
+POST /v1/client/me/export                 { "password"|"code"|"emailCode" }   // JSON download of the user's data (3/hour)
+GET|POST /v1/client/me/reauth_code        // what re-auth needs / email a code
+POST /v1/client/cancel_deletion           { "token": "…" }   // one-time link from the deletion email
 POST /v1/client/unlock                   { "token": "…" }   // one-time link from the "account locked" email
 POST /v1/client/sign_in/second_factor   { "code": "123456" }   // or a backup code
 ```

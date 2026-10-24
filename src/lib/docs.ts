@@ -25,6 +25,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/two-factor", title: "Two-factor authentication" },
       { slug: "guides/passkeys", title: "Passkeys" },
       { slug: "guides/account-lockout", title: "Account lockout" },
+      { slug: "guides/account-deletion", title: "Account deletion and export" },
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
       { slug: "guides/dashboard", title: "The developer dashboard" },
       { slug: "guides/organizations", title: "Organizations" },

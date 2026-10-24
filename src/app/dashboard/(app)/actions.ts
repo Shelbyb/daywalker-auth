@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, unlockUserFromDashboard, saveRoleFor, deleteRoleFor, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
@@ -262,6 +262,16 @@ export async function unlockUserAction(_prev: ActionState, fd: FormData): Promis
     await unlockUserFromDashboard(userId, id, str(fd, "targetId", 200));
     refresh(id);
     return { message: "Account unlocked." };
+  });
+}
+
+export async function cancelDeletionAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await cancelDeletionFromDashboard(userId, id, str(fd, "targetId", 200));
+    refresh(id);
+    return { message: "Deletion canceled." };
   });
 }
 

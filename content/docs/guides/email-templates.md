@@ -12,6 +12,8 @@ Daywalker sends four kinds of email for your app. You can rewrite each one, and 
 | Email verification (`verify_email`) | A new user confirms their address | `{{app_name}}`, **`{{code}}`**, `{{expires_minutes}}` |
 | Password reset (`reset_password`) | Someone uses "Forgot password" | `{{app_name}}`, **`{{code}}`**, `{{expires_minutes}}` |
 | Sign-in code and link (`sign_in`) | [Passwordless sign-in](/docs/guides/email-codes) | `{{app_name}}`, **`{{code}}`**, **`{{link}}`**, `{{expires_minutes}}` |
+| Account deletion scheduled (`account_deletion`) | A user schedules their account for deletion | `{{app_name}}`, **`{{link}}`** (cancel), `{{date}}` |
+| Confirmation code (`reauth_code`) | Re-authentication for deleting or exporting, for accounts without a password | `{{app_name}}`, `{{code}}`, `{{expires_minutes}}` |
 | Account locked (`account_unlock`) | An account is locked after repeated failed attempts | `{{app_name}}`, **`{{link}}`**, `{{expires_hours}}` |
 | Organization invitation (`invitation`) | Someone is invited to an organization | `{{app_name}}`, `{{org_name}}`, `{{inviter}}`, **`{{link}}`**, `{{expires_days}}` |
 

@@ -11,7 +11,7 @@ import { errors } from "./http";
 import { escapeHtml } from "./mail";
 import type { Instance } from "./db/schema";
 
-export const TEMPLATE_KINDS = ["verify_email", "reset_password", "sign_in", "invitation", "account_unlock"] as const;
+export const TEMPLATE_KINDS = ["verify_email", "reset_password", "sign_in", "invitation", "account_unlock", "account_deletion", "reauth_code"] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
 
 type Spec = { label: string; vars: string[]; required: string[]; subject: string; body: string };
@@ -44,6 +44,20 @@ export const SPECS: Record<TemplateKind, Spec> = {
     required: ["link"],
     subject: "{{inviter}} invited you to join {{org_name}} on {{app_name}}",
     body: "{{inviter}} invited you to join {{org_name}} on {{app_name}}.\n\n{{link}}\n\nThe link works for {{expires_days}} days. If you weren't expecting this, you can ignore this email.",
+  },
+  account_deletion: {
+    label: "Account deletion scheduled",
+    vars: ["app_name", "date", "link"],
+    required: ["link"],
+    subject: "Your {{app_name}} account will be deleted on {{date}}",
+    body: "Someone asked to delete your {{app_name}} account. It will be permanently deleted on {{date}}, and you are signed out everywhere.\n\nIf you changed your mind, or this wasn't you, cancel the deletion:\n\n{{link}}\n\nThe link works once, until the deletion date.",
+  },
+  reauth_code: {
+    label: "Confirmation code",
+    vars: ["app_name", "code", "expires_minutes"],
+    required: ["code"],
+    subject: "{{code}} is your {{app_name}} confirmation code",
+    body: "Use this code to confirm a sensitive action on your {{app_name}} account (deleting it or downloading your data):\n\n{{code}}\n\nIt expires in {{expires_minutes}} minutes. If you didn't ask for this, you can ignore this email, and consider changing your password.",
   },
   account_unlock: {
     label: "Account locked",
@@ -144,6 +158,7 @@ const LINK_LABEL: Partial<Record<TemplateKind, (v: Record<string, string>) => st
   sign_in: (v) => `Sign in to ${v.app_name}`,
   invitation: () => "Accept invitation",
   account_unlock: () => "Unlock my account",
+  account_deletion: () => "Cancel the deletion",
 };
 
 /** What every sender calls: the instance's wording (or the default), filled in and rendered. */
@@ -161,6 +176,7 @@ export const SAMPLE_VARS = (appName: string): Record<string, string> => ({
   expires_minutes: "10",
   expires_days: "7",
   expires_hours: "24",
+  date: "November 7, 2026",
   org_name: "Acme Inc.",
   inviter: "Ada Lovelace",
 });

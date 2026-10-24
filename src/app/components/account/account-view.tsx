@@ -7,6 +7,7 @@ import { ProfileSection } from "./profile";
 import { PasswordSection } from "./password";
 import { TwoFactorSection } from "./two-factor";
 import { SessionsSection } from "./sessions";
+import { DataSection } from "./danger";
 import { PasskeysSection } from "./passkeys";
 
 const PROVIDER_NAMES: Record<string, string> = { google: "Google", github: "GitHub", microsoft: "Microsoft", apple: "Apple", discord: "Discord", gitlab: "GitLab", oidc: "Single sign-on" };
@@ -82,6 +83,8 @@ export function AccountView({ pk, back }: { pk: string; back?: string }) {
       )}
 
       <SessionsSection pk={pk} sessions={sessions} onChanged={refresh} />
+
+      <DataSection pk={pk} back={back ?? null} />
 
       <div className="flex justify-end">
         <Button

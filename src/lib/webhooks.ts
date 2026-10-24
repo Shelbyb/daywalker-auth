@@ -13,6 +13,8 @@ import { checkPublicUrl, safeLookup, type UrlProblem } from "./net-guard";
 export const EVENT_TYPES = [
   "user.created",
   "user.deleted",
+  "user.deletion_requested",
+  "user.deletion_canceled",
   "user.locked",
   "user.unlocked",
   "session.created",

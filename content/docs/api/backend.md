@@ -53,6 +53,14 @@ POST /v1/users/{userId}/unlock
 
 Lifts an [account lockout](/docs/guides/account-lockout) and resets its progression. `200` → `{ id, unlocked }` (`unlocked` is `false` when the account wasn't locked). The user object from `GET /v1/users/{id}` has `lockedUntil`.
 
+### Cancel a pending deletion
+
+```http
+POST /v1/users/{userId}/cancel_deletion
+```
+
+Stops a [self-service deletion](/docs/guides/account-deletion). `200` → `{ id, canceled }`. `GET`/`PATCH /v1/instance/account_deletion` read and set `{ enabled, graceDays }`.
+
 ## Organization roles, members and domains
 
 | Request | What it does |

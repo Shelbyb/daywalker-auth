@@ -101,6 +101,10 @@ function decodeExp(jwt: string) {
  * Browser client. The JWT is held in memory only (never localStorage). The long-lived
  * refresh token stays in an HttpOnly cookie on the auth service and is never visible to JS.
  */
+/** Proof of identity for deleting or exporting. Send what `getReauthRequirements` asks for. */
+export type Reauth = { password?: string; code?: string; emailCode?: string };
+export type ReauthRequirements = { password: boolean; twoFactor: boolean; emailCode: boolean };
+
 export function createAuthClient(config: Config & { /** Mirror the JWT into a cookie on your domain (default true) */ syncCookie?: boolean }) {
   instanceIdFromKey(config.publishableKey); // fail fast on a bad key
   const base = normalizeOrigin(config.frontendApi);
@@ -236,6 +240,31 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   /** Uses the one-time token from the "account locked" email (URL fragment `#token=`). The user then signs in as usual. */
   async function unlockAccount(token: string) {
     return request<{ unlocked: true }>("unlock", { method: "POST", body: JSON.stringify({ token }) });
+  }
+
+  /** Uses the one-time token from the "scheduled for deletion" email (URL fragment `#token=`). The user then signs in as usual. */
+  async function cancelAccountDeletion(token: string) {
+    return request<{ canceled: true }>("cancel_deletion", { method: "POST", body: JSON.stringify({ token }) });
+  }
+
+  /** What to ask for before deleting or exporting: the password, a 2FA code, or (if neither exists) an emailed code. */
+  async function getReauthRequirements() {
+    return request<ReauthRequirements>("me/reauth_code");
+  }
+
+  /** Emails a confirmation code. Only for accounts with no password and no two-factor. */
+  async function sendReauthCode() {
+    await request<{ sent: true }>("me/reauth_code", { method: "POST" });
+  }
+
+  /** Schedules the account for deletion and signs out everywhere. Re-authentication is required. */
+  async function deleteAccount(reauth: Reauth) {
+    return request<{ scheduledFor: string; deleted: boolean }>("me/delete", { method: "POST", body: JSON.stringify(reauth) });
+  }
+
+  /** The user's data as an object (decrypted for them). Re-authentication is required; 3 per hour. */
+  async function exportData(reauth: Reauth) {
+    return request<Record<string, unknown>>("me/export", { method: "POST", body: JSON.stringify(reauth) });
   }
 
   /** Does this email's domain sign in through the company's identity provider (SAML SSO)? */
@@ -695,6 +724,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     signInWithEmailCode,
     signInWithMagicLink,
     unlockAccount,
+    cancelAccountDeletion,
+    getReauthRequirements,
+    sendReauthCode,
+    deleteAccount,
+    exportData,
     signUp,
     signOut,
     authFetch,

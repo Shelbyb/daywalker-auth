@@ -121,7 +121,7 @@ export async function getUser(instanceId: string, userId: string, opts: { includ
     emailAddresses: emails.map((e) => ({ id: e.id, email: decrypt(e.emailEnc, `email_addresses.email:${e.id}`), primary: e.isPrimary, verified: !!e.verified })),
     publicMetadata: u.publicMetadata,
     twoFactorEnabled: await hasTwoFactor(u.id),
-    ...(opts.includePrivate ? { lockedUntil: await lockStatus(instanceId, u.id), privateMetadata: JSON.parse(decryptNullable(u.privateMetadataEnc, `users.private_metadata:${u.id}`) ?? "{}"), banned: u.banned } : {}),
+    ...(opts.includePrivate ? { lockedUntil: await lockStatus(instanceId, u.id), deletionScheduledAt: u.deletionScheduledAt?.toISOString() ?? null, privateMetadata: JSON.parse(decryptNullable(u.privateMetadataEnc, `users.private_metadata:${u.id}`) ?? "{}"), banned: u.banned } : {}),
     lastSignInAt: u.lastSignInAt,
     createdAt: u.createdAt,
   };

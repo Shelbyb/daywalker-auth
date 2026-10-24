@@ -201,6 +201,13 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
       delete: (userId: string) => call<{ id: string; deleted: true }>("DELETE", `users/${encodeURIComponent(userId)}`),
       /** Lifts a lockout and resets its progression. `unlocked` is false if the account wasn't locked. */
       unlock: (userId: string) => call<{ id: string; unlocked: boolean }>("POST", `users/${encodeURIComponent(userId)}/unlock`, {}),
+      /** Stops a pending self-service deletion. `canceled` is false if none was pending. */
+      cancelDeletion: (userId: string) => call<{ id: string; canceled: boolean }>("POST", `users/${encodeURIComponent(userId)}/cancel_deletion`, {}),
+    },
+    /** Whether users can delete their own account, and the grace period (0 to 90 days). */
+    accountDeletion: {
+      get: () => call<{ enabled: boolean; graceDays: number }>("GET", "instance/account_deletion"),
+      update: (v: { enabled?: boolean; graceDays?: number }) => call<{ enabled: boolean; graceDays: number }>("PATCH", "instance/account_deletion", v),
     },
     organizations: {
       list: (q: { limit?: number; offset?: number } = {}) =>

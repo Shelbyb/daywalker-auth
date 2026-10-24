@@ -132,6 +132,10 @@ export function useAuth() {
     listSessions: c.listSessions,
     revokeSession: c.revokeSession,
     revokeOtherSessions: c.revokeOtherSessions,
+    deleteAccount: c.deleteAccount,
+    exportData: c.exportData,
+    getReauthRequirements: c.getReauthRequirements,
+    sendReauthCode: c.sendReauthCode,
     passkeysSupported: c.passkeysSupported,
     registerPasskey: c.registerPasskey,
     signInWithPasskey: c.signInWithPasskey,
@@ -257,7 +261,7 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
   );
 }
 
-export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo, type OrgRoleInfo, type OrgDomainInfo, type OrgSuggestion, type OrganizationSettings } from "../core/client";
+export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo, type Reauth, type ReauthRequirements, type OrgRoleInfo, type OrgDomainInfo, type OrgSuggestion, type OrganizationSettings } from "../core/client";
 export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, CreateOrganization, OrganizationProfile, Captcha, type Appearance, type EnvironmentInfo } from "./components";
 
 /** Account Portal names for the hosted links (same components). */

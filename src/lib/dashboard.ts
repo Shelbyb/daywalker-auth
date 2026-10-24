@@ -3,6 +3,7 @@
  * user's ID and re-checks that they own the instance: the dashboard never trusts an
  * instance ID from the URL or a form.
  */
+import { cancelDeletion } from "./auth/account-deletion";
 import { requireFeature } from "./plans";
 import { protectionView, updateProtection } from "./auth/instance-policy";
 import { createScimToken, revokeScimToken } from "./auth/scim";
@@ -427,6 +428,7 @@ export async function listUsers(userId: string, instanceId: string, q: { limit?:
     twoFactorEnabled: u!.twoFactorEnabled,
     banned: !!(u as { banned?: boolean }).banned,
     lockedUntil: (u as { lockedUntil?: string | null }).lockedUntil ?? null,
+    deletionScheduledAt: (u as { deletionScheduledAt?: string | null }).deletionScheduledAt ?? null,
     lastSignInAt: u!.lastSignInAt,
     createdAt: u!.createdAt,
   }));
@@ -441,6 +443,11 @@ export async function banUser(userId: string, instanceId: string, targetId: stri
 export async function unlockUserFromDashboard(userId: string, instanceId: string, targetId: string) {
   const inst = await ownedInstance(userId, instanceId);
   await unlockUser(inst, targetId, { type: "developer", id: userId, reason: "admin" });
+}
+
+export async function cancelDeletionFromDashboard(userId: string, instanceId: string, targetId: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  await cancelDeletion(inst, targetId, { type: "developer", id: userId });
 }
 
 // ---------- Organization roles ----------
