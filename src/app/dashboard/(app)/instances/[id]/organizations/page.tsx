@@ -1,9 +1,10 @@
 import { requireUser } from "../../../guard";
 import { updateOrgSettingsAction } from "../../../actions";
 import { ActionForm } from "../../../forms";
-import { Card, Field, PageHeader, Toggle } from "../../../ui";
+import { Card, Field, PageHeader, PlanBadge, Toggle } from "../../../ui";
 import { inputCls } from "../../../styles";
 import { details } from "../../../server";
+import { planNeeded } from "@/lib/plans";
 import { orgSettings } from "@/lib/org-settings";
 
 export const metadata = { title: "Organizations" };
@@ -13,6 +14,7 @@ export default async function OrganizationsPage({ params }: { params: Promise<{ 
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/organizations`);
   const inst = await details(userId, id);
   const o = orgSettings(inst);
+  const need = await planNeeded("organization_settings");
   const roleSelect = (name: string, value: string) => (
     <select name={name} defaultValue={value} className={inputCls}>
       <option value="admin">Admin</option>
@@ -22,6 +24,7 @@ export default async function OrganizationsPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-6">
       <PageHeader title="Organizations" description="Rules for organizations your users create and join through your app. The backend API is exempt from these, except the membership limit." />
+      {need && <p className="text-sm text-stone-600">Needs the <PlanBadge plan={need.name} /> plan. <a className="underline" href="/dashboard/billing">Billing</a></p>}
       <Card>
         <ActionForm action={updateOrgSettingsAction} submit="Save organization settings" className="max-w-xl space-y-5">
           <input type="hidden" name="instanceId" value={inst.id} />

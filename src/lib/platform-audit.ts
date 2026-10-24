@@ -12,7 +12,7 @@ export const PLATFORM_AUDIT_TYPES = [
   "impersonation.started", "impersonation.ended", "impersonation.denied",
   "instance.accessed",
   "platform_settings.updated",
-  "staff.added", "staff.role_changed", "staff.removed",
+  "plan.saved", "plan.deleted", "staff.added", "staff.role_changed", "staff.removed",
 ] as const;
 export type PlatformAuditType = (typeof PLATFORM_AUDIT_TYPES)[number];
 

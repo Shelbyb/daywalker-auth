@@ -85,6 +85,32 @@ const members = await backend.organizations.members(orgs[0].id); // [{ userId, r
 
 Organizations are scoped to your instance: another app's secret key can never see them.
 
+## Organization settings <span class="plan-badge">Pro</span>
+
+In the dashboard, open your instance, then **Configure → User & authentication → Organizations**, change the settings and click **Save organization settings**.
+
+| Setting | What it does | Error when it blocks |
+| --- | --- | --- |
+| Enable organizations | When off, users can't create, join or accept invitations | `forbidden` |
+| Membership limit | Most members per organization (blank = unlimited). Applies to invitations, SSO just-in-time joins and the backend API | `limit_reached` |
+| Allow users to create organizations | When off, only your backend API can create them | `forbidden` |
+| Creation limit per user | Most organizations one user can create (blank = unlimited) | `limit_reached` |
+| Creator's role | Role the creator gets (default `admin`) | |
+| Default role for new members | Used for invitations without a role and SSO joins (default `member`) | |
+| Allow admins to delete their organization | When off, `DELETE` on an organization is refused | `forbidden` |
+| Allow personal accounts | When off, a signed-in user must always have an active organization | `forbidden` |
+
+The backend API is exempt from these settings, except the membership limit.
+
+### In the SDK
+
+`client.getEnvironment()` returns these as `organizations` (type `OrganizationSettings`). `<OrganizationSwitcher />` reads them: it hides itself when organizations are off, hides "Create organization" when creation is off, and hides "Personal account" when personal accounts are off. Server refusals reach your code as an `AuthError` with code `forbidden` or `limit_reached`.
+
+```ts
+const { organizations } = await client.getEnvironment();
+if (organizations.allowAdminDelete) showDeleteButton();
+```
+
 ## Requiring two-factor
 
 An organization can require two-step verification for its members: `setOrganizationTwoFactor(orgId, true)` in the browser (admins only, and they need it on themselves first) or `PATCH /v1/organizations/{orgId} { "requireTwoFactor": true }` from your backend. Members without it don't get that organization's claims in their token until they turn it on. See [Requiring 2FA](/docs/guides/two-factor#requiring-2fa).

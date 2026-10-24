@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 64">
+
+  <path d="M32 3L56 11.5V31C56 45.5 46 56 32 61C18 56 8 45.5 8 31V11.5Z" fill="#14243f" stroke="#c9985a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M32 9L50.5 15.5V31C50.5 42.5 43 51 32 55.5C21 51 13.5 42.5 13.5 31V15.5Z" fill="none" stroke="#8c6a3b" stroke-width="1.2" stroke-linejoin="round"/>
+  <g stroke="#c9985a" stroke-width="3" stroke-linecap="round">
+    <path d="M19 17L45 46M45 17L19 46"/>
+  </g>
+  <g fill="#c9985a">
+    <ellipse cx="46.5" cy="47.5" rx="2.6" ry="5" transform="rotate(-40 46.5 47.5)"/>
+    <ellipse cx="17.5" cy="47.5" rx="2.6" ry="5" transform="rotate(40 17.5 47.5)"/>
+  </g>
+  <circle cx="32" cy="30" r="9.5" fill="#14243f"/>
+  <circle cx="32" cy="27.5" r="5.5" fill="#e8b873"/>
+  <path d="M29.3 31h5.4l2 11h-9.4z" fill="#e8b873"/>
+  <circle cx="32" cy="27.5" r="2" fill="#14243f"/>
+
+  <text x="72" y="42" font-family="Cinzel, 'Trajan Pro', Georgia, 'Times New Roman', serif" font-size="30" font-weight="600" letter-spacing="1" fill="#14243f">Daywalker</text>
+</svg>

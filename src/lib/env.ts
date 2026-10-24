@@ -37,6 +37,9 @@ const schema = z
      */
     TURNSTILE_SITE_KEY: z.string().max(200).default("0x4AAAAAAFjRgGz7X9Ig6AM3"),
     TURNSTILE_SECRET: z.string().max(200).optional().or(z.literal("")),
+    /** Stripe billing for developer plans; off unless STRIPE_SECRET_KEY is set. */
+    STRIPE_SECRET_KEY: z.string().max(300).optional().or(z.literal("")),
+    STRIPE_WEBHOOK_SECRET: z.string().max(300).optional().or(z.literal("")),
     TURNSTILE_HOSTNAMES: z.string().max(2000).optional().or(z.literal("")),
   })
   // In production every hop is encrypted: HTTPS for clients, TLS to Postgres and Valkey.

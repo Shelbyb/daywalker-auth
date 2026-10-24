@@ -37,3 +37,5 @@ body {
 
 /* The hosted pages already sit in a card; drop the component's own frame. */
 .hosted-embed .dw-root { max-width: none; padding: 0; border: 0; background: transparent; }
+
+.docs-prose .plan-badge { @apply ml-2 inline-block rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 align-middle text-[11px] font-semibold text-violet-700; }

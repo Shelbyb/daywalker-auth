@@ -39,6 +39,11 @@ export function Badge({ tone = "neutral", children }: { tone?: keyof typeof badg
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${badgeTones[tone]}`}>{children}</span>;
 }
 
+/** Clerk-style pill marking a feature that needs a paid plan. */
+export function PlanBadge({ plan }: { plan: string }) {
+  return <span className="ml-2 inline-block rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 align-middle text-[11px] font-semibold text-violet-700">{plan}</span>;
+}
+
 export function Field({ label, hint, children }: { label: string; hint?: React.ReactNode; children: React.ReactNode }) {
   return (
     <label className="block">

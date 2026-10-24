@@ -27,6 +27,7 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
       { slug: "guides/terms-acceptance", title: "Require terms at sign-up" },
       { slug: "guides/dashboard", title: "The developer dashboard" },
       { slug: "guides/organizations", title: "Organizations" },
+      { slug: "guides/sessions", title: "Sessions" },
       { slug: "guides/enterprise-sso", title: "Enterprise SSO (SAML)" },
       { slug: "guides/webhooks", title: "Webhooks" },
       { slug: "guides/rotating-keys", title: "Rotating keys" },
@@ -85,7 +86,7 @@ const getHighlighter = () =>
 
 const slugify = (s: string) => s.toLowerCase().replace(/<[^>]+>/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
-export type DocPage = { title: string; description: string; html: string; toc: { id: string; text: string }[] };
+export type DocPage = { plan?: string; title: string; description: string; html: string; toc: { id: string; text: string }[] };
 
 /** Renders at build time (pages are statically generated), so readers download plain HTML. */
 export async function loadDoc(slug: string): Promise<DocPage | null> {
@@ -126,5 +127,5 @@ export async function loadDoc(slug: string): Promise<DocPage | null> {
     },
   });
   const html = await marked.parse(body);
-  return { title: meta.title ?? "Docs", description: meta.description ?? "", html, toc };
+  return { plan: meta.plan || undefined, title: meta.title ?? "Docs", description: meta.description ?? "", html, toc };
 }

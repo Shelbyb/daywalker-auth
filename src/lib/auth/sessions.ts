@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { record } from "../audit";
 import { db, schema } from "../db";
 import { cache } from "../cache";
@@ -10,6 +10,7 @@ import { roleIn } from "./orgs";
 import type { Instance } from "../db/schema";
 import { emit } from "../webhooks";
 import { assertSsoNotRequiredForUser } from "./sso-policy";
+import { HARD_CAP_DAYS, renderClaims, sessionSettings, usesUserVars } from "../session-settings";
 import { appRequiresSetup, orgAllowed, setupRequiredError } from "./two-factor-policy";
 
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
@@ -27,7 +28,8 @@ export async function createSession(
   // Platform impersonation (see lib/platform.ts) is not a sign-in by the user, so it is exempt.
   if (meta.method !== "saml" && !meta.impersonatorId) await assertSsoNotRequiredForUser(inst.id, userId);
   const refreshToken = newToken();
-  const expiresAt = new Date(Date.now() + (meta.lifetimeMs ?? inst.settings.sessionLifetimeDays * 86_400_000));
+  const ss = sessionSettings(inst);
+  const expiresAt = new Date(Date.now() + (meta.lifetimeMs ?? (ss.maxLifetimeEnabled ? inst.settings.sessionLifetimeDays : HARD_CAP_DAYS) * 86_400_000));
   const id = newId("sess");
   await db().insert(schema.sessions).values({
     id,
@@ -41,6 +43,14 @@ export async function createSession(
   });
   // Impersonation is recorded only in the platform audit log: the customer and the user never see it.
   if (meta.impersonatorId) return { id, refreshToken, expiresAt };
+  if (!ss.multiSession) {
+    const old = await db()
+      .update(schema.sessions)
+      .set({ status: "revoked" })
+      .where(and(eq(schema.sessions.instanceId, inst.id), eq(schema.sessions.userId, userId), eq(schema.sessions.status, "active"), ne(schema.sessions.id, id)))
+      .returning({ h: schema.sessions.refreshTokenHash });
+    if (old.length) await cache().del(...old.map((r) => sessKey(r.h)));
+  }
   await db().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, userId));
   void emit(inst.id, "session.created", { sessionId: id, userId });
   void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null, ...(meta.method ? { method: meta.method } : {}) } });
@@ -51,7 +61,7 @@ export async function createSession(
  * Hot path: called every ~50s per active tab. Valkey absorbs the read; Postgres is hit
  * on a miss. Revocation deletes the cache entry, so it takes effect on the next refresh.
  */
-export async function resolveSession(instanceId: string, refreshToken: string) {
+export async function resolveSession(instanceId: string, refreshToken: string, opts: { inactivityMinutes?: number | null } = {}) {
   const h = sha256(refreshToken);
   let s: CachedSession | null = null;
   const hit = await cache().get(sessKey(h));
@@ -87,6 +97,14 @@ export async function resolveSession(instanceId: string, refreshToken: string) {
     }
   }
   if (!s || s.status !== "active" || new Date(s.expiresAt) <= new Date()) return null;
+  if (opts.inactivityMinutes) {
+    const [r] = await db().select({ at: schema.sessions.lastActiveAt }).from(schema.sessions).where(eq(schema.sessions.id, s.id));
+    if (r && Date.now() - r.at.getTime() > opts.inactivityMinutes * 60_000) {
+      await db().update(schema.sessions).set({ status: "ended" }).where(eq(schema.sessions.id, s.id));
+      await cache().del(sessKey(h));
+      return null;
+    }
+  }
   // Throttle last-active writes to once a minute per session.
   if (await cache().set(`sess:touch:${s.id}`, "1", "EX", 60, "NX")) {
     await db().update(schema.sessions).set({ lastActiveAt: new Date() }).where(eq(schema.sessions.id, s.id));
@@ -96,14 +114,27 @@ export async function resolveSession(instanceId: string, refreshToken: string) {
 
 export async function issueToken(inst: Instance, refreshToken: string | undefined, azp?: string) {
   if (!refreshToken) throw errors.unauthorized();
-  const s = await resolveSession(inst.id, refreshToken);
+  const ss = sessionSettings(inst);
+  const s = await resolveSession(inst.id, refreshToken, { inactivityMinutes: ss.inactivityTimeoutMinutes });
   if (!s) throw errors.unauthorized("Session is no longer active");
   if (!s.impersonatorId && (await appRequiresSetup(inst, s.userId, s.id))) throw setupRequiredError();
   // Role is re-checked on every mint, so removal from an org drops the claims within a minute.
   // An organization that requires two-factor only appears in the token of members who have it.
   const orgRole = s.activeOrgId && (await orgAllowed(s.activeOrgId, s.userId)) ? await roleIn(inst.id, s.activeOrgId, s.userId) : null;
   const org = orgRole ? { org_id: s.activeOrgId!, org_role: orgRole } : undefined;
-  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org }, inst.settings.tokenTtlSeconds);
+  let custom: Record<string, string> | undefined;
+  if (Object.keys(ss.customClaims).length) {
+    const ctx: Record<string, string | null | undefined> = { "user.id": s.userId, "org.id": org?.org_id, "org.role": org?.org_role };
+    if (usesUserVars(ss.customClaims)) {
+      const { getUser } = await import("./users");
+      const u = await getUser(inst.id, s.userId);
+      ctx["user.email"] = u?.emailAddresses.find((e) => e.primary)?.email;
+      ctx["user.first_name"] = u?.firstName;
+      ctx["user.last_name"] = u?.lastName;
+    }
+    custom = renderClaims(ss.customClaims, ctx);
+  }
+  const jwt = await mintSessionToken(inst.id, { sub: s.userId, sid: s.id, azp, org, custom }, inst.settings.tokenTtlSeconds);
   return { jwt, sessionId: s.id, userId: s.userId, orgId: org?.org_id ?? null, orgRole: org?.org_role ?? null };
 }
 

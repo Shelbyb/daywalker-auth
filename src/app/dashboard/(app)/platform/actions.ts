@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
-import { endImpersonation, removeStaff, setStaff, startImpersonation, updatePlatformSettings } from "@/lib/platform";
+import { adminDeletePlan, adminSavePlan, endImpersonation, removeStaff, setStaff, startImpersonation, updatePlatformSettings } from "@/lib/platform";
 import type { ActionState } from "../actions";
 
 const GENERIC = "Something went wrong. Please try again.";
@@ -70,5 +70,28 @@ export async function platformSettingsAction(_prev: ActionState, fd: FormData): 
     });
     revalidatePath("/dashboard/platform/settings");
     return { message: changed.length ? "Platform settings saved. Every instance uses them within a few seconds." : "Nothing changed." };
+  });
+}
+
+export async function savePlanAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const dollars = Number(str(fd, "price", 12) || "0");
+    await adminSavePlan({
+      id: str(fd, "id", 100) || undefined,
+      name: str(fd, "name", 60), slug: str(fd, "slug", 30), description: str(fd, "description", 300),
+      priceCents: Math.round(dollars * 100), interval: str(fd, "interval", 10) || "month",
+      stripePriceId: str(fd, "stripePriceId", 100), features: fd.getAll("features").map(String),
+      active: fd.get("active") === "on", sortOrder: Number(str(fd, "sortOrder", 5)) || 0,
+    });
+    revalidatePath("/dashboard/platform/plans");
+    return { message: "Plan saved." };
+  });
+}
+
+export async function deletePlanAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    await adminDeletePlan(str(fd, "id", 100));
+    revalidatePath("/dashboard/platform/plans");
+    return { message: "Plan deleted." };
   });
 }

@@ -61,7 +61,9 @@ export const instances = pgTable(
         /** Account Portal fallbacks when no redirect_url is given; checked against allowed origins when used. */
         redirects?: { afterSignIn?: string | null; afterSignUp?: string | null; afterLogoClick?: string | null };
         /** Organization rules (see lib/org-settings.ts for defaults). */
-        organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: "admin" | "member"; defaultRole?: "admin" | "member"; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean } }>()
+        organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: "admin" | "member"; defaultRole?: "admin" | "member"; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean };
+        /** Session rules (see lib/session-settings.ts). */
+        sessions?: { maxLifetimeEnabled?: boolean; inactivityTimeoutMinutes?: number | null; multiSession?: boolean; customClaims?: Record<string, string> } }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.
@@ -599,3 +601,34 @@ export const customDomains = pgTable(
   },
   (t) => [uniqueIndex("custom_domains_hostname_idx").on(t.hostname), index("custom_domains_instance_idx").on(t.instanceId)],
 );
+
+/** Plans developer accounts can subscribe to (managed by platform admins). `features` are keys from lib/plans.ts. */
+export const plans = pgTable(
+  "plans",
+  {
+    id: id(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    priceCents: bigint("price_cents", { mode: "number" }).notNull().default(0),
+    interval: text("interval").notNull().default("month"),
+    stripePriceId: text("stripe_price_id"),
+    features: jsonb("features").$type<string[]>().notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    isDefault: boolean("is_default").notNull().default(false),
+    sortOrder: bigint("sort_order", { mode: "number" }).notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("plans_slug_idx").on(t.slug)],
+);
+
+/** One subscription per developer account; no row means the default (free) plan. */
+export const subscriptions = pgTable("subscriptions", {
+  accountId: text("account_id").primaryKey().references(() => accounts.id, { onDelete: "cascade" }),
+  planId: text("plan_id").notNull().references(() => plans.id),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  status: text("status").notNull().default("active"),
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  updatedAt: updatedAt(),
+});

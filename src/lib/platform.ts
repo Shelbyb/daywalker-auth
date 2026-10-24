@@ -25,6 +25,7 @@ import { hasTwoFactor } from "./auth/mfa";
 import { platformRole, type PlatformRole } from "./platform-staff";
 import { recordPlatform } from "./platform-audit";
 import { savePlatformSettings } from "./platform-settings";
+import { deletePlan, savePlan } from "./plans";
 
 export { platformRole, type PlatformRole };
 
@@ -320,4 +321,17 @@ export async function instanceNames(ids: (string | null)[]) {
     if (i) out[id] = i.name;
   }));
   return out;
+}
+
+export async function adminSavePlan(input: Parameters<typeof savePlan>[0]) {
+  const staff = await requirePlatform("admin");
+  const id = await savePlan(input);
+  void recordPlatform("plan.saved", { actorId: staff.userId, target: id, data: { name: input.name, priceCents: input.priceCents } });
+  return id;
+}
+
+export async function adminDeletePlan(id: string) {
+  const staff = await requirePlatform("admin");
+  await deletePlan(id);
+  void recordPlatform("plan.deleted", { actorId: staff.userId, target: id });
 }

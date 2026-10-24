@@ -3,6 +3,7 @@
  * user's ID and re-checks that they own the instance: the dashboard never trusts an
  * instance ID from the URL or a form.
  */
+import { requireFeature } from "./plans";
 import { protectionView, updateProtection } from "./auth/instance-policy";
 import { createScimToken, revokeScimToken } from "./auth/scim";
 import { cookies } from "next/headers";
@@ -25,6 +26,7 @@ import { getUser, deleteUser, setBanned } from "./auth/users";
 import { PROVIDERS, callbackUrl, isProvider, labelFor, setProviderConfig } from "./auth/oauth";
 import { parseSettings, type ProviderSettings } from "./auth/oauth-providers";
 import { legalInput, legalOf } from "./auth/legal";
+import { validateClaims } from "./session-settings";
 import type { Instance } from "./db/schema";
 import { platformRole } from "./platform-staff";
 import { recordPlatform } from "./platform-audit";
@@ -108,12 +110,15 @@ export async function ownedInstance(userId: string, instanceId: string): Promise
   let [row] = ids.length
     ? await db().select().from(schema.instances).where(and(eq(schema.instances.id, instanceId), inArray(schema.instances.accountId, ids)))
     : [];
-  if (!row && typeof instanceId === "string" && instanceId.length <= 100 && (await platformRole(userId))) {
-    [row] = await db().select().from(schema.instances).where(eq(schema.instances.id, instanceId));
+  if (!row && typeof instanceId === "string" && instanceId.length <= 100) {
+    const role = await platformRole(userId);
+    const isPlatform = instanceId === platformInstanceId();
+    // Staff manage customer instances; only admins manage the platform's own instance (its sign-in settings).
+    if (role && (!isPlatform || role === "admin")) [row] = await db().select().from(schema.instances).where(eq(schema.instances.id, instanceId));
     if (row && row.id !== platformInstanceId() && (await cache().set(`platform:accessed:${userId}:${row.id}`, "1", "EX", 3600, "NX")))
       void recordPlatform("instance.accessed", { actorId: userId, instanceId: row.id, data: { instanceName: row.name } });
   }
-  if (!row || row.id === platformInstanceId()) throw errors.notFound("Instance not found");
+  if (!row) throw errors.notFound("Instance not found");
   return row;
 }
 
@@ -232,6 +237,7 @@ export async function updateOrgSettings(
   input: { enabled: boolean; membershipLimit: string; allowUserCreation: boolean; creationLimit: string; creatorRole: string; defaultRole: string; allowAdminDelete: boolean; allowPersonalAccounts: boolean },
 ) {
   const inst = await ownedInstance(userId, instanceId);
+  await requireFeature(inst.accountId, "organization_settings");
   const parsed = z
     .object({
       enabled: z.boolean(),
@@ -254,6 +260,38 @@ export async function updateOrgSettings(
   await db().update(schema.instances).set({ settings: { ...inst.settings, organizations }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
   await invalidateInstance(instanceId);
   void record(instanceId, "instance.organizations_updated", { actor: { type: "developer", id: userId }, data: organizations });
+}
+
+/** Session rules (see lib/session-settings.ts). Claims are a JSON object of name -> template. */
+export async function updateSessionSettings(
+  userId: string,
+  instanceId: string,
+  input: { maxLifetimeEnabled: boolean; inactivityTimeoutMinutes: string; multiSession: boolean; tokenTtlSeconds: string; customClaims: string },
+) {
+  const inst = await ownedInstance(userId, instanceId);
+  if (input.inactivityTimeoutMinutes.trim() !== "" || (input.customClaims.trim() && input.customClaims.trim() !== "{}")) await requireFeature(inst.accountId, "session_customization");
+  const idle = input.inactivityTimeoutMinutes.trim();
+  const inactivityTimeoutMinutes = idle === "" ? null : Number(idle);
+  if (inactivityTimeoutMinutes !== null && (!Number.isInteger(inactivityTimeoutMinutes) || inactivityTimeoutMinutes < 1 || inactivityTimeoutMinutes > 129600))
+    throw errors.badRequest("invalid_timeout", "Inactivity timeout must be a whole number of minutes from 1 to 129600, or blank for none");
+  const ttl = Number(input.tokenTtlSeconds.trim() || inst.settings.tokenTtlSeconds);
+  if (!Number.isInteger(ttl) || ttl < 30 || ttl > 600) throw errors.badRequest("invalid_ttl", "Token lifetime must be 30 to 600 seconds");
+  let claims: unknown = {};
+  const raw = input.customClaims.trim();
+  if (raw) {
+    try {
+      claims = JSON.parse(raw);
+    } catch {
+      throw errors.badRequest("invalid_claims", "Custom claims must be valid JSON");
+    }
+    if (!claims || typeof claims !== "object" || Array.isArray(claims)) throw errors.badRequest("invalid_claims", "Custom claims must be a JSON object");
+  }
+  const bad = validateClaims(claims as Record<string, unknown>);
+  if (bad) throw errors.badRequest("invalid_claims", bad);
+  const sessions = { maxLifetimeEnabled: input.maxLifetimeEnabled, inactivityTimeoutMinutes, multiSession: input.multiSession, customClaims: claims as Record<string, string> };
+  await db().update(schema.instances).set({ settings: { ...inst.settings, tokenTtlSeconds: ttl, sessions }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
+  await invalidateInstance(instanceId);
+  void record(instanceId, "instance.sessions_updated", { actor: { type: "developer", id: userId }, data: { ...sessions, tokenTtlSeconds: ttl } });
 }
 
 export async function instanceDetails(userId: string, instanceId: string) {

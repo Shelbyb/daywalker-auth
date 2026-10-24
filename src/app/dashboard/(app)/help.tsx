@@ -14,6 +14,7 @@ const RELATED: [RegExp, Doc[]][] = [
   [/\/instances\/[^/]+\/sso/, [{ slug: "guides/enterprise-sso", title: "Enterprise SSO" }]],
   [/\/instances\/[^/]+\/webhooks/, [{ slug: "guides/webhooks", title: "Webhooks" }]],
   [/\/instances\/[^/]+\/emails/, [{ slug: "guides/email-templates", title: "Email templates" }, { slug: "guides/email-verification", title: "Email verification" }]],
+  [/\/instances\/[^/]+\/sessions/, [{ slug: "guides/sessions", title: "Sessions" }]],
   [/\/instances\/[^/]+\/organizations/, [{ slug: "guides/organizations", title: "Organizations" }]],
   [/\/instances\/[^/]+\/terms/, [{ slug: "guides/terms-acceptance", title: "Terms acceptance" }]],
   [/\/instances\/[^/]+\/audit/, [{ slug: "guides/audit-logs", title: "Audit logs" }]],

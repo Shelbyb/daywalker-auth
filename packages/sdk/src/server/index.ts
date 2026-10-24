@@ -7,7 +7,7 @@ if (typeof window !== "undefined") {
   throw new Error("@daywalker/auth/server must only be imported on the server");
 }
 
-export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: "admin" | "member" };
+export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: "admin" | "member"; /** Custom claims set in the dashboard. */ claims?: Record<string, unknown> };
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -43,7 +43,7 @@ export async function verifyToken(token: string | null | undefined, opts: Verify
     if (opts.authorizedParties?.length && azp && !opts.authorizedParties.includes(azp)) return null;
     const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
     const orgRole = payload.org_role === "admin" || payload.org_role === "member" ? payload.org_role : undefined;
-    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole };
+    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole, claims: customClaims(payload) };
   } catch (e) {
     if (e instanceof joseErrors.JOSEError) return null;
     throw e; // network/JWKS outages surface instead of looking like "signed out"
@@ -217,4 +217,9 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
       revoke: (sessionId: string) => call<{ id: string; status: "revoked" }>("POST", `sessions/${encodeURIComponent(sessionId)}/revoke`),
     },
   };
+}
+
+const STD = new Set(["sub", "sid", "exp", "iat", "nbf", "iss", "aud", "jti", "azp", "org_id", "org_role"]);
+function customClaims(payload: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(payload).filter(([k]) => !STD.has(k)));
 }

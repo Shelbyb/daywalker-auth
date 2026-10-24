@@ -106,13 +106,13 @@ async function getSigner(instanceId: string) {
   return signer;
 }
 
-export type SessionClaims = { sub: string; sid: string; azp?: string; org?: { org_id: string; org_role: string } };
+export type SessionClaims = { sub: string; sid: string; azp?: string; org?: { org_id: string; org_role: string }; custom?: Record<string, string> };
 
 /** Short-lived session JWT. Apps verify it locally against the JWKS. */
 export async function mintSessionToken(instanceId: string, claims: SessionClaims, ttlSeconds: number) {
   const { kid, key } = await getSigner(instanceId);
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ sid: claims.sid, ...(claims.azp ? { azp: claims.azp } : {}), ...(claims.org ?? {}) })
+  return new SignJWT({ ...(claims.custom ?? {}), sid: claims.sid, ...(claims.azp ? { azp: claims.azp } : {}), ...(claims.org ?? {}) })
     .setProtectedHeader({ alg: ALG, kid, typ: "JWT" })
     .setIssuer(issuerFor(instanceId))
     .setSubject(claims.sub)

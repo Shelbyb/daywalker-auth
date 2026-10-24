@@ -1,3 +1,4 @@
+import { requireFeature } from "./plans";
 import { resolveCname } from "node:dns/promises";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -89,7 +90,8 @@ export async function listDomains(userId: string, instanceId: string) {
 }
 
 export async function addDomain(userId: string, instanceId: string, raw: string) {
-  await ownedInstance(userId, instanceId);
+  const owned = await ownedInstance(userId, instanceId);
+  await requireFeature(owned.accountId, "custom_domain");
   const hostname = raw.trim().toLowerCase();
   if (!HOST.test(hostname)) throw errors.badRequest("invalid_hostname", "Enter a valid hostname such as auth.example.com");
   const appHost = new URL(process.env.APP_URL ?? "http://localhost").hostname;

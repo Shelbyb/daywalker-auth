@@ -121,37 +121,44 @@ Organization settings are stored per instance, editable in the dashboard, and en
 - Add the Organizations Configure page, action and audit entry.
 - Extend an e2e script with checks for each limit/toggle; run typecheck.
 
-### * Step 5: SDK support and documentation for organization settings
+### ✓ Step 5: SDK support and documentation for organization settings
 The SDK reads and respects the settings, and the docs explain them.
 
 - Expose settings in the environment response and SDK types; adapt org components/errors.
 - Write the organizations settings docs, nav and help-sidebar entries.
 - Typecheck app, SDK and example.
 
-###   Step 6: Add and enforce session settings
+### ✓ Step 6: Add and enforce session settings
 Session lifetime, inactivity timeout, multi-session and custom claims are configurable and enforced.
 
 - Add `settings.sessions` type; enforce in `src/lib/auth/sessions.ts` and token issuance.
 - Add the Sessions Configure page, action and audit entry.
 - Add e2e checks for inactivity expiry, single-session revoke and claim validation.
 
-###   Step 7: SDK support and docs for session settings
+### ✓ Step 7: SDK support and docs for session settings
 The SDK exposes custom claims and multi-session, and docs explain setup.
 
 - Update SDK types, `useAuth` claims and session switching.
 - Write `guides/sessions.md`, nav and help-sidebar entries; typecheck app, SDK and example.
 
-###   Step 8: Plans, subscriptions and Stripe billing
+### ✓ Step 8: Plans, subscriptions and Stripe billing
 Developer accounts have a plan (free by default) and can upgrade through Stripe.
 
 - Add `plans` and `subscriptions` tables with a migration seeding the free plan.
 - Add the Platform → Configure → Plans admin page and audit-logged action.
 - Add Stripe Checkout, customer portal and the signed webhook; add the dashboard Billing page.
 
-###   Step 9: Feature gating, marketing pricing and plan badges in docs
+### ✓ Step 9: Feature gating, marketing pricing and plan badges in docs
 Paid features are enforced and labelled with the plan they need.
 
 - Add `planAllows` and gate paid settings in dashboard pages and actions, with plan badges.
 - Add a pricing section to the marketing page from the active plans.
 - Add the `plan:` front-matter badge and inline badges to the docs; typecheck and build.
 - Badge style (Clerk): small rounded pill with the plan name (e.g. "Pro") next to the feature title, in dashboard settings and docs headings.
+
+### ✓ Step 10: Fix broken links on the platform sign-in page
+The Settings, Account Settings and Social Sign-in links on `/dashboard/platform/signin` work for platform admins.
+
+- Reproduce each link from `src/app/dashboard/(app)/platform/signin/page.tsx` and find why it fails (instance access check for the platform instance, or the `/dashboard/settings` route).
+- Fix the cause or the link targets; check that staff can open the platform instance's Settings and Social pages.
+- Add a check to `scripts/platform-e2e.ts`; run typecheck.

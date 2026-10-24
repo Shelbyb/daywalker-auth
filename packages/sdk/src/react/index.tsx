@@ -77,6 +77,8 @@ export function useAuth() {
     /** Signed in, but the app requires two-step verification first: send them to the account page. */
     twoFactorSetupRequired: s.twoFactorSetupRequired === true,
     getToken: c.getToken,
+    /** Decoded claims of the current token, including custom claims set in the dashboard. Null until signed in. */
+    sessionClaims: useSessionClaims(c.getToken, s.sessionId),
     authFetch: c.authFetch,
     signIn: c.signIn,
     sendSignInCode: c.sendSignInCode,
@@ -233,9 +235,26 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
   );
 }
 
-export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
+export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo, type OrganizationSettings } from "../core/client";
 export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, Captcha, type Appearance, type EnvironmentInfo } from "./components";
 
 /** Account Portal names for the hosted links (same components). */
 export const AccountPortalLink = HostedLink;
 export { HostedSignIn as AccountPortalSignIn, HostedSignUp as AccountPortalSignUp, HostedUserProfile as AccountPortalProfile };
+
+function useSessionClaims(getToken: () => Promise<string | null>, sessionId: string | null) {
+  const [claims, setClaims] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    if (!sessionId) { setClaims(null); return; }
+    let live = true;
+    getToken().then((t) => {
+      if (!live || !t) return;
+      try {
+        const b = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        setClaims(JSON.parse(decodeURIComponent(escape(atob(b)))));
+      } catch { setClaims(null); }
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, [getToken, sessionId]);
+  return claims;
+}

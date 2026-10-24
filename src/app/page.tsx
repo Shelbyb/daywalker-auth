@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { dashboardEnabled, getDashboardUser } from "@/lib/dashboard";
+import { PLAN_FEATURES, listPlans } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ const apiSurfaces = [
 ];
 
 export default async function Home() {
+  const plans = await listPlans().catch(() => []);
   const signedIn = dashboardEnabled() ? Boolean(await getDashboardUser().catch(() => null)) : false;
   return (
     <main className="overflow-hidden bg-white text-ink">
@@ -198,6 +200,24 @@ if (!session) {
           ))}
         </dl>
       </section>
+
+      {plans.length > 0 && (
+        <section aria-labelledby="pricing-heading" className="mx-auto max-w-7xl px-6 pb-20 sm:pb-24">
+          <h2 id="pricing-heading" className="text-3xl font-semibold tracking-tight">Pricing</h2>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {plans.map((p) => (
+              <div key={p.id} className="rounded-2xl border border-stone-200 p-6">
+                <h3 className="text-lg font-semibold">{p.name}</h3>
+                <p className="mt-1 text-sm text-stone-600">{p.description}</p>
+                <p className="mt-4 text-3xl font-semibold">{p.priceCents === 0 ? "Free" : `$${(p.priceCents / 100).toFixed(p.priceCents % 100 ? 2 : 0)}`}{p.priceCents > 0 && <span className="text-sm font-normal text-stone-500"> / {p.interval}</span>}</p>
+                <ul className="mt-4 space-y-1 text-sm text-stone-700">
+                  {p.features.filter((f) => f in PLAN_FEATURES).map((f) => <li key={f}>✓ {PLAN_FEATURES[f as keyof typeof PLAN_FEATURES]}</li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="px-6 pb-20 sm:pb-24">
         <div className="mx-auto max-w-7xl rounded-3xl bg-ink px-6 py-12 text-white sm:px-12 sm:py-16">

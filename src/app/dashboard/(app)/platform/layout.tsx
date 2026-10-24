@@ -18,6 +18,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
           groups: [
             { label: "User & authentication", items: [{ href: `${p}/signin`, label: "Platform sign-in" }] },
             { label: "Providers", items: [{ href: `${p}/settings`, label: "Email & SMS" }] },
+            { label: "Billing", items: [{ href: `${p}/plans`, label: "Plans" }] },
             { label: "Access", items: [{ href: `${p}/staff`, label: "Staff" }] },
           ],
         }]

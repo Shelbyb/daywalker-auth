@@ -6,6 +6,7 @@ import { smsAllowed } from "./mfa";
 import type { Instance } from "../db/schema";
 import { captchaInfo } from "./signup-protection";
 import { orgSettings } from "../org-settings";
+import { sessionSettings } from "../session-settings";
 
 /** Public instance settings the sign-in UI needs. Nothing secret: shared by the API and the hosted pages. */
 export async function publicEnvironment(inst: Instance) {
@@ -21,5 +22,6 @@ export async function publicEnvironment(inst: Instance) {
     smsSecondFactor: await smsAllowed(inst),
     captcha: captchaInfo(inst),
     organizations: orgSettings(inst),
+    sessions: (({ multiSession, inactivityTimeoutMinutes }) => ({ multiSession, inactivityTimeoutMinutes }))(sessionSettings(inst)),
   };
 }

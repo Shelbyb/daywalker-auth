@@ -9,7 +9,7 @@
  * - They read the instance's settings (enabled providers, email codes, terms) and adapt.
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { AuthError, type OAuthProvider, type OrgInfo, type SessionInfo, type User } from "../core/client";
+import { AuthError, type OAuthProvider, type OrgInfo, type OrganizationSettings, type SessionInfo, type User } from "../core/client";
 import { useAuthClient, useAuthUrls, useUser } from "./index";
 
 /** `?redirect_url=` from the current page if it is same-origin, else the configured fallback (Clerk-style). */
@@ -52,6 +52,8 @@ export type EnvironmentInfo = {
   passwordMinLength: number;
   emailCodeSignIn: boolean;
   ssoEnabled?: boolean;
+  /** Organization rules set by the app in the dashboard. */
+  organizations?: OrganizationSettings;
   legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null };
   /** Cloudflare Turnstile, when the app has the human check on. */
   captcha?: { provider: "turnstile"; siteKey: string } | null;
@@ -626,7 +628,12 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rules, setRules] = useState<OrganizationSettings | null>(null);
   const ref = useDismiss(open, () => setOpen(false));
+
+  useEffect(() => {
+    c.getEnvironment().then((e) => setRules(e.organizations ?? null)).catch(() => undefined);
+  }, [c]);
 
   useEffect(() => {
     if (!user) return;
@@ -644,6 +651,9 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
   }, [c, user]);
 
   if (!user) return null;
+  if (rules && !rules.enabled) return null;
+  const showPersonal = !hidePersonal && (rules?.allowPersonalAccounts ?? true);
+  const canCreate = rules?.allowUserCreation ?? true;
   const current = orgs?.find((o) => o.id === active) ?? null;
   async function select(org: OrgInfo | null) {
     setError(null);
@@ -663,7 +673,7 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
       </button>
       {open && (
         <div role="menu" className={cx(a, "menu", "dw-menu")}>
-          {!hidePersonal && (
+          {showPersonal && (
             <button role="menuitemradio" aria-checked={!active} type="button" className={cx(a, "menuItem", "dw-menu-item")} onClick={() => void select(null)}>
               Personal account
             </button>
@@ -691,7 +701,7 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
               <button className={cx(a, "button", "dw-button dw-button-primary")}>Create</button>
             </form>
           ) : (
-            <button type="button" className={cx(a, "menuItem", "dw-menu-item dw-org-new")} onClick={() => setCreating(true)}>+ Create organization</button>
+            canCreate && <button type="button" className={cx(a, "menuItem", "dw-menu-item dw-org-new")} onClick={() => setCreating(true)}>+ Create organization</button>
           )}
           {error && <Alert a={a}>{error}</Alert>}
         </div>

@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
+import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser,
-  revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSettings, updateProtectionFor,
+  banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
 } from "@/lib/dashboard";
@@ -172,6 +173,22 @@ export async function updateOrgSettingsAction(_prev: ActionState, fd: FormData):
     });
     refresh(id);
     return { message: "Organization settings saved." };
+  });
+}
+
+export async function updateSessionSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await updateSessionSettings(userId, id, {
+      maxLifetimeEnabled: flag(fd, "maxLifetimeEnabled"),
+      inactivityTimeoutMinutes: str(fd, "inactivityTimeoutMinutes", 10),
+      multiSession: flag(fd, "multiSession"),
+      tokenTtlSeconds: str(fd, "tokenTtlSeconds", 10),
+      customClaims: str(fd, "customClaims", 2000),
+    });
+    refresh(id);
+    return { message: "Session settings saved." };
   });
 }
 
@@ -489,5 +506,22 @@ export async function removeDomainAction(_prev: ActionState, fd: FormData): Prom
     await removeDomain(userId, id, str(fd, "domainId", 200));
     refresh(id);
     return { message: "Domain removed." };
+  });
+}
+
+export async function checkoutAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const accountId = await ensureAccount(userId);
+    const url = await startCheckout(accountId, str(fd, "planId", 100));
+    return { message: "Redirecting to checkout…", redirectTo: url };
+  });
+}
+
+export async function billingPortalAction(_prev: ActionState, _fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const url = await billingPortalUrl(await ensureAccount(userId));
+    return { message: "Redirecting…", redirectTo: url };
   });
 }

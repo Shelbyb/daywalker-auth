@@ -26,7 +26,7 @@ export default async function DocPage({ params }: Props) {
   return (
     <div className="flex gap-10 py-10">
       <article className="min-w-0 max-w-3xl flex-1">
-        <h1 className="text-3xl font-semibold tracking-tight">{doc.title}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{doc.title}{doc.plan && <span className="ml-3 inline-block rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 align-middle text-xs font-semibold text-violet-700">{doc.plan}</span>}</h1>
         {doc.description && <p className="mt-2 text-lg text-stone-500">{doc.description}</p>}
         {/* Content is our own markdown, rendered at build time. */}
         <div className="docs-prose mt-8" dangerouslySetInnerHTML={{ __html: doc.html }} />

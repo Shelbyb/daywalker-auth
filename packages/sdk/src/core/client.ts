@@ -50,6 +50,17 @@ export type SecurityKeyInfo = { id: string; name: string; lastUsedAt: string | n
 export type PasskeyInfo = { id: string; name: string; synced: boolean; lastUsedAt: string | null; createdAt: string };
 
 export type OrgRole = "admin" | "member";
+/** Instance organization rules; null limits mean unlimited. */
+export type OrganizationSettings = {
+  enabled: boolean;
+  membershipLimit: number | null;
+  allowUserCreation: boolean;
+  creationLimit: number | null;
+  creatorRole: OrgRole;
+  defaultRole: OrgRole;
+  allowAdminDelete: boolean;
+  allowPersonalAccounts: boolean;
+};
 export type OrgInfo = { id: string; name: string; slug: string; role: OrgRole; requireTwoFactor?: boolean; createdAt?: string };
 export type OrgMember = { userId: string; role: OrgRole; email?: string | null; firstName?: string | null; lastName?: string | null; joinedAt: string };
 export type OrgInvitation = { id: string; email: string; role: OrgRole; expiresAt: string; createdAt: string };
@@ -389,6 +400,10 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };
       /** Cloudflare Turnstile: when set, sign-up, sign-in, email codes and password reset need a `captchaToken`. */
       captcha: { provider: "turnstile"; siteKey: string } | null;
+      /** Organization rules the instance enforces (set in the dashboard under Organizations). */
+      organizations: OrganizationSettings;
+      /** Session rules (set in the dashboard under Sessions). */
+      sessions: { multiSession: boolean; inactivityTimeoutMinutes: number | null };
     }>("environment", { method: "GET" });
   }
 
