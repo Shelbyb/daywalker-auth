@@ -98,7 +98,7 @@ export async function addDomain(inst: Instance, orgId: string, actorId: string |
   return view((await get(inst, orgId, id)));
 }
 
-async function txtRecords(name: string): Promise<string[]> {
+export async function txtRecords(name: string): Promise<string[]> {
   // Test switch (same pattern as the other *_TEST_* variables): a JSON file of name -> TXT values. Never on an HTTPS deployment.
   const f = process.env.DNS_TXT_TEST_FILE;
   if (f) {

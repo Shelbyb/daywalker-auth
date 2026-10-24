@@ -2,3 +2,5 @@ export { createAuthClient, AuthError, type AuthClient, type AuthState, type Sign
 export { instanceIdFromKey, issuerFor, SESSION_COOKIE, ACTIVE_COOKIE, type Config } from "./keys";
 export { createDpopProof, generateDeviceKey, indexedDbKeyStore, deviceKeysSupported, type DeviceKey, type DeviceKeyStore } from "./dpop";
 export { isRecentlyVerified, staleFactors, type ReverificationLevel, type RecentAuthCheck } from "./fresh";
+
+export { SATELLITE_SYNC_PATH, SATELLITE_HANDSHAKE_PATH, assertSatelliteConfig, buildSyncUrl, safeReturnTarget } from "./satellite";

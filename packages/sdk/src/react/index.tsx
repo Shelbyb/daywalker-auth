@@ -33,13 +33,14 @@ function usePageUrl() {
  * Wrap your app once (e.g. in app/layout.tsx). Reads config from props or from
  * NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY / NEXT_PUBLIC_DAYWALKER_AUTH_URL.
  */
-export function AuthProvider(props: AuthUrls & { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Verified custom domain for hosted pages. */ hostedDomain?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean; /** Set false to skip the built-in step-up prompt (then register your own with `setReverificationHandler`). */ reverificationPrompt?: boolean }) {
+export function AuthProvider(props: AuthUrls & { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Verified custom domain for hosted pages. */ hostedDomain?: string; /** This app is a satellite domain (see the satellite domains guide). Needs `primaryDomain`. Defaults to NEXT_PUBLIC_DAYWALKER_IS_SATELLITE. */ isSatellite?: boolean; primaryDomain?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean; /** Set false to skip the built-in step-up prompt (then register your own with `setReverificationHandler`). */ reverificationPrompt?: boolean }) {
   const [client] = useState(() =>
     createAuthClient({
       publishableKey: props.publishableKey ?? process.env.NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY!,
       frontendApi: props.frontendApi ?? process.env.NEXT_PUBLIC_DAYWALKER_AUTH_URL!,
       ...((props.hostedDomain ?? process.env.NEXT_PUBLIC_DAYWALKER_HOSTED_DOMAIN) ? { hostedDomain: (props.hostedDomain ?? process.env.NEXT_PUBLIC_DAYWALKER_HOSTED_DOMAIN)! } : {}),
       ...(props.syncCookie === false ? { syncCookie: false } : {}),
+      ...((props.isSatellite ?? process.env.NEXT_PUBLIC_DAYWALKER_IS_SATELLITE === "true") ? { isSatellite: true, primaryDomain: props.primaryDomain ?? process.env.NEXT_PUBLIC_DAYWALKER_PRIMARY_DOMAIN } : {}),
     }),
   );
   useEffect(() => {

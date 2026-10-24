@@ -85,6 +85,8 @@ export const instances = pgTable(
         organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: string; defaultRole?: string; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean };
         /** Session rules (see lib/session-settings.ts). */
         /** Customer-issued API keys for end users and organizations (see auth/api-keys.ts). */
+        /** Main domain of the application (an origin). Treated as an allowed origin; satellites sync sessions from the same instance. */
+        primaryDomain?: string | null;
         apiKeys?: { enabled?: boolean; maxPerSubject?: number; maxExpiryDays?: number | null; allowedScopes?: string[] };
         sessions?: { maxLifetimeEnabled?: boolean; inactivityTimeoutMinutes?: number | null; multiSession?: boolean; customClaims?: Record<string, string>; deviceBinding?: "off" | "optional" | "required" } }>()
       .notNull()
@@ -823,5 +825,29 @@ export const userApiKeys = pgTable(
     uniqueIndex("user_api_keys_hash_idx").on(t.keyHash),
     index("user_api_keys_user_idx").on(t.instanceId, t.userId),
     index("user_api_keys_org_idx").on(t.instanceId, t.orgId),
+  ],
+);
+
+/**
+ * Satellite domains: other domains (different registrable domain from the primary) that share this instance's sessions
+ * through a redirect handshake. Only verified satellites (DNS TXT, or localhost on a development instance) are trusted;
+ * a verified origin belongs to one instance only.
+ */
+export const satelliteDomains = pgTable(
+  "satellite_domains",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    /** Full origin, e.g. https://example.org */
+    origin: text("origin").notNull(),
+    hostname: text("hostname").notNull(),
+    /** Public value for the TXT record `daywalker-verify=<token>` at `_daywalker.<hostname>`. */
+    verifyToken: text("verify_token").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("satellite_domains_instance_origin_idx").on(t.instanceId, t.origin),
+    uniqueIndex("satellite_domains_verified_idx").on(t.origin).where(sql`${t.verifiedAt} is not null`),
   ],
 );

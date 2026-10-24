@@ -350,6 +350,8 @@ export type M2mClient = { id: string; name: string; secretPrefix: string; scopes
 export type ApiKeyRecord = { id: string; name: string; prefix: string; scopes: string[]; subject: { type: "user" | "org"; id: string }; createdBy: string | null; expiresAt: string | null; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 export type ApiKeySettings = { enabled: boolean; maxPerSubject: number; maxExpiryDays: number | null; allowedScopes: string[] };
 
+export type SatelliteDomain = { id: string; origin: string; hostname: string; verified: boolean; verifiedAt: string | null; createdAt: string; /** Publish this TXT record, then call verify. Absent once verified. */ dns?: { type: "TXT"; name: string; value: string } };
+
 export type EnvironmentsInfo = {
   instanceId: string;
   environment: "development" | "production";
@@ -413,6 +415,17 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
       get: () => call<EnvironmentsInfo>("GET", "instance/environments"),
       /** Call with the PRODUCTION secret key: copies configuration from the development instance. Never copies users. */
       cloneFromDevelopment: (input: CloneConfigInput = {}) => call<CloneConfigResult>("POST", "instance/clone", input),
+    },
+    /** Other domains of the same app that share sessions through a redirect handshake. */
+    satelliteDomains: {
+      list: () => call<{ data: SatelliteDomain[] }>("GET", "satellite_domains").then((r) => r.data),
+      add: (domain: string) => call<SatelliteDomain>("POST", "satellite_domains", { domain }),
+      /** Looks for the TXT record; fails with `verification_failed` until it is published. */
+      verify: (id: string) => call<SatelliteDomain>("POST", `satellite_domains/${encodeURIComponent(id)}/verify`, {}),
+      remove: (id: string) => call<{ id: string; deleted: true }>("DELETE", `satellite_domains/${encodeURIComponent(id)}`),
+      /** The primary domain (an origin). It is also an allowed origin. `null` clears it. */
+      getPrimary: () => call<{ primaryDomain: string | null }>("GET", "instance/primary_domain"),
+      setPrimary: (primaryDomain: string | null) => call<{ primaryDomain: string | null }>("PUT", "instance/primary_domain", { primaryDomain }),
     },
     /** Machine-to-machine clients (client credentials). Secrets are returned once, on create and rotate. */
     m2mClients: {

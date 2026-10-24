@@ -18,6 +18,7 @@ export function Tabs({ base, children }: { base: string; children: React.ReactNo
           { href: `${base}/sso`, label: "SSO connections" },
           { href: `${base}/organizations`, label: "Organizations" },
           { href: `${base}/sessions`, label: "Sessions" },
+          { href: `${base}/domains`, label: "Domains" },
           { href: `${base}/terms`, label: "Legal" },
         ] },
         { label: "Customization", items: [

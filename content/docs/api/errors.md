@@ -107,3 +107,13 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `scope_not_allowed` | 400 | A self-service API key asked for a scope outside the allowed list | Use an allowed scope |
 | `expiry_required` | 400 | The app requires API keys to expire within a set number of days | Pass `expiresInDays` |
 | `invalid_subject` | 400 | An API key needs exactly one of `userId` or `orgId` | Fix the request |
+| `invalid_satellite` | 400/403 | The return origin isn't a verified satellite domain of this app | Add and verify the domain |
+| `primary_mismatch` | 400 | The satellite's `primaryDomain` differs from the app's | Fix the config |
+| `invalid_challenge` | 400 | Missing or malformed handshake challenge | Use the SDK |
+| `invalid_code` | 400 | The handshake code is wrong, used, expired or its satellite was removed | Start the sync again |
+| `invalid_domain` | 400 | Not a valid domain (https required, no path) | Enter a domain like example.org |
+| `domain_not_allowed` | 400 | localhost on a production instance, or the service's own domain | Use a real domain |
+| `domain_exists` | 409 | That satellite is already added | None |
+| `domain_taken` | 409 | The domain is already verified by another app | Contact support |
+| `domain_is_primary` / `domain_is_satellite` | 400 | The domain is already the primary / a satellite | Pick another |
+| `verification_failed` | 400 | The DNS TXT record wasn't found | Publish it and retry |

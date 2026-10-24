@@ -17,6 +17,7 @@ import { z } from "zod";
 import { db, schema } from "./db";
 import { cache, rateLimit } from "./cache";
 import { decrypt } from "./crypto";
+import { addSatellite, listSatellites, primaryDomainOf, removeSatellite, setPrimaryDomain, verifySatellite } from "./auth/satellites";
 import { createClient, deleteClient, listClients, rotateSecret } from "./auth/m2m";
 import { apiKeySettings, listKeys as listUserApiKeys, revokeByBackend, settingsInput as apiKeySettingsInput } from "./auth/api-keys";
 import { applicationsFor, cloneConfig, createEnvironmentInstance, environmentsView, instanceCount, type CloneInput } from "./auth/application";
@@ -692,4 +693,24 @@ export async function updateApiKeySettings(userId: string, instanceId: string, r
 export async function revokeUserApiKeyFor(userId: string, instanceId: string, keyId: string) {
   const inst = await ownedInstance(userId, instanceId);
   return revokeByBackend(inst, keyId, { type: "developer", id: userId });
+}
+
+
+// ---------- Satellite domains ----------
+
+export async function domainsFor(userId: string, instanceId: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  return { primaryDomain: primaryDomainOf(inst), satellites: await listSatellites(instanceId), environment: inst.environment };
+}
+export async function savePrimaryDomain(userId: string, instanceId: string, value: string) {
+  return setPrimaryDomain(await ownedInstance(userId, instanceId), value.trim() || null, { type: "developer", id: userId });
+}
+export async function addSatelliteFor(userId: string, instanceId: string, domain: string) {
+  return addSatellite(await ownedInstance(userId, instanceId), domain, { type: "developer", id: userId });
+}
+export async function verifySatelliteFor(userId: string, instanceId: string, id: string) {
+  return verifySatellite(await ownedInstance(userId, instanceId), id, { type: "developer", id: userId });
+}
+export async function removeSatelliteFor(userId: string, instanceId: string, id: string) {
+  return removeSatellite(await ownedInstance(userId, instanceId), id, { type: "developer", id: userId });
 }

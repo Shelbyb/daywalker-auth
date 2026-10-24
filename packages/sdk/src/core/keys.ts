@@ -7,6 +7,12 @@ export type Config = {
   frontendApi: string;
   /** Verified custom domain serving your hosted pages, e.g. https://auth.example.com. Hosted links use it instead of `frontendApi` + `pk`. */
   hostedDomain?: string;
+  /** This app is a satellite domain: it shares the primary domain's sessions through a redirect handshake. See the satellite domains guide. */
+  isSatellite?: boolean;
+  /** Origin of the primary domain (required with `isSatellite`), e.g. https://example.com */
+  primaryDomain?: string;
+  /** This satellite's own origin, when it can't be read from the request (behind a proxy). Defaults to the request origin. */
+  domain?: string;
 };
 
 /** Decodes the instance ID from a publishable key. Throws on malformed keys. */

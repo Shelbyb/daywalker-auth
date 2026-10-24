@@ -22,7 +22,12 @@ export async function getInstance(id: string): Promise<Instance | null> {
   // Dates come back as strings from the JSON cache; callers only use settings/ids/origins.
   return cached(`ins:${id}`, 300, async () => {
     const [row] = await db().select().from(schema.instances).where(eq(schema.instances.id, id));
-    return row ?? null;
+    if (!row) return null;
+    // The primary domain and verified satellite domains are allowed origins too (CORS, CSRF check, redirect targets).
+    // Only this runtime copy is widened; the stored list is what the developer entered.
+    const { verifiedSatelliteOrigins } = await import("./satellites");
+    const extra = [row.settings.primaryDomain, ...(await verifiedSatelliteOrigins(id))].filter((o): o is string => !!o && !row.allowedOrigins.includes(o));
+    return extra.length ? { ...row, allowedOrigins: [...row.allowedOrigins, ...extra] } : row;
   });
 }
 

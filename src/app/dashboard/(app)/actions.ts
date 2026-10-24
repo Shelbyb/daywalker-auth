@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, createM2mFor, rotateM2mFor, deleteM2mFor, updateApiKeySettings, revokeUserApiKeyFor, addProductionInstance, cloneConfigFor, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  banUser, unlockUserFromDashboard, cancelDeletionFromDashboard, saveRoleFor, deleteRoleFor, createInstance, savePrimaryDomain, addSatelliteFor, verifySatelliteFor, removeSatelliteFor, createM2mFor, rotateM2mFor, deleteM2mFor, updateApiKeySettings, revokeUserApiKeyFor, addProductionInstance, cloneConfigFor, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
@@ -715,5 +715,47 @@ export async function revokeUserApiKeyAction(_prev: ActionState, fd: FormData): 
     await revokeUserApiKeyFor(userId, id, str(fd, "keyId", 100));
     refresh(id);
     return { message: "Revoked." };
+  });
+}
+
+// ---------- Domains ----------
+
+export async function primaryDomainAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await savePrimaryDomain(userId, id, str(fd, "primaryDomain", 300));
+    refresh(id);
+    return { message: "Saved." };
+  });
+}
+
+export async function addSatelliteAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await addSatelliteFor(userId, id, str(fd, "domain", 300));
+    refresh(id);
+    return { message: "Added. Publish the DNS record below, then verify." };
+  });
+}
+
+export async function verifySatelliteAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await verifySatelliteFor(userId, id, str(fd, "domainId", 100));
+    refresh(id);
+    return { message: "Verified." };
+  });
+}
+
+export async function removeSatelliteAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await removeSatelliteFor(userId, id, str(fd, "domainId", 100));
+    refresh(id);
+    return { message: "Removed." };
   });
 }

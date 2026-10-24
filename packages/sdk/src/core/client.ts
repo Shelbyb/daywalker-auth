@@ -1,5 +1,6 @@
 import { ACTIVE_COOKIE, SESSION_COOKIE, instanceIdFromKey, normalizeOrigin, type Config } from "./keys";
 import type { RecentAuthCheck } from "./fresh";
+import { assertSatelliteConfig, SATELLITE_SIGNED_OUT_COOKIE, SATELLITE_SYNC_PATH } from "./satellite";
 import { createDpopProof, deviceKeysSupported, generateDeviceKey, indexedDbKeyStore, type DeviceKey, type DeviceKeyStore } from "./dpop";
 import { startRegistration, startAuthentication, browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from "@simplewebauthn/browser";
 
@@ -117,6 +118,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   instanceIdFromKey(config.publishableKey); // fail fast on a bad key
   const base = normalizeOrigin(config.frontendApi);
   const syncCookie = config.syncCookie ?? true;
+  assertSatelliteConfig(config);
 
   let state: AuthState = { isLoaded: false, user: null, sessionId: null };
   let token: { jwt: string; exp: number } | null = null;
@@ -198,6 +200,37 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     }, delay);
   }
 
+  const readCookie = (name: string) => (typeof document === "undefined" ? undefined : document.cookie.split("; ").find((c) => c.startsWith(`${name}=`))?.slice(name.length + 1));
+
+  /**
+   * Satellite domains: when the service's cookie isn't visible from here (third-party cookies blocked), the session is
+   * learned through the redirect handshake that the Next.js `authProxy` serves at /__daywalker/sync. At most once per
+   * 30 seconds, and not right after a sync found nobody signed in.
+   */
+  function satelliteResync() {
+    if (!config.isSatellite || typeof window === "undefined" || readCookie(SATELLITE_SIGNED_OUT_COOKIE)) return;
+    try {
+      const last = Number(sessionStorage.getItem("dw_sat_sync") ?? 0);
+      if (Date.now() - last < 30_000) return;
+      sessionStorage.setItem("dw_sat_sync", String(Date.now()));
+    } catch {
+      return;
+    }
+    window.location.assign(`${SATELLITE_SYNC_PATH}?to=${encodeURIComponent(window.location.href)}`);
+  }
+
+  /** The token the proxy synced into this domain's cookie, if it is still valid (satellites only). */
+  function syncedToken() {
+    const jwt = readCookie(SESSION_COOKIE);
+    if (!jwt) return null;
+    try {
+      const p = JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number; sid?: string };
+      return p.exp && p.sid && p.exp > Date.now() / 1000 + 5 ? { jwt, exp: p.exp, sid: p.sid } : null;
+    } catch {
+      return null;
+    }
+  }
+
   function clearLocal() {
     token = null;
     clearTimeout(timer);
@@ -215,7 +248,10 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
         return r.jwt;
       })
       .catch((e) => {
-        if (e instanceof AuthError && e.status === 401) clearLocal();
+        if (e instanceof AuthError && e.status === 401) {
+          clearLocal();
+          satelliteResync();
+        }
         if (e instanceof AuthError && e.code === "two_factor_setup_required") setState({ twoFactorSetupRequired: true });
         return null;
       })
@@ -228,7 +264,15 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       () => ({ session: null, user: null }),
     );
     if (!r.session) {
+      const synced = config.isSatellite ? syncedToken() : null;
+      if (synced) {
+        // The service's own cookie isn't visible from this domain, but the handshake gave us a token: signed in, minus the profile.
+        token = { jwt: synced.jwt, exp: synced.exp };
+        setState({ isLoaded: true, user: null, sessionId: synced.sid });
+        return state;
+      }
       clearLocal();
+      satelliteResync();
       return state;
     }
     // A sign-in that came back through a redirect (social, SSO, link) couldn't carry a proof: bind it now.
