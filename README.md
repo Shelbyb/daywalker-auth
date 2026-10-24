@@ -36,7 +36,7 @@ cp .env.example .env            # then set MASTER_KEY (command in the file)
 docker compose up -d            # Postgres 16 + Valkey 8
 npm install
 npm run db:migrate
-npm run seed -- http://localhost:3001   # origins of your app allowed to call the frontend API
+npm run seed -- https://localhost:3001   # origins of your app allowed to call the frontend API
 npm run dev
 ```
 
@@ -47,13 +47,13 @@ To use the dashboard locally, run `npm run bootstrap:platform` once and put the 
 Run the example app against it:
 
 ```bash
-npm run seed -- http://localhost:3001     # copy the keys into examples/nextjs/.env.local (see .env.example there)
-cd examples/nextjs && npm run dev         # http://localhost:3001
+npm run seed -- https://localhost:3001     # copy the keys into examples/nextjs/.env.local (see .env.example there)
+cd examples/nextjs && npm run dev         # https://localhost:3001
 ```
 
 ## Tests
 
-Build and start the service (`npm run build`, then `next start` with `ALLOW_INSECURE_TRANSPORT=1 WEBHOOK_ALLOW_PRIVATE=1 OAUTH_TEST_BASE_URL=http://localhost:3999`, and the Twilio test values from `.github/workflows/ci.yml`). Run the tests in a shell that has `TWILIO_*` and `TWILIO_TEST_BASE_URL` set, but **not** `WEBHOOK_ALLOW_PRIVATE` (the SSRF checks need the test process to use the real rules). Then run:
+Build and start the service (`npm run build`, then `next start` with `ALLOW_INSECURE_TRANSPORT=1 WEBHOOK_ALLOW_PRIVATE=1 OAUTH_TEST_BASE_URL=https://localhost:3999`, and the Twilio test values from `.github/workflows/ci.yml`). Run the tests in a shell that has `TWILIO_*` and `TWILIO_TEST_BASE_URL` set, but **not** `WEBHOOK_ALLOW_PRIVATE` (the SSRF checks need the test process to use the real rules). Then run:
 
 ```bash
 npm run test:all     # every end-to-end suite: service, recovery, OAuth, two-factor, account, passkeys, SSO, SCIM, SMS, security keys, and more

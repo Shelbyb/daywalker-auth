@@ -1,14 +1,53 @@
+# secrets
 .env
 .env.*
 !.env.example
+certificates
+*.pem
+
+# dependencies & build output (rebuilt inside the image)
 node_modules
 **/node_modules
 .next
 **/.next
+out
+build
+coverage
+.turbo
+.vercel
+*.tsbuildinfo
+migrate.mjs
+
+# VCS, CI and deploy config
+.git
+.gitignore
+.github
+.do
+
+# IDE, editor and agent settings
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+.fleet
+.zed
+.junie
+*.swp
+*.swo
+*~
+
+# local Valkey/Redis snapshots
 *.rdb
 *.aof
-.git
-.do
+
+# misc
 .DS_Store
+Thumbs.db
 *.log
-*.tsbuildinfo
+npm-debug.log*
+.npm
+.eslintcache
+docker-compose.yml
+Dockerfile
+.dockerignore

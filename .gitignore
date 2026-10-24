@@ -3,15 +3,43 @@ node_modules
 .next
 *.tsbuildinfo
 next-env.d.ts
+out
+build
+coverage
+.turbo
+.vercel
+migrate.mjs
+
+# local HTTPS certificates from `next dev --experimental-https`
+certificates
+*.pem
 
 # secrets: never commit real env files (the .env.example files are safe)
 .env
 .env.*
 !.env.example
 
+# IDE and editor settings
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+.fleet
+.zed
+*.swp
+*.swo
+*~
+
 # misc
 # local Valkey/Redis snapshots (cache contents never belong in git)
 *.rdb
 *.aof
 .DS_Store
+Thumbs.db
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
