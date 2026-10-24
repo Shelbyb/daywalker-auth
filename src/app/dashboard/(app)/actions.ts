@@ -5,7 +5,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import {
   banUser, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser,
-  revokeKey, saveProvider, setProviderEnabled, updateLegal, updateSettings, updateProtectionFor,
+  revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
 } from "@/lib/dashboard";
@@ -153,6 +153,25 @@ export async function updateLegalAction(_prev: ActionState, fd: FormData): Promi
     });
     refresh(id);
     return { message: "Terms settings saved." };
+  });
+}
+
+export async function updateOrgSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await updateOrgSettings(userId, id, {
+      enabled: flag(fd, "enabled"),
+      membershipLimit: str(fd, "membershipLimit", 10),
+      allowUserCreation: flag(fd, "allowUserCreation"),
+      creationLimit: str(fd, "creationLimit", 10),
+      creatorRole: str(fd, "creatorRole", 10),
+      defaultRole: str(fd, "defaultRole", 10),
+      allowAdminDelete: flag(fd, "allowAdminDelete"),
+      allowPersonalAccounts: flag(fd, "allowPersonalAccounts"),
+    });
+    refresh(id);
+    return { message: "Organization settings saved." };
   });
 }
 

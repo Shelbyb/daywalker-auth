@@ -113,7 +113,7 @@ A prioritized list of the missing Clerk features is saved in the repo.
 - Check each candidate gap against the code.
 - Record confirmed gaps with a short scope note and a priority in `NEXT_STEPS.md`.
 
-### * Step 4: Add and enforce instance organization settings
+### ✓ Step 4: Add and enforce instance organization settings
 Organization settings are stored per instance, editable in the dashboard, and enforced by the API.
 
 - Add `settings.organizations` type in `schema.ts`.
@@ -121,7 +121,7 @@ Organization settings are stored per instance, editable in the dashboard, and en
 - Add the Organizations Configure page, action and audit entry.
 - Extend an e2e script with checks for each limit/toggle; run typecheck.
 
-###   Step 5: SDK support and documentation for organization settings
+### * Step 5: SDK support and documentation for organization settings
 The SDK reads and respects the settings, and the docs explain them.
 
 - Expose settings in the environment response and SDK types; adapt org components/errors.
