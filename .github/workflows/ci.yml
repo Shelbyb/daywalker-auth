@@ -8,10 +8,20 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or PR supersedes a running build.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # Explicit bash adds `pipefail`, so `cmd | tee file` fails when cmd fails.
+    shell: bash
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16
@@ -28,6 +38,8 @@ jobs:
         options: >-
           --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
       DATABASE_URL: postgres://auth:auth@localhost:5432/auth
       VALKEY_URL: redis://localhost:6379
       APP_URL: http://localhost:3000
@@ -49,21 +61,36 @@ jobs:
       DNS_TXT_TEST_FILE: /tmp/daywalker-dns-test.json
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - name: Generate a throwaway MASTER_KEY
-        run: echo "MASTER_KEY=$(openssl rand -base64 48)" >> "$GITHUB_ENV"
-      - run: npx tsc --noEmit
-      - run: npm audit --omit=dev --audit-level=high
-      - run: npm run db:migrate
-      - run: npm run build
+        run: |
+          key="$(openssl rand -base64 48)"
+          echo "::add-mask::$key"
+          echo "MASTER_KEY=$key" >> "$GITHUB_ENV"
+      - name: Type-check the service and the SDK
+        run: npm run typecheck
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Apply migrations
+        run: npm run db:migrate
+      - name: Build
+        run: npm run build
       - name: Start the service
         run: |
           nohup npx next start -p 3000 > service.log 2>&1 &
-          for i in $(seq 1 30); do curl -sf localhost:3000/healthz && break; sleep 2; done
+          for _ in $(seq 1 30); do
+            if curl -sf "http://localhost:3000/healthz?deep=1" > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "The service did not become healthy (deep check: Postgres and Valkey)" >&2
+          tail -n 80 service.log >&2 || true
+          exit 1
       - name: Service test suites
         run: |
           for t in e2e recovery-e2e oauth-e2e mfa-e2e account-e2e passkey-e2e legal-e2e orgs-e2e webhooks-e2e dashboard-e2e keyrotation-e2e masterkey-e2e audit-e2e auditchain-e2e emailcode-e2e breach-e2e templates-e2e providers-e2e saml-e2e sms-e2e securitykey-e2e scim-e2e protection-e2e lockout-e2e binding-e2e stepup-e2e passkeysignup-e2e accountdeletion-e2e orgroles-e2e orgui-e2e environments-e2e machineauth-e2e satellite-e2e testmode-e2e webhookreplay-e2e platform-e2e unauthorized-e2e; do
@@ -79,8 +106,14 @@ jobs:
             echo "DAYWALKER_SECRET_KEY=$(grep -o 'sk_test_[A-Za-z0-9_-]*' seed.out)"
             echo "DAYWALKER_AUTHORIZED_PARTIES=http://localhost:3001"
           } > examples/nextjs/.env.local
-          (cd examples/nextjs && npx next build && nohup npx next start -p 3001 > ../../example.log 2>&1 &)
-          for i in $(seq 1 30); do curl -sf localhost:3001 >/dev/null && break; sleep 2; done
+          (cd examples/nextjs && npx next build)
+          (cd examples/nextjs && nohup npx next start -p 3001 > ../../example.log 2>&1 &)
+          up=0
+          for _ in $(seq 1 30); do
+            if curl -sf http://localhost:3001 > /dev/null; then up=1; break; fi
+            sleep 2
+          done
+          if [ "$up" != 1 ]; then echo "The example app did not start" >&2; tail -n 80 example.log >&2 || true; exit 1; fi
           set -a; . examples/nextjs/.env.local; set +a
           npx tsx scripts/sdk-e2e.ts
       - if: failure()

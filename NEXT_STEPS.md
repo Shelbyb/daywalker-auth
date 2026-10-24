@@ -25,7 +25,7 @@ One commit per feature, each with migration, API, dashboard UI, SDK, docs page a
 One commit per item. Status updated as each lands.
 
 1. [x] Webhook replay + `daywalker listen` CLI (migration 0031 `webhook_deliveries.replay_of`; `replayDelivery`/`replayFailed` in `webhooks.ts`; `POST /v1/webhooks/deliveries/{id}/replay`, `POST /v1/webhooks/deliveries/replay`; `GET /v1/webhooks/stream` SSE, dev instances only, `webhook-stream.ts` over Valkey pub/sub with AES-GCM-encrypted payloads and a listener counter so nothing is published when nobody listens; `packages/cli` zero-dependency `.mjs`; dashboard Replay buttons + bulk form; SDK `webhooks.replay/replayFailed`, `isWebhookReplay`; `guides/webhooks.md`; `scripts/webhookreplay-e2e.ts`). Replays keep the original event ID, new delivery row, `webhook-replay` headers, signed with the current secret. Not tested: dashboard UI in a browser; the CLI against a real remote HTTPS deployment or through a buffering proxy (SSE needs `no-transform`, set).
-2. [ ] CI workflow correctness
+2. [x] CI workflow (`.github/workflows/ci.yml`): Postgres 16 + Valkey 8 service containers with health checks, deep `/healthz?deep=1` gate before tests, explicit bash (pipefail), masked throwaway MASTER_KEY, concurrency cancel, `persist-credentials: false`, example app build no longer backgrounded with the start. Checked with actionlint 1.7.12 (no shellcheck available locally). Not run on GitHub.
 3. [ ] Dockerfile + DigitalOcean spec
 4. [ ] PASSKEY_RP_ID = daywalker.dev
 5. [ ] Status page + /v1/health
