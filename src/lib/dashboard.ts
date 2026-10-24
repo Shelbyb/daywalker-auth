@@ -24,6 +24,7 @@ import { invalidateInstance, parsePublishableKey, publishableKey } from "./auth/
 import { createSigningKey, getJwks, issuerFor, listSigningKeys, rotateSigningKey } from "./auth/keys";
 import { getUser, deleteUser, setBanned } from "./auth/users";
 import { unlockUser } from "./auth/lockout";
+import { roleKey, listRoles, createRole, updateRole, deleteRole, roleInput, roleUpdate } from "./auth/org-roles";
 import { PROVIDERS, callbackUrl, isProvider, labelFor, setProviderConfig } from "./auth/oauth";
 import { parseSettings, type ProviderSettings } from "./auth/oauth-providers";
 import { legalInput, legalOf } from "./auth/legal";
@@ -245,8 +246,8 @@ export async function updateOrgSettings(
       membershipLimit: orgLimit,
       allowUserCreation: z.boolean(),
       creationLimit: orgLimit,
-      creatorRole: z.enum(["admin", "member"]),
-      defaultRole: z.enum(["admin", "member"]),
+      creatorRole: roleKey,
+      defaultRole: roleKey,
       allowAdminDelete: z.boolean(),
       allowPersonalAccounts: z.boolean(),
     })
@@ -255,8 +256,10 @@ export async function updateOrgSettings(
     const field = String(parsed.error.issues[0]?.path[0] ?? "");
     if (field === "membershipLimit" || field === "creationLimit")
       throw errors.badRequest("invalid_limit", `${field === "membershipLimit" ? "Membership limit" : "Creation limit"} must be a whole number from 1 to 10000, or blank for unlimited`);
-    throw errors.badRequest("invalid_role", "Roles must be admin or member");
+    throw errors.badRequest("invalid_role", "Choose an existing role");
   }
+  const known = await listRoles(instanceId);
+  if (!known.some((r) => r.key === parsed.data.creatorRole) || !known.some((r) => r.key === parsed.data.defaultRole)) throw errors.badRequest("invalid_role", "Choose an existing role");
   const organizations = parsed.data;
   await db().update(schema.instances).set({ settings: { ...inst.settings, organizations }, updatedAt: new Date() }).where(eq(schema.instances.id, instanceId));
   await invalidateInstance(instanceId);
@@ -438,6 +441,30 @@ export async function banUser(userId: string, instanceId: string, targetId: stri
 export async function unlockUserFromDashboard(userId: string, instanceId: string, targetId: string) {
   const inst = await ownedInstance(userId, instanceId);
   await unlockUser(inst, targetId, { type: "developer", id: userId, reason: "admin" });
+}
+
+// ---------- Organization roles ----------
+
+export async function rolesFor(userId: string, instanceId: string) {
+  await ownedInstance(userId, instanceId);
+  return listRoles(instanceId);
+}
+
+const permList = (raw: string) => raw.split(/[\s,]+/).map((p) => p.trim()).filter(Boolean);
+
+export async function saveRoleFor(userId: string, instanceId: string, input: { key: string; name: string; description: string; permissions: string; isNew: boolean }) {
+  const inst = await ownedInstance(userId, instanceId);
+  await requireFeature(inst.accountId, "organization_settings");
+  const actor = { type: "developer" as const, id: userId };
+  const permissions = permList(input.permissions);
+  if (input.isNew) await createRole(inst, roleInput.parse({ key: input.key, name: input.name, description: input.description || null, permissions }), actor);
+  else await updateRole(inst, input.key, roleUpdate.parse({ name: input.name, description: input.description || null, permissions }), actor);
+}
+
+export async function deleteRoleFor(userId: string, instanceId: string, key: string) {
+  const inst = await ownedInstance(userId, instanceId);
+  await requireFeature(inst.accountId, "organization_settings");
+  await deleteRole(inst, key, { type: "developer", id: userId });
 }
 
 export async function removeUser(userId: string, instanceId: string, targetId: string) {

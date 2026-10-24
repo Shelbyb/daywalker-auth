@@ -70,6 +70,12 @@ In the SDK these become `AuthError` (browser) or `BackendError` (server), with `
 | `unauthenticated` | 401 | No valid session or key | Sign in, or check your keys |
 | `forbidden` | 403 | Origin not allowed, or account suspended | Add the origin, or contact support |
 | `not_found` | 404 | No such user/session in this instance | |
+| `unknown_role` | 400 | The role doesn't exist | Choose one from the roles list |
+| `role_exceeds_yours` | 403 | You can't assign or change a role with more access than yours | Ask an admin |
+| `role_in_use` | 409 | A role is still used by members, invitations, domains or settings | Move them first |
+| `role_not_allowed` | 400 | A domain-join role can't manage the organization | Pick a role without manage permissions |
+| `domain_taken` | 409 | Another organization already verified that domain | Use a different domain |
+| `verification_failed` | 400 | DNS record not found yet | Wait for DNS, then retry |
 | `account_locked` | 429 | Too many wrong passwords or codes; the account is locked for a while (same response for unknown emails) | Tell the user to wait or use the emailed unlock link |
 | `invalid_unlock_link` | 400 | Unlock link used or expired | Sign in again to get a new link |
 | `rate_limited` | 429 | Too many attempts | Wait and retry |

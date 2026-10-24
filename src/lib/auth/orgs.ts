@@ -14,14 +14,10 @@ import { publishableKey } from "./instance";
 import type { Instance } from "../db/schema";
 import { emit } from "../webhooks";
 import { orgSettings } from "../org-settings";
+import { listRoles, permissionsOf, assertRoleExists, assertCanGrant, covers } from "./org-roles";
 
-export type OrgRole = "admin" | "member";
-
-/** What each role may do. Checked on every organization action, server-side. */
-export const ROLE_PERMISSIONS: Record<OrgRole, string[]> = {
-  admin: ["org:read", "org:manage", "members:read", "members:manage", "invitations:manage"],
-  member: ["org:read", "members:read"],
-};
+/** "admin", "member" or the key of a custom role (see org-roles.ts). */
+export type OrgRole = string;
 
 const INVITE_TTL_DAYS = 7;
 const emailIndexFor = (instanceId: string, email: string) => blindIndex(email, `email:${instanceId}`);
@@ -47,12 +43,13 @@ export async function roleIn(instanceId: string, orgId: string, userId: string):
 }
 
 const dropRole = (orgId: string, userId: string) => cache().del(memKey(orgId, userId));
+export const forgetMembership = dropRole;
 
 /** Throws 404 for non-members (no probing of org IDs) and 403 when the role lacks the permission. */
 export async function requirePermission(instanceId: string, orgId: string, userId: string, permission: string) {
   const role = await roleIn(instanceId, orgId, userId);
   if (!role) throw errors.notFound("Organization not found");
-  if (!ROLE_PERMISSIONS[role].includes(permission)) throw errors.forbidden("Your role doesn't allow this");
+  if (!(await permissionsOf(instanceId, role)).includes(permission)) throw errors.forbidden("Your role doesn't allow this");
   return role;
 }
 
@@ -116,6 +113,12 @@ export async function createOrg(inst: Instance, userId: string, name: string) {
 }
 
 export async function myOrgs(instanceId: string, userId: string) {
+  const rows = await myOrgRows(instanceId, userId);
+  const roles = await listRoles(instanceId);
+  return rows.map((o) => ({ ...o, permissions: roles.find((r) => r.key === o.role)?.permissions ?? [] }));
+}
+
+async function myOrgRows(instanceId: string, userId: string) {
   return db()
     .select({ id: schema.organizations.id, name: schema.organizations.name, slug: schema.organizations.slug, role: schema.memberships.role, requireTwoFactor: schema.organizations.requireTwoFactor })
     .from(schema.memberships)
@@ -176,9 +179,13 @@ export async function listMembers(instanceId: string, orgId: string, actorId: st
 }
 
 export async function changeRole(instanceId: string, orgId: string, actorId: string, targetId: string, role: OrgRole) {
-  await requirePermission(instanceId, orgId, actorId, "members:manage");
+  const actorRole = await requirePermission(instanceId, orgId, actorId, "members:manage");
+  await assertRoleExists(instanceId, role);
   const current = await roleIn(instanceId, orgId, targetId);
   if (!current) throw errors.notFound("Member not found");
+  // You can't touch someone who can do more than you, or hand out more than you have.
+  if (actorId !== targetId && !(await covers(instanceId, actorRole, current))) throw errors.forbidden("You can't change someone with more access than yours").withCode("role_exceeds_yours");
+  await assertCanGrant(instanceId, actorRole, role);
   if (current === "admin" && role !== "admin" && (await adminCount(orgId)) <= 1)
     throw errors.badRequest("last_admin", "An organization needs at least one admin");
   await db().update(schema.memberships).set({ role }).where(and(eq(schema.memberships.orgId, orgId), eq(schema.memberships.userId, targetId)));
@@ -186,11 +193,23 @@ export async function changeRole(instanceId: string, orgId: string, actorId: str
   void emit(instanceId, "organizationMembership.deleted", { organizationId: orgId, userId: targetId });
 }
 
-/** Admins remove others; anyone may remove themselves (leave). The last admin can't leave. */
-export async function removeMember(instanceId: string, orgId: string, actorId: string, targetId: string) {
-  if (actorId !== targetId) await requirePermission(instanceId, orgId, actorId, "members:manage");
+/** Backend API: set a role without an acting member (the last admin is still protected). */
+export async function setMemberRole(instanceId: string, orgId: string, targetId: string, role: OrgRole) {
+  if (!(await getOrg(instanceId, orgId))) throw errors.notFound("Organization not found");
+  await assertRoleExists(instanceId, role);
   const current = await roleIn(instanceId, orgId, targetId);
   if (!current) throw errors.notFound("Member not found");
+  if (current === "admin" && role !== "admin" && (await adminCount(orgId)) <= 1) throw errors.badRequest("last_admin", "An organization needs at least one admin");
+  await db().update(schema.memberships).set({ role }).where(and(eq(schema.memberships.orgId, orgId), eq(schema.memberships.userId, targetId)));
+  await dropRole(orgId, targetId);
+}
+
+/** Admins remove others; anyone may remove themselves (leave). The last admin can't leave. */
+export async function removeMember(instanceId: string, orgId: string, actorId: string, targetId: string) {
+  const actorRole = actorId !== targetId ? await requirePermission(instanceId, orgId, actorId, "members:manage") : null;
+  const current = await roleIn(instanceId, orgId, targetId);
+  if (!current) throw errors.notFound("Member not found");
+  if (actorRole && !(await covers(instanceId, actorRole, current))) throw errors.forbidden("You can't remove someone with more access than yours").withCode("role_exceeds_yours");
   if (current === "admin" && (await adminCount(orgId)) <= 1)
     throw errors.badRequest("last_admin", "An organization needs at least one admin. Promote someone else first, or delete the organization");
   await db().delete(schema.memberships).where(and(eq(schema.memberships.orgId, orgId), eq(schema.memberships.userId, targetId)));
@@ -200,9 +219,11 @@ export async function removeMember(instanceId: string, orgId: string, actorId: s
 // ---------- Invitations ----------
 
 export async function invite(inst: Instance, orgId: string, actorId: string, email: string, role: OrgRole | undefined) {
-  await requirePermission(inst.id, orgId, actorId, "invitations:manage");
+  const actorRole = await requirePermission(inst.id, orgId, actorId, "invitations:manage");
   assertOrgsEnabled(inst);
   role ??= orgSettings(inst).defaultRole;
+  await assertRoleExists(inst.id, role);
+  await assertCanGrant(inst.id, actorRole, role);
   if ((await rateLimit(`${inst.id}:invite:${orgId}`, 50, 3600)) < 0) throw errors.tooMany();
   const org = (await getOrg(inst.id, orgId))!;
   const idx = emailIndexFor(inst.id, email);

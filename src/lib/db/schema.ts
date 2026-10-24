@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -62,7 +63,7 @@ export const instances = pgTable(
         /** Account Portal fallbacks when no redirect_url is given; checked against allowed origins when used. */
         redirects?: { afterSignIn?: string | null; afterSignUp?: string | null; afterLogoClick?: string | null };
         /** Organization rules (see lib/org-settings.ts for defaults). */
-        organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: "admin" | "member"; defaultRole?: "admin" | "member"; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean };
+        organizations?: { enabled?: boolean; membershipLimit?: number | null; allowUserCreation?: boolean; creationLimit?: number | null; creatorRole?: string; defaultRole?: string; allowAdminDelete?: boolean; allowPersonalAccounts?: boolean };
         /** Session rules (see lib/session-settings.ts). */
         sessions?: { maxLifetimeEnabled?: boolean; inactivityTimeoutMinutes?: number | null; multiSession?: boolean; customClaims?: Record<string, string> } }>()
       .notNull()
@@ -318,8 +319,6 @@ export const legalAcceptances = pgTable(
   (t) => [index("legal_acceptances_user_idx").on(t.userId)],
 );
 
-export const orgRoleEnum = pgEnum("org_role", ["admin", "member"]);
-
 export const organizations = pgTable(
   "organizations",
   {
@@ -340,7 +339,8 @@ export const memberships = pgTable(
   {
     orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    role: orgRoleEnum("role").notNull().default("member"),
+    /** "admin", "member", or the key of a custom role (see org_roles). */
+    role: text("role").notNull().default("member"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("memberships_org_user_idx").on(t.orgId, t.userId), index("memberships_user_idx").on(t.userId)],
@@ -354,7 +354,8 @@ export const invitations = pgTable(
     orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     emailEnc: text("email_enc").notNull(),
     emailIndex: text("email_index").notNull(),
-    role: orgRoleEnum("role").notNull().default("member"),
+    /** "admin", "member", or the key of a custom role (see org_roles). */
+    role: text("role").notNull().default("member"),
     tokenHash: text("token_hash").notNull(),
     invitedBy: text("invited_by"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -653,4 +654,50 @@ export const accountLockouts = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [index("account_lockouts_instance_idx").on(t.instanceId), index("account_lockouts_token_idx").on(t.unlockTokenHash)],
+);
+
+/**
+ * Custom organization roles, defined per instance. "admin" and "member" are built in and not stored here.
+ * `permissions` are strings like "org:billing:manage"; they ride in the JWT as `org_permissions`.
+ */
+export const orgRoles = pgTable(
+  "org_roles",
+  {
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    permissions: jsonb("permissions").$type<string[]>().notNull().default([]),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.instanceId, t.key] })],
+);
+
+/**
+ * A domain an organization claims. Once verified (DNS TXT or an email to a role mailbox), people with a verified
+ * email address at it can be suggested the organization or joined to it automatically (`enrollment`).
+ */
+export const orgDomains = pgTable(
+  "org_domains",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    /** Public value for the TXT record `daywalker-verify=<token>` at `_daywalker.<domain>`. */
+    verificationToken: text("verification_token").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedVia: text("verified_via"),
+    enrollment: text("enrollment").notNull().default("none"),
+    /** Role given on joining through this domain. Null: the instance default role. */
+    role: text("role"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("org_domains_org_domain_idx").on(t.orgId, t.domain),
+    // Only one organization per instance can hold a domain once verified.
+    uniqueIndex("org_domains_verified_idx").on(t.instanceId, t.domain).where(sql`${t.verifiedAt} is not null`),
+    index("org_domains_instance_idx").on(t.instanceId),
+  ],
 );

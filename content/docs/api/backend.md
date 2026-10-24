@@ -53,6 +53,20 @@ POST /v1/users/{userId}/unlock
 
 Lifts an [account lockout](/docs/guides/account-lockout) and resets its progression. `200` → `{ id, unlocked }` (`unlocked` is `false` when the account wasn't locked). The user object from `GET /v1/users/{id}` has `lockedUntil`.
 
+## Organization roles, members and domains
+
+| Request | What it does |
+| --- | --- |
+| `GET /v1/organization_roles` | Built-in and custom roles with permissions |
+| `POST /v1/organization_roles` | `{ key, name, description?, permissions[] }` |
+| `GET\|PATCH\|DELETE /v1/organization_roles/{key}` | Read, edit or delete (409 `role_in_use`) |
+| `PATCH /v1/organizations/{orgId}/members/{userId}` | `{ role }` (built-in or custom) |
+| `GET\|POST /v1/organizations/{orgId}/domains` | List, or claim `{ domain }` |
+| `POST /v1/organizations/{orgId}/domains/{id}/verify` | `{ method: "dns" }`, `{ method: "email", mailbox }`, `{ method: "email", code }` |
+| `PATCH\|DELETE /v1/organizations/{orgId}/domains/{id}` | `{ enrollment: "none"\|"suggest"\|"auto_join", role? }`, or remove |
+
+See [Roles, permissions and domains](/docs/guides/organization-roles).
+
 ## Revoke a session
 
 ```http

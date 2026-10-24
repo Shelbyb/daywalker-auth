@@ -1,3 +1,5 @@
+import { permissionsOf } from "./org-roles";
+import { autoJoinByDomain } from "./org-domains";
 import { and, eq, ne } from "drizzle-orm";
 import { record } from "../audit";
 import { db, schema } from "../db";
@@ -52,6 +54,7 @@ export async function createSession(
     if (old.length) await cache().del(...old.map((r) => sessKey(r.h)));
   }
   await db().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, userId));
+  void autoJoinByDomain(inst, userId); // verified-domain enrollment (never throws, off the request path)
   void emit(inst.id, "session.created", { sessionId: id, userId });
   void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null, ...(meta.method ? { method: meta.method } : {}) } });
   return { id, refreshToken, expiresAt };
@@ -121,7 +124,7 @@ export async function issueToken(inst: Instance, refreshToken: string | undefine
   // Role is re-checked on every mint, so removal from an org drops the claims within a minute.
   // An organization that requires two-factor only appears in the token of members who have it.
   const orgRole = s.activeOrgId && (await orgAllowed(s.activeOrgId, s.userId)) ? await roleIn(inst.id, s.activeOrgId, s.userId) : null;
-  const org = orgRole ? { org_id: s.activeOrgId!, org_role: orgRole } : undefined;
+  const org = orgRole ? { org_id: s.activeOrgId!, org_role: orgRole, org_permissions: await permissionsOf(inst.id, orgRole) } : undefined;
   let custom: Record<string, string> | undefined;
   if (Object.keys(ss.customClaims).length) {
     const ctx: Record<string, string | null | undefined> = { "user.id": s.userId, "org.id": org?.org_id, "org.role": org?.org_role };

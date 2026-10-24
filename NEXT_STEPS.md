@@ -17,7 +17,7 @@ Order of work, one commit per feature, each with migration, API, UI, SDK, docs p
 `test:all`, its own `test:<name>` and CI). Status is updated as each lands.
 
 1. [x] Real account lockout (migration 0022, `auth/lockout.ts`, `scripts/lockout-e2e.ts`; see `guides/account-lockout.md`) (progressive, per account, Valkey + persistent state, email unlock link, admin unlock, `user.locked` / `user.unlocked`)
-2. [ ] Custom organization roles and permissions (`org_permissions` claim, SDK `has()` / protect helpers) + verified-domain auto-join
+2. [x] Custom organization roles and permissions (migration 0023, `auth/org-roles.ts`, `auth/org-domains.ts`, `scripts/orgroles-e2e.ts`; `guides/organization-roles.md`). Domain verification by DNS TXT is tested only against the `DNS_TXT_TEST_FILE` stub, not real DNS; the email path uses role mailboxes (admin@, postmaster@ ...)
 3. [ ] SDK `<CreateOrganization/>` and `<OrganizationProfile/>` + hosted organization pages
 4. [ ] Self-service account deletion (re-auth, grace period, `user.deleted`, purge job) + data export (rate limited, audited)
 
@@ -216,7 +216,7 @@ Commits: author Shelbyb `<Shelbyb@users.noreply.github.com>`, no co-author or at
 | 3 | Lock user from dashboard | P3 | Ban exists (`banUser`); add manual lock/unlock with reason | partial |
 | 4 | Session custom claims / JWT templates | P1 | Custom session claims + named JWT templates | planned (in progress) |
 | 5 | Per-instance bot protection config | P3 | Turnstile toggle exists; add mode/strictness and per-flow options | partial |
-| 6 | Org roles/permissions + domain auto-join | P1 | Custom roles/permissions, verified domains with auto-invite/join (org settings) | planned (in progress) |
+| 6 | Org roles/permissions + domain auto-join | P1 | Custom roles/permissions, verified domains with suggest/auto-join | done (UI for domains comes with #3/#8) |
 | 7 | Account Portal org pages | P2 | Hosted org switcher, create-org, org profile pages | missing |
 | 8 | SDK org components | P2 | `OrganizationSwitcher` exists; add `CreateOrganization`, `OrganizationProfile` | partial |
 | 9 | Dev → prod instance cloning | P3 | Copy settings/branding/providers to a new production instance | missing |

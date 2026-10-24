@@ -65,6 +65,8 @@ const {
 
 Actions throw [`AuthError`](/docs/api/errors) when the server rejects them.
 
+`useAuth().has({ permission, role })` and `<Protect permission="…" fallback={…}>` read the role and permissions from the token to show or hide UI. They are not a security check: enforce on your server.
+
 ## `useUser()`
 
 ```ts

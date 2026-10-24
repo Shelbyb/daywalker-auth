@@ -66,10 +66,24 @@ function useAuthState() {
   return useSyncExternalStore(c.subscribe, () => c.state, () => SERVER_STATE);
 }
 
+type HasCheck = { permission?: string; role?: string };
+function claimsHas(claims: Record<string, unknown> | null, check: HasCheck) {
+  if (!claims || typeof claims.org_id !== "string" || (check.permission === undefined && check.role === undefined)) return false;
+  if (check.role !== undefined && claims.org_role !== check.role) return false;
+  if (check.permission !== undefined && !(Array.isArray(claims.org_permissions) && claims.org_permissions.includes(check.permission))) return false;
+  return true;
+}
+
 export function useAuth() {
   const c = useAuthClient();
   const s = useAuthState();
+  const sessionClaims = useSessionClaims(c.getToken, s.sessionId);
   return {
+    /**
+     * Does the active organization role have this permission/role? For showing or hiding UI only:
+     * enforce on your server with `has()` / `protect()` from `@daywalker/auth/server`.
+     */
+    has: (check: HasCheck) => claimsHas(sessionClaims, check),
     isLoaded: s.isLoaded,
     isSignedIn: s.isLoaded ? !!s.sessionId : undefined,
     userId: s.user?.id ?? null,
@@ -78,7 +92,7 @@ export function useAuth() {
     twoFactorSetupRequired: s.twoFactorSetupRequired === true,
     getToken: c.getToken,
     /** Decoded claims of the current token, including custom claims set in the dashboard. Null until signed in. */
-    sessionClaims: useSessionClaims(c.getToken, s.sessionId),
+    sessionClaims,
     authFetch: c.authFetch,
     signIn: c.signIn,
     sendSignInCode: c.sendSignInCode,
@@ -133,6 +147,12 @@ export function useUser(): { isLoaded: boolean; user: User | null } {
 }
 
 /** Renders children only once loaded and signed in. */
+/** Renders children only when the active organization role has the permission (UI convenience, not security). */
+export function Protect({ permission, role, children, fallback = null }: HasCheck & { children: ReactNode; fallback?: ReactNode }) {
+  const { has } = useAuth();
+  return <>{has({ permission, role }) ? children : fallback}</>;
+}
+
 export function SignedIn({ children }: { children: ReactNode }) {
   const s = useAuthState();
   return s.isLoaded && s.sessionId ? <>{children}</> : null;
@@ -235,7 +255,7 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
   );
 }
 
-export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo, type OrganizationSettings } from "../core/client";
+export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo, type OrgRoleInfo, type OrgDomainInfo, type OrgSuggestion, type OrganizationSettings } from "../core/client";
 export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, Captcha, type Appearance, type EnvironmentInfo } from "./components";
 
 /** Account Portal names for the hosted links (same components). */

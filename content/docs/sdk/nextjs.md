@@ -50,4 +50,4 @@ const user = await backend().users.get(userId);
 
 ## Organizations
 
-`auth()` includes `orgId` and `orgRole` when the user has an active organization. See the [Organizations guide](/docs/guides/organizations).
+`auth()` includes `orgId`, `orgRole`, `orgPermissions`, and `has(check)` / `protect(check)` helpers (for example `(await auth()).protect({ permission: "org:billing:manage" })`) when the user has an active organization. See the [Organizations guide](/docs/guides/organizations).

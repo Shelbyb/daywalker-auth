@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { ApiError } from "@/lib/http";
 import { billingPortalUrl, startCheckout } from "@/lib/plans";
 import {
-  banUser, unlockUserFromDashboard, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
+  banUser, unlockUserFromDashboard, saveRoleFor, deleteRoleFor, createInstance, rotateKeys, createKey, deleteInstance, ownedInstance, removeUser, requireDashboardUser, ensureAccount,
   revokeKey, saveProvider, setProviderEnabled, updateLegal, updateOrgSettings, updateSessionSettings, updateSettings, updateProtectionFor,
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
@@ -168,13 +168,33 @@ export async function updateOrgSettingsAction(_prev: ActionState, fd: FormData):
       membershipLimit: str(fd, "membershipLimit", 10),
       allowUserCreation: flag(fd, "allowUserCreation"),
       creationLimit: str(fd, "creationLimit", 10),
-      creatorRole: str(fd, "creatorRole", 10),
-      defaultRole: str(fd, "defaultRole", 10),
+      creatorRole: str(fd, "creatorRole", 40),
+      defaultRole: str(fd, "defaultRole", 40),
       allowAdminDelete: flag(fd, "allowAdminDelete"),
       allowPersonalAccounts: flag(fd, "allowPersonalAccounts"),
     });
     refresh(id);
     return { message: "Organization settings saved." };
+  });
+}
+
+export async function saveRoleAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await saveRoleFor(userId, id, { key: str(fd, "key", 40), name: str(fd, "name", 80), description: str(fd, "description", 200), permissions: str(fd, "permissions", 2000), isNew: flag(fd, "isNew") });
+    refresh(id);
+    return { message: "Role saved." };
+  });
+}
+
+export async function deleteRoleAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await deleteRoleFor(userId, id, str(fd, "key", 40));
+    refresh(id);
+    return { message: "Role deleted." };
   });
 }
 

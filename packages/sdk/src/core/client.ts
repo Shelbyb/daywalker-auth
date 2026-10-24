@@ -49,7 +49,15 @@ export type SecurityInfo = {
 export type SecurityKeyInfo = { id: string; name: string; lastUsedAt: string | null; createdAt: string };
 export type PasskeyInfo = { id: string; name: string; synced: boolean; lastUsedAt: string | null; createdAt: string };
 
-export type OrgRole = "admin" | "member";
+/** "admin", "member" or the key of a custom role defined in the dashboard. */
+export type OrgRole = string;
+export type OrgRoleInfo = { key: string; name: string; description: string | null; permissions: string[]; builtIn: boolean };
+export type OrgDomainInfo = {
+  id: string; domain: string; verified: boolean; verifiedVia: "dns" | "email" | null; enrollment: "none" | "suggest" | "auto_join"; role: string | null; createdAt: string;
+  /** Present until verified: add this TXT record. */
+  dns?: { type: "TXT"; name: string; value: string };
+};
+export type OrgSuggestion = { id: string; name: string; slug: string; domain: string };
 /** Instance organization rules; null limits mean unlimited. */
 export type OrganizationSettings = {
   enabled: boolean;
@@ -61,7 +69,7 @@ export type OrganizationSettings = {
   allowAdminDelete: boolean;
   allowPersonalAccounts: boolean;
 };
-export type OrgInfo = { id: string; name: string; slug: string; role: OrgRole; requireTwoFactor?: boolean; createdAt?: string };
+export type OrgInfo = { id: string; name: string; slug: string; role: OrgRole; /** Permissions of your role in this organization (for showing or hiding UI; enforce on your server). */ permissions?: string[]; requireTwoFactor?: boolean; createdAt?: string };
 export type OrgMember = { userId: string; role: OrgRole; email?: string | null; firstName?: string | null; lastName?: string | null; joinedAt: string };
 export type OrgInvitation = { id: string; email: string; role: OrgRole; expiresAt: string; createdAt: string };
 
@@ -555,6 +563,44 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return (await request<{ organizations: OrgInfo[] }>("organizations", { method: "GET" })).organizations;
   }
 
+  /** Roles you can pick from (built-in and custom), with their permissions. */
+  async function listOrganizationRoles() {
+    return (await request<{ roles: OrgRoleInfo[] }>("organization_roles", { method: "GET" })).roles;
+  }
+
+  /** Domains this organization claimed (admins). Unverified ones include the DNS record to add. */
+  async function listOrgDomains(orgId: string) {
+    return (await request<{ domains: OrgDomainInfo[] }>(orgPath(orgId, "/domains"), { method: "GET" })).domains;
+  }
+  async function addOrgDomain(orgId: string, domain: string) {
+    return (await request<{ domain: OrgDomainInfo }>(orgPath(orgId, "/domains"), json({ domain }))).domain;
+  }
+  /** Looks for the TXT record. Fails with `verification_failed` until DNS has it. */
+  async function verifyOrgDomainDns(orgId: string, domainId: string) {
+    return (await request<{ domain: OrgDomainInfo }>(orgPath(orgId, `/domains/${encodeURIComponent(domainId)}/verify`), json({ method: "dns" }))).domain;
+  }
+  /** Emails a code to admin@, postmaster@ etc. at the domain. */
+  async function sendOrgDomainEmail(orgId: string, domainId: string, mailbox: "admin" | "administrator" | "postmaster" | "webmaster" | "hostmaster") {
+    return request<{ sentTo: string }>(orgPath(orgId, `/domains/${encodeURIComponent(domainId)}/verify`), json({ method: "email", mailbox }));
+  }
+  async function verifyOrgDomainEmail(orgId: string, domainId: string, code: string) {
+    return (await request<{ domain: OrgDomainInfo }>(orgPath(orgId, `/domains/${encodeURIComponent(domainId)}/verify`), json({ method: "email", code }))).domain;
+  }
+  /** `enrollment`: "none", "suggest" (members of the domain are offered the organization) or "auto_join". */
+  async function updateOrgDomain(orgId: string, domainId: string, input: { enrollment?: "none" | "suggest" | "auto_join"; role?: string | null }) {
+    return (await request<{ domain: OrgDomainInfo }>(orgPath(orgId, `/domains/${encodeURIComponent(domainId)}`), json(input, "PATCH"))).domain;
+  }
+  async function removeOrgDomain(orgId: string, domainId: string) {
+    await request(orgPath(orgId, `/domains/${encodeURIComponent(domainId)}`), { method: "DELETE" });
+  }
+  /** Organizations offered to you because a verified email of yours is at their verified domain. */
+  async function listOrgSuggestions() {
+    return (await request<{ suggestions: OrgSuggestion[] }>("organizations/suggestions", { method: "GET" })).suggestions;
+  }
+  async function acceptOrgSuggestion(orgId: string) {
+    return (await request<{ organization: OrgInfo }>(`organizations/suggestions/${encodeURIComponent(orgId)}/accept`, json({}))).organization;
+  }
+
   /** Create an organization. You become its admin. */
   async function createOrganization(name: string) {
     return (await request<{ organization: OrgInfo }>("organizations", json({ name }))).organization;
@@ -688,6 +734,16 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     renamePasskey,
     deletePasskey,
     listOrganizations,
+    listOrganizationRoles,
+    listOrgDomains,
+    addOrgDomain,
+    verifyOrgDomainDns,
+    sendOrgDomainEmail,
+    verifyOrgDomainEmail,
+    updateOrgDomain,
+    removeOrgDomain,
+    listOrgSuggestions,
+    acceptOrgSuggestion,
     createOrganization,
     renameOrganization,
     setOrganizationTwoFactor,

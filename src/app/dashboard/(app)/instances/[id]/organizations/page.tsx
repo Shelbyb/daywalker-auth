@@ -1,12 +1,13 @@
 import { requireUser } from "../../../guard";
-import { updateOrgSettingsAction } from "../../../actions";
-import { ActionForm } from "../../../forms";
+import { updateOrgSettingsAction, saveRoleAction, deleteRoleAction } from "../../../actions";
+import { ActionForm, ConfirmAction } from "../../../forms";
 import { Card, Field, PageHeader, PlanBadge, Toggle } from "../../../ui";
 import { inputCls } from "../../../styles";
 import { details } from "../../../server";
 import { planAllows, planNeeded } from "@/lib/plans";
 import { ensureAccount } from "@/lib/dashboard";
 import { orgSettings } from "@/lib/org-settings";
+import { listRoles } from "@/lib/auth/org-roles";
 
 export const metadata = { title: "Organizations" };
 
@@ -17,10 +18,10 @@ export default async function OrganizationsPage({ params }: { params: Promise<{ 
   const o = orgSettings(inst);
   const locked = !(await planAllows(await ensureAccount(userId), "organization_settings"));
   const need = locked ? await planNeeded("organization_settings") : null;
+  const roles = await listRoles(inst.id);
   const roleSelect = (name: string, value: string) => (
     <select name={name} defaultValue={value} className={inputCls}>
-      <option value="admin">Admin</option>
-      <option value="member">Member</option>
+      {roles.map((r) => <option key={r.key} value={r.key}>{r.name}</option>)}
     </select>
   );
   return (
@@ -46,6 +47,48 @@ export default async function OrganizationsPage({ params }: { params: Promise<{ 
           </fieldset>
         </ActionForm>
       </Card>
+      <PageHeader title="Roles and permissions" description="Admin and Member are built in. Add roles with permission strings such as org:billing:manage. They appear in the session token as org_role and org_permissions; check them with has() / protect() in your backend. Admin always holds every permission you define." />
+      <div className="space-y-4">
+        {roles.map((r) => (
+          <Card key={r.key}>
+            {r.builtIn ? (
+              <div className="space-y-1 text-sm">
+                <p className="font-medium">{r.name} <span className="font-mono text-xs text-stone-500">{r.key}</span> <span className="text-xs text-stone-500">built in</span></p>
+                <p className="break-words font-mono text-xs text-stone-600">{r.permissions.join(" ") || "-"}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <ActionForm action={saveRoleAction} submit="Save role" className="max-w-xl space-y-3">
+                  <input type="hidden" name="instanceId" value={inst.id} />
+                  <input type="hidden" name="key" value={r.key} />
+                  <fieldset disabled={locked} className="space-y-3 disabled:opacity-60">
+                    <p className="font-mono text-xs text-stone-500">{r.key}</p>
+                    <Field label="Name"><input name="name" defaultValue={r.name} className={inputCls} /></Field>
+                    <Field label="Description"><input name="description" defaultValue={r.description ?? ""} className={inputCls} /></Field>
+                    <Field label="Permissions" hint="Separated by spaces or commas."><textarea name="permissions" defaultValue={r.permissions.join(" ")} rows={2} className={inputCls + " font-mono"} /></Field>
+                  </fieldset>
+                </ActionForm>
+                <ConfirmAction action={deleteRoleAction} label="Delete role" confirmLabel="Yes, delete" prompt="Delete this role? It must not be in use.">
+                  <input type="hidden" name="instanceId" value={inst.id} />
+                  <input type="hidden" name="key" value={r.key} />
+                </ConfirmAction>
+              </div>
+            )}
+          </Card>
+        ))}
+        <Card>
+          <ActionForm action={saveRoleAction} submit="Add role" className="max-w-xl space-y-3">
+            <input type="hidden" name="instanceId" value={inst.id} />
+            <input type="hidden" name="isNew" value="true" />
+            <fieldset disabled={locked} className="space-y-3 disabled:opacity-60">
+              <Field label="Key" hint="Lowercase letters, digits, underscores. Appears in the token as org_role."><input name="key" placeholder="billing_manager" className={inputCls} /></Field>
+              <Field label="Name"><input name="name" placeholder="Billing manager" className={inputCls} /></Field>
+              <Field label="Description"><input name="description" className={inputCls} /></Field>
+              <Field label="Permissions" hint="For example: org:read org:billing:manage"><textarea name="permissions" rows={2} className={inputCls + " font-mono"} /></Field>
+            </fieldset>
+          </ActionForm>
+        </Card>
+      </div>
     </div>
   );
 }

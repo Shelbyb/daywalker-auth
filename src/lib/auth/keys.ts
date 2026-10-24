@@ -106,7 +106,7 @@ async function getSigner(instanceId: string) {
   return signer;
 }
 
-export type SessionClaims = { sub: string; sid: string; azp?: string; org?: { org_id: string; org_role: string }; custom?: Record<string, string> };
+export type SessionClaims = { sub: string; sid: string; azp?: string; org?: { org_id: string; org_role: string; org_permissions: string[] }; custom?: Record<string, string> };
 
 /** Short-lived session JWT. Apps verify it locally against the JWKS. */
 export async function mintSessionToken(instanceId: string, claims: SessionClaims, ttlSeconds: number) {

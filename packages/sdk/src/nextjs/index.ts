@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyToken, createBackendClient, type SessionClaims } from "../server";
+import { verifyToken, createBackendClient, has, protect, ForbiddenError, type SessionClaims } from "../server";
+export { ForbiddenError };
 import { SESSION_COOKIE, ACTIVE_COOKIE, type Config } from "../core/keys";
 
 /**
@@ -21,8 +22,14 @@ function tokenFrom(headers: Headers, cookie: (name: string) => string | undefine
   return bearer ?? cookie(SESSION_COOKIE);
 }
 
-export type Auth = (SessionClaims & { isSignedIn: true }) | { isSignedIn: false; userId: null; sessionId: null };
-const signedOut: Auth = { isSignedIn: false, userId: null, sessionId: null };
+type Check = { permission?: string; role?: string };
+export type Auth =
+  | (SessionClaims & { isSignedIn: true; /** True when the active organization role has this permission/role. */ has: (c: Check) => boolean; /** Throws ForbiddenError (403) unless `has`. */ protect: (c: Check) => void })
+  | { isSignedIn: false; userId: null; sessionId: null; has: (c: Check) => false; protect: (c: Check) => never };
+const signedOut: Auth = {
+  isSignedIn: false, userId: null, sessionId: null, has: () => false,
+  protect: () => { throw new ForbiddenError("Not signed in"); },
+};
 
 /**
  * Current session in Server Components, Route Handlers and Server Actions.
@@ -32,7 +39,7 @@ export async function auth(opts: { config?: Config & { authorizedParties?: strin
   const { headers, cookies } = await import("next/headers");
   const [h, c] = await Promise.all([headers(), cookies()]);
   const claims = await verifyToken(tokenFrom(h, (n) => c.get(n)?.value), opts.config ?? config());
-  return claims ? { ...claims, isSignedIn: true } : signedOut;
+  return claims ? { ...claims, isSignedIn: true, has: (c: Check) => has(claims, c), protect: (c: Check) => protect(claims, c) } : signedOut;
 }
 
 /** Backend API client configured from DAYWALKER_SECRET_KEY. */

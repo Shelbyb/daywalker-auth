@@ -2,6 +2,7 @@ import { z } from "zod";
 import { handler } from "@/lib/http";
 import { frontendContext, preflight } from "@/lib/auth/frontend";
 import { requireSession } from "@/lib/auth/require-session";
+import { roleKey } from "@/lib/auth/org-roles";
 import { changeRole, removeMember } from "@/lib/auth/orgs";
 
 export const OPTIONS = preflight;
@@ -12,7 +13,7 @@ export const PATCH = handler(async (req: Request, { params }: Ctx) => {
   const ctx = await frontendContext(req);
   const s = await requireSession(ctx.inst, ctx.refreshToken);
   const { orgId, userId } = await params;
-  const { role } = z.object({ role: z.enum(["admin", "member"]) }).parse(await req.json());
+  const { role } = z.object({ role: roleKey }).parse(await req.json());
   await changeRole(ctx.inst.id, orgId, s.userId, userId, role);
   return ctx.json({ userId, role });
 });

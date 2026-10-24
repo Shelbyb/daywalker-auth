@@ -55,6 +55,7 @@ Each event looks like this:
 | Sign-in | `user.signed_up`, `user.signed_in`, `user.signed_out`, `user.sign_in_failed`, `user.sign_in_blocked`, `user.two_factor_failed` |
 | Account security | `user.password_changed`, `user.password_reset`, `user.profile_updated`, `user.two_factor_enabled`, `user.two_factor_disabled`, `user.two_factor_reset`, `user.passkey_added`, `user.passkey_removed` |
 | User management | `user.banned`, `user.unbanned`, `user.deleted`, `user.locked`, `user.unlocked` |
+| Organizations | `org_role.created`, `org_role.updated`, `org_role.deleted`, `org_domain.added`, `org_domain.verified`, `org_domain.updated`, `org_domain.removed`, `org_domain.joined` |
 | Keys | `api_key.created`, `api_key.revoked`, `signing_key.rotated` |
 | Settings | `instance.settings_updated`, `instance.terms_updated`, `social_provider.saved`, `social_provider.enabled`, `social_provider.disabled` |
 | SSO | `sso_connection.created`, `sso_connection.updated`, `sso_connection.deleted`, `scim_token.created`, `scim_token.revoked`, `scim_user.created`, `scim_user.updated`, `scim_user.deactivated`, `scim_user.reactivated`, `scim_user.deleted` |

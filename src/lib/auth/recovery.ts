@@ -10,6 +10,7 @@ import { errors } from "../http";
 import { sendMail } from "../mail";
 import { issueCode, consumeCode } from "./codes";
 import type { Instance } from "../db/schema";
+import { autoJoinByDomain } from "./org-domains";
 import { unlockUser } from "./lockout";
 import { assertSsoNotRequired } from "./sso-policy";
 
@@ -43,6 +44,7 @@ export async function verifyEmail(inst: Instance, userId: string, code: string) 
   if (e.verified) return;
   if (!(await consumeCode("verify_email", e.id, code))) throw errors.badRequest("invalid_code", "That code is incorrect or has expired");
   await db().update(schema.emailAddresses).set({ verifiedAt: new Date() }).where(eq(schema.emailAddresses.id, e.id));
+  void autoJoinByDomain(inst, userId); // a newly verified address may match a verified organization domain
 }
 
 /**

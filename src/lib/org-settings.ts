@@ -7,8 +7,9 @@ export type OrgSettings = {
   allowUserCreation: boolean;
   /** Max organizations one user may create; null = unlimited. */
   creationLimit: number | null;
-  creatorRole: "admin" | "member";
-  defaultRole: "admin" | "member";
+  /** "admin", "member" or a custom role key. */
+  creatorRole: string;
+  defaultRole: string;
   allowAdminDelete: boolean;
   allowPersonalAccounts: boolean;
 };
@@ -25,7 +26,7 @@ export const ORG_SETTINGS_DEFAULTS: OrgSettings = {
 };
 
 const limit = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : null);
-const role = (v: unknown, d: "admin" | "member") => (v === "admin" || v === "member" ? v : d);
+const role = (v: unknown, d: string) => (typeof v === "string" && /^[a-z][a-z0-9_]{1,30}$/.test(v) ? v : d);
 const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
 
 /** The instance's organization settings with defaults filled in (defaults keep the original behaviour). */

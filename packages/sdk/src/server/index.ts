@@ -7,7 +7,7 @@ if (typeof window !== "undefined") {
   throw new Error("@daywalker/auth/server must only be imported on the server");
 }
 
-export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: "admin" | "member"; /** Custom claims set in the dashboard. */ claims?: Record<string, unknown> };
+export type SessionClaims = { userId: string; sessionId: string; issuedAt: number; expiresAt: number; azp?: string; orgId?: string; orgRole?: string; /** Permissions of `orgRole` in the active organization, e.g. "org:billing:manage". */ orgPermissions?: string[]; /** Custom claims set in the dashboard. */ claims?: Record<string, unknown> };
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -42,12 +42,37 @@ export async function verifyToken(token: string | null | undefined, opts: Verify
     const azp = typeof payload.azp === "string" ? payload.azp : undefined;
     if (opts.authorizedParties?.length && azp && !opts.authorizedParties.includes(azp)) return null;
     const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
-    const orgRole = payload.org_role === "admin" || payload.org_role === "member" ? payload.org_role : undefined;
-    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole, claims: customClaims(payload) };
+    const orgRole = typeof payload.org_role === "string" ? payload.org_role : undefined;
+    const orgPermissions = Array.isArray(payload.org_permissions) ? payload.org_permissions.filter((p): p is string => typeof p === "string") : orgId ? [] : undefined;
+    return { userId: payload.sub!, sessionId: payload.sid as string, issuedAt: payload.iat!, expiresAt: payload.exp!, azp, orgId, orgRole, orgPermissions, claims: customClaims(payload) };
   } catch (e) {
     if (e instanceof joseErrors.JOSEError) return null;
     throw e; // network/JWKS outages surface instead of looking like "signed out"
   }
+}
+
+/**
+ * Does this session have what you ask for? Pass `{ permission }` (e.g. "org:billing:manage") and/or `{ role }`;
+ * every key you pass must match. False without an active organization. Decide on the server: the token is signed,
+ * so this can't be forged, while the same check in the browser is only for showing or hiding UI.
+ */
+export function has(claims: Pick<SessionClaims, "orgId" | "orgRole" | "orgPermissions"> | null | undefined, check: { permission?: string; role?: string }): boolean {
+  if (!claims?.orgId || (check.permission === undefined && check.role === undefined)) return false;
+  if (check.role !== undefined && claims.orgRole !== check.role) return false;
+  if (check.permission !== undefined && !claims.orgPermissions?.includes(check.permission)) return false;
+  return true;
+}
+
+/** Like `has`, but throws a `ForbiddenError` (status 403) when the check fails. Use it at the top of a route handler or server action. */
+export class ForbiddenError extends Error {
+  status = 403;
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+export function protect(claims: Pick<SessionClaims, "orgId" | "orgRole" | "orgPermissions"> | null | undefined, check: { permission?: string; role?: string }) {
+  if (!has(claims, check)) throw new ForbiddenError(check.permission ? `Missing permission ${check.permission}` : "Forbidden");
 }
 
 export type WebhookEvent<T = Record<string, unknown>> = { id: string; type: string; createdAt: string; data: T };
@@ -118,6 +143,11 @@ export type AuditEvent = {
   createdAt: string;
 };
 
+export type OrgRoleDef = { key: string; name: string; description: string | null; permissions: string[]; builtIn: boolean };
+export type OrgDomainDef = {
+  id: string; domain: string; verified: boolean; verifiedVia: "dns" | "email" | null; enrollment: "none" | "suggest" | "auto_join"; role: string | null; createdAt: string;
+  dns?: { type: "TXT"; name: string; value: string };
+};
 export type WebhookEndpoint = { id: string; url: string; events: string[]; description: string | null; enabled: boolean; createdAt: string };
 export type WebhookDelivery = {
   id: string; eventId: string; eventType: string; status: "pending" | "succeeded" | "failed"; attempts: number;
@@ -179,10 +209,27 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
           `organizations?limit=${q.limit ?? 20}&offset=${q.offset ?? 0}`,
         ).then((r) => r.data),
       members: (orgId: string) =>
-        call<{ data: { userId: string; role: "admin" | "member"; joinedAt: string }[] }>(
+        call<{ data: { userId: string; role: string; joinedAt: string }[] }>(
           "GET",
           `organizations/${encodeURIComponent(orgId)}/members`,
         ).then((r) => r.data),
+    },
+    organizationRoles: {
+      list: () => call<{ data: OrgRoleDef[] }>("GET", "organization_roles").then((r) => r.data),
+      get: (key: string) => call<OrgRoleDef>("GET", `organization_roles/${encodeURIComponent(key)}`),
+      create: (input: { key: string; name: string; description?: string | null; permissions: string[] }) => call<OrgRoleDef>("POST", "organization_roles", input),
+      update: (key: string, input: { name?: string; description?: string | null; permissions?: string[] }) => call<OrgRoleDef>("PATCH", `organization_roles/${encodeURIComponent(key)}`, input),
+      /** Fails with `role_in_use` while members, invitations or settings still use it. */
+      delete: (key: string) => call<{ key: string; deleted: true }>("DELETE", `organization_roles/${encodeURIComponent(key)}`),
+    },
+    organizationDomains: {
+      list: (orgId: string) => call<{ data: OrgDomainDef[] }>("GET", `organizations/${encodeURIComponent(orgId)}/domains`).then((r) => r.data),
+      add: (orgId: string, domain: string) => call<OrgDomainDef>("POST", `organizations/${encodeURIComponent(orgId)}/domains`, { domain }),
+      verifyDns: (orgId: string, domainId: string) => call<OrgDomainDef>("POST", `organizations/${encodeURIComponent(orgId)}/domains/${encodeURIComponent(domainId)}/verify`, { method: "dns" }),
+      sendEmail: (orgId: string, domainId: string, mailbox: string) => call<{ sentTo: string }>("POST", `organizations/${encodeURIComponent(orgId)}/domains/${encodeURIComponent(domainId)}/verify`, { method: "email", mailbox }),
+      verifyEmail: (orgId: string, domainId: string, code: string) => call<OrgDomainDef>("POST", `organizations/${encodeURIComponent(orgId)}/domains/${encodeURIComponent(domainId)}/verify`, { method: "email", code }),
+      update: (orgId: string, domainId: string, input: { enrollment?: "none" | "suggest" | "auto_join"; role?: string | null }) => call<OrgDomainDef>("PATCH", `organizations/${encodeURIComponent(orgId)}/domains/${encodeURIComponent(domainId)}`, input),
+      remove: (orgId: string, domainId: string) => call<{ id: string; deleted: true }>("DELETE", `organizations/${encodeURIComponent(orgId)}/domains/${encodeURIComponent(domainId)}`),
     },
     emailTemplates: {
       list: () => call<{ data: EmailTemplate[]; accentColor: string | null }>("GET", "email_templates"),
@@ -223,7 +270,7 @@ export function createBackendClient(opts: { secretKey: string; apiUrl: string })
   };
 }
 
-const STD = new Set(["sub", "sid", "exp", "iat", "nbf", "iss", "aud", "jti", "azp", "org_id", "org_role"]);
+const STD = new Set(["sub", "sid", "exp", "iat", "nbf", "iss", "aud", "jti", "azp", "org_id", "org_role", "org_permissions"]);
 function customClaims(payload: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(payload).filter(([k]) => !STD.has(k)));
 }

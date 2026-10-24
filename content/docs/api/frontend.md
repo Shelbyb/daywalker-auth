@@ -34,6 +34,12 @@ Errors: `invalid_credentials` (400, same for unknown email and wrong password), 
 ## Second factor
 
 ```http
+GET    /v1/client/organization_roles                         // roles to choose from
+GET|POST /v1/client/organizations/{id}/domains              // org:manage
+PATCH|DELETE /v1/client/organizations/{id}/domains/{domainId}
+POST   /v1/client/organizations/{id}/domains/{domainId}/verify   // { method: "dns" } | { method: "email", mailbox | code }
+GET    /v1/client/organizations/suggestions                 // organizations offered by verified email domain
+POST   /v1/client/organizations/suggestions/{orgId}/accept
 POST /v1/client/unlock                   { "token": "…" }   // one-time link from the "account locked" email
 POST /v1/client/sign_in/second_factor   { "code": "123456" }   // or a backup code
 ```
