@@ -40,10 +40,9 @@ services:
     envs:
       - key: APP_URL
         value: https://users.daywalker.dev
-      # Set after running `npm run bootstrap:platform` once; until then /dashboard returns 404.
       - key: PLATFORM_PUBLISHABLE_KEY
         scope: RUN_TIME
-        value: ""
+        value: pk_live_aW5zXzk2aXl1OHQ2Y2Y2d3d5OGRjNGkzeWU
       - key: DATABASE_URL
         scope: RUN_AND_BUILD_TIME
         value: ${db.DATABASE_URL}
@@ -61,10 +60,17 @@ services:
         value: resend
       - key: MAIL_FROM
         scope: RUN_TIME
-        value: Daywalker Auth <no-reply@users.daywalker.dev>
+        value: Daywalker <no-reply@daywalker.dev>
       - key: PASSKEY_RP_ID
         scope: RUN_TIME
         value: daywalker.dev # parent domain; changing it orphans passkeys
+      - key: TURNSTILE_SITE_KEY
+        scope: RUN_TIME
+        value: 0x4AAAAAAFjRgGz7X9Ig6AM3
+      - key: TURNSTILE_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: "<set-in-dashboard>"
       - key: MASTER_KEY
         scope: RUN_TIME
         type: SECRET
@@ -73,6 +79,10 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: "<set-in-dashboard>"
+      - key: INDEX_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: "<set-in-dashboard>" # npm run keys:print-index-key
 
 jobs:
   - name: migrate

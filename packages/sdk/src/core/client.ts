@@ -605,8 +605,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
 
   /** URL of the hosted sign-in / sign-up page that returns to `redirectUrl` afterwards. */
   function hostedUrl(page: "sign-in" | "sign-up" | "forgot-password" | "account", redirectUrl?: string) {
-    const u = new URL(`${base}/${page}`);
-    u.searchParams.set("pk", config.publishableKey);
+    const u = new URL(`${config.hostedDomain ? normalizeOrigin(config.hostedDomain) : base}/${page}`);
+    if (!config.hostedDomain) u.searchParams.set("pk", config.publishableKey);
     if (redirectUrl) u.searchParams.set("redirect_url", redirectUrl);
     return u.toString();
   }

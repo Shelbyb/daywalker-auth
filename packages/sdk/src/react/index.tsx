@@ -9,11 +9,12 @@ const Ctx = createContext<AuthClient | null>(null);
  * Wrap your app once (e.g. in app/layout.tsx). Reads config from props or from
  * NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY / NEXT_PUBLIC_DAYWALKER_AUTH_URL.
  */
-export function AuthProvider(props: { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean }) {
+export function AuthProvider(props: { children: ReactNode; publishableKey?: string; frontendApi?: string; /** Verified custom domain for hosted pages. */ hostedDomain?: string; /** Set false to skip the app-domain session cookie (the hosted pages do). */ syncCookie?: boolean }) {
   const [client] = useState(() =>
     createAuthClient({
       publishableKey: props.publishableKey ?? process.env.NEXT_PUBLIC_DAYWALKER_PUBLISHABLE_KEY!,
       frontendApi: props.frontendApi ?? process.env.NEXT_PUBLIC_DAYWALKER_AUTH_URL!,
+      ...((props.hostedDomain ?? process.env.NEXT_PUBLIC_DAYWALKER_HOSTED_DOMAIN) ? { hostedDomain: (props.hostedDomain ?? process.env.NEXT_PUBLIC_DAYWALKER_HOSTED_DOMAIN)! } : {}),
       ...(props.syncCookie === false ? { syncCookie: false } : {}),
     }),
   );
@@ -124,6 +125,31 @@ export function SignInButton({ children = "Sign in", className, mode = "sign-in"
   );
 }
 
+/** Sends the user to the hosted sign-up page. */
+export function SignUpButton(props: ButtonProps & { redirectUrl?: string }) {
+  return <SignInButton {...props} mode="sign-up">{props.children ?? "Sign up"}</SignInButton>;
+}
+
+/** Opens the hosted account page (password, two-factor, passkeys, devices), with a link back to your app. */
+export function AccountButton({ children = "Manage account", className, redirectUrl }: ButtonProps & { redirectUrl?: string }) {
+  const c = useAuthClient();
+  return (
+    <button type="button" className={className} onClick={() => window.location.assign(c.hostedUrl("account", redirectUrl ?? window.location.href))}>
+      {children}
+    </button>
+  );
+}
+
+/** Immediately sends signed-out visitors to the hosted sign-in page; they return to `redirectUrl` (default: this page). */
+export function RedirectToSignIn({ redirectUrl, mode = "sign-in" }: { redirectUrl?: string; mode?: "sign-in" | "sign-up" }) {
+  const c = useAuthClient();
+  const s = useAuthState();
+  useEffect(() => {
+    if (s.isLoaded && !s.sessionId) window.location.replace(c.hostedUrl(mode, redirectUrl ?? window.location.href));
+  }, [c, s.isLoaded, s.sessionId, mode, redirectUrl]);
+  return null;
+}
+
 const PROVIDER_LABEL: Record<OAuthProvider, string> = {
   google: "Google", github: "GitHub", microsoft: "Microsoft", apple: "Apple", discord: "Discord", gitlab: "GitLab", oidc: "single sign-on",
 };
@@ -155,4 +181,4 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
 }
 
 export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
-export { SignIn, SignUp, UserButton, OrganizationSwitcher, Captcha, type Appearance, type EnvironmentInfo } from "./components";
+export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, Captcha, type Appearance, type EnvironmentInfo } from "./components";

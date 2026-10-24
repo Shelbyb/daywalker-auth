@@ -64,3 +64,8 @@
 .dw-org-create .dw-button { width: auto; }
 
 .dw-captcha { min-height: 65px; }
+
+.dw-profile { display: grid; gap: 14px; }
+.dw-sessions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dw-session { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.dw-session-button { width: auto; }

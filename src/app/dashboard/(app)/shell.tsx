@@ -38,6 +38,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Suspense fallback={null}>
               <PlatformLink />
             </Suspense>
+            <Link href="/dashboard/settings" className="text-sm font-medium text-stone-700 underline decoration-dawn decoration-2 underline-offset-4 hover:text-ink">
+              Settings
+            </Link>
             <Link href="/docs" className="text-sm font-medium text-stone-700 underline decoration-dawn decoration-2 underline-offset-4 hover:text-ink">
               Docs
             </Link>

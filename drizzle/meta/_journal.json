@@ -141,6 +141,13 @@
       "when": 1792802722984,
       "tag": "0019_platform_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792807345855,
+      "tag": "0020_hosted_pages",
+      "breakpoints": true
     }
   ]
 }

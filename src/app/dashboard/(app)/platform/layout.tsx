@@ -13,6 +13,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
     { href: "/dashboard/platform/audit", label: "Audit log" },
     ...(role === "admin"
       ? [
+          { href: "/dashboard/platform/signin", label: "Sign-in" },
           { href: "/dashboard/platform/settings", label: "Settings" },
           { href: "/dashboard/platform/staff", label: "Staff" },
         ]

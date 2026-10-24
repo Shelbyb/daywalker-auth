@@ -9,6 +9,7 @@ import {
   saveTemplateFor, resetTemplateFor, sendTestEmail, setAccentColor,
   createSsoConnection, updateSsoConnection, deleteSsoConnection, createScimTokenFor, revokeScimTokenFor,
 } from "@/lib/dashboard";
+import { addDomain, removeDomain, saveBranding, verifyDomain } from "@/lib/hosted";
 import {
   EVENT_TYPES, createEndpoint, deleteEndpoint, retryDelivery, rotateSecret, sendTest, updateEndpoint,
 } from "@/lib/webhooks";
@@ -415,5 +416,48 @@ export async function deleteSsoAction(_prev: ActionState, fd: FormData): Promise
     await deleteSsoConnection(userId, id, str(fd, "connectionId", 100));
     refresh(id);
     return { message: "Connection deleted." };
+  });
+}
+
+// ---------- Hosted pages ----------
+
+export async function saveBrandingAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    const v = (k: string, max: number) => str(fd, k, max).trim() || null;
+    await saveBranding(userId, id, { logoUrl: v("logoUrl", 500), primaryColor: v("primaryColor", 7), backgroundColor: v("backgroundColor", 7), title: v("title", 80) });
+    refresh(id);
+    return { message: "Branding saved." };
+  });
+}
+
+export async function addDomainAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await addDomain(userId, id, str(fd, "hostname", 253));
+    refresh(id);
+    return { message: "Domain added. Create the DNS records below, then verify." };
+  });
+}
+
+export async function verifyDomainAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await verifyDomain(userId, id, str(fd, "domainId", 200));
+    refresh(id);
+    return { message: "Domain verified." };
+  });
+}
+
+export async function removeDomainAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  return run(async () => {
+    const { userId } = await requireDashboardUser();
+    const id = str(fd, "instanceId", 200);
+    await removeDomain(userId, id, str(fd, "domainId", 200));
+    refresh(id);
+    return { message: "Domain removed." };
   });
 }

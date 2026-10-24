@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { dashboardEnabled, getDashboardUser } from "@/lib/dashboard";
+
+export const dynamic = "force-dynamic";
 
 const features = [
   {
@@ -51,7 +54,8 @@ const apiSurfaces = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const signedIn = dashboardEnabled() ? Boolean(await getDashboardUser().catch(() => null)) : false;
   return (
     <main className="overflow-hidden bg-white text-ink">
       <header className="border-b border-stone-200">
@@ -65,7 +69,7 @@ export default function Home() {
               Docs
             </Link>
             <Link href="/dashboard" className="rounded-lg bg-ink px-4 py-2 text-white hover:bg-dusk">
-              Dashboard
+              {signedIn ? "Dashboard" : "Log in"}
             </Link>
           </div>
         </nav>
@@ -89,7 +93,7 @@ export default function Home() {
                 Read the docs <span aria-hidden="true">→</span>
               </Link>
               <Link href="/dashboard" className="rounded-lg border border-stone-300 bg-white px-5 py-3 text-sm font-semibold hover:border-stone-400">
-                Open dashboard
+                {signedIn ? "Open dashboard" : "Get started"}
               </Link>
             </div>
             <p className="mt-5 text-sm text-stone-500">Email · passkeys · social sign-in · MFA · SSO</p>
@@ -208,7 +212,7 @@ if (!session) {
                 Start with the docs
               </Link>
               <Link href="/dashboard" className="rounded-lg border border-white/30 px-5 py-3 text-sm font-semibold hover:bg-white/10">
-                Open dashboard
+                {signedIn ? "Open dashboard" : "Get started"}
               </Link>
             </div>
           </div>

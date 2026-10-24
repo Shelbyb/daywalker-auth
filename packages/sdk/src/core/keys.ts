@@ -5,6 +5,8 @@ export type Config = {
   publishableKey: string;
   /** Origin of the Daywalker Auth service, e.g. https://users.daywalker.dev */
   frontendApi: string;
+  /** Verified custom domain serving your hosted pages, e.g. https://auth.example.com. Hosted links use it instead of `frontendApi` + `pk`. */
+  hostedDomain?: string;
 };
 
 /** Decodes the instance ID from a publishable key. Throws on malformed keys. */

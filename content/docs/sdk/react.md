@@ -84,6 +84,9 @@ Returns the underlying [browser client](/docs/sdk/client), for example to build 
 | `<SignedIn>` | Its children, only when loaded and signed in |
 | `<SignedOut>` | Its children, only when loaded and signed out |
 | `<SignInButton mode? redirectUrl? className?>` | A button that opens the hosted sign-in (or `mode="sign-up"`) page and returns to `redirectUrl` (default: current page) |
+| `<SignUpButton redirectUrl? className?>` | Opens the hosted sign-up page and returns to `redirectUrl` |
+| `<AccountButton redirectUrl? className?>` | Opens the hosted account page, with a link back to your app |
+| `<RedirectToSignIn redirectUrl? mode?>` | Sends signed-out visitors to the hosted sign-in page, then back |
 | `<OAuthButton provider redirectUrl? className?>` | "Continue with Google" (or any [social provider](/docs/guides/social-sign-in)) |
 | `<SignOutButton afterSignOutUrl? className?>` | A button that signs out, then optionally navigates |
 | `<UserButton afterSignOutUrl? className? appearance?>` | Initials avatar with name, email, **Manage account** ([account page](/docs/guides/account-page)) and **Sign out** |
@@ -95,3 +98,7 @@ All buttons accept `children` to change their label:
 ```tsx
 <SignInButton className="btn">Log in to continue</SignInButton>
 ```
+
+## Hosted pages on a custom domain
+
+Pass `hostedDomain="https://auth.example.com"` to `<AuthProvider>` (or set `NEXT_PUBLIC_DAYWALKER_HOSTED_DOMAIN`) once the domain is verified in your dashboard. Hosted links and `authProxy` then use it, without `pk` in the URL. The `redirect_url` must match one of your allowed origins.

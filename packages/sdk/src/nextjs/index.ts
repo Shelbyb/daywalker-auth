@@ -85,8 +85,8 @@ export function authProxy(opts: { protect: Matcher[]; signInUrl?: string; /** Us
     const isApi = path.startsWith("/api") || req.headers.get("accept")?.includes("application/json");
     if (isApi) return NextResponse.json({ error: { code: "unauthenticated", message: "Not signed in" } }, { status: 401 });
 
-    const signIn = new URL(opts.signInUrl ?? `${new URL(cfg.frontendApi).origin}/sign-in`);
-    signIn.searchParams.set("pk", cfg.publishableKey);
+    const signIn = new URL(opts.signInUrl ?? `${new URL(cfg.hostedDomain ?? cfg.frontendApi).origin}/sign-in`);
+    if (!cfg.hostedDomain || opts.signInUrl) signIn.searchParams.set("pk", cfg.publishableKey);
     signIn.searchParams.set("redirect_url", req.nextUrl.href);
 
     // A session probably exists but the short-lived token lapsed: refresh in the browser.

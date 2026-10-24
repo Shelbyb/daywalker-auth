@@ -117,3 +117,17 @@ There are three ways to style the components; mix them as you like:
 - **Works under a strict Content Security Policy.** The components use no inline styles and never inject HTML.
 - **The server makes the decisions.** Origins, redirects, rate limits, breached passwords and two-factor are all enforced by Daywalker, not by the component, so a modified component can't skip them.
 - **The organization switcher only displays.** It reads the active organization from the session token to show it; your server must still check `orgId` and `orgRole` from a verified token before acting on them.
+
+## `<UserProfile />`
+
+Lets a signed-in user edit their first and last name and see every device signed in to their account, with a button to sign out any one device or all other devices. It links to the hosted account page for password, two-factor and passkeys.
+
+```tsx
+import { UserProfile } from "@daywalker/auth/react";
+
+export default function ProfilePage() {
+  return <UserProfile />;
+}
+```
+
+It takes the same `appearance.classNames` option as the other components.

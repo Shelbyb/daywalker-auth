@@ -40,3 +40,7 @@ Revoking is immediate: the key stops working on the very next request. Create th
 - Sensitive values (secret keys, signing secrets, OAuth client secrets) are shown once or never shown again. They are not stored in your browser.
 - Deleting an instance permanently deletes its users, sessions, keys and webhooks. You must type the instance's name to confirm.
 - Dashboard sessions work like any other: short-lived tokens, with the long-lived credential in an HttpOnly cookie.
+
+## Hosted pages
+
+Instead of the SDK components you can send people to pages we host: `/sign-in`, `/sign-up`, `/forgot-password` and `/account`. They support the same features as the components. Under **Hosted pages** in your instance you can set a logo, button and background colors, and attach a custom domain. To use a domain, add a single CNAME record at your DNS provider pointing your host to the address shown. We detect it automatically and set up the certificate. Once it resolves, the pages work at `https://your-host/sign-in` without a key in the URL.

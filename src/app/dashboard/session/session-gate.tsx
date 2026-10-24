@@ -40,5 +40,6 @@ export function SessionGate({ pk, target }: { pk: string; target: string }) {
     })();
   }, [pk, target]);
 
-  return <p className="flex min-h-dvh items-center justify-center text-sm text-stone-500">Signing you in…</p>;
+  // Silent: a signed-in user is bounced straight back, so show nothing instead of a flash of text.
+  return <div className="min-h-dvh bg-white" aria-busy="true" />;
 }

@@ -9,7 +9,7 @@
  * - They read the instance's settings (enabled providers, email codes, terms) and adapt.
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { AuthError, type OAuthProvider, type OrgInfo, type User } from "../core/client";
+import { AuthError, type OAuthProvider, type OrgInfo, type SessionInfo, type User } from "../core/client";
 import { useAuthClient, useUser } from "./index";
 
 export type Appearance = {
@@ -646,6 +646,98 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
           {error && <Alert a={a}>{error}</Alert>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- <UserProfile /> ----------
+
+const relTime = (iso: string) => {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 2) return "Active now";
+  if (mins < 60) return `${mins} minutes ago`;
+  const h = Math.round(mins / 60);
+  return h < 48 ? `${h} hours ago` : new Date(iso).toLocaleDateString();
+};
+
+/** Edit name, and see and sign out the devices connected to the account. Security settings live on the hosted account page. */
+export function UserProfile({ appearance: a, className }: { appearance?: Appearance; className?: string }) {
+  const { user } = useUser();
+  const c = useAuthClient();
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [msg, setMsg] = useState<{ error?: string; ok?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const id = useId();
+
+  const reload = () => c.listSessions().then(setSessions).catch(() => undefined);
+  useEffect(() => {
+    if (user) void reload();
+  }, [user?.id]);
+
+  if (!user) return null;
+
+  async function run(fn: () => Promise<string>) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      setMsg({ ok: await fn() });
+    } catch (e) {
+      setMsg({ error: e instanceof Error ? e.message : "Something went wrong" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const others = sessions.filter((s) => !s.current).length;
+  return (
+    <div className={[cx(a, "root", "dw-root dw-profile"), className].filter(Boolean).join(" ")}>
+      <form
+        className={cx(a, "form", "dw-form")}
+        onSubmit={(e: FormEvent<HTMLFormElement>) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          void run(async () => {
+            await c.updateProfile({ firstName: (f.get("firstName") as string) || null, lastName: (f.get("lastName") as string) || null });
+            return "Profile saved";
+          });
+        }}
+      >
+        <h2 className={cx(a, "title", "dw-title")}>Profile</h2>
+        <div className={cx(a, "field", "dw-field")}>
+          <label htmlFor={`${id}-fn`} className={cx(a, "label", "dw-label")}>First name</label>
+          <input id={`${id}-fn`} name="firstName" defaultValue={user.firstName ?? ""} maxLength={100} autoComplete="given-name" className={cx(a, "input", "dw-input")} />
+        </div>
+        <div className={cx(a, "field", "dw-field")}>
+          <label htmlFor={`${id}-ln`} className={cx(a, "label", "dw-label")}>Last name</label>
+          <input id={`${id}-ln`} name="lastName" defaultValue={user.lastName ?? ""} maxLength={100} autoComplete="family-name" className={cx(a, "input", "dw-input")} />
+        </div>
+        <button type="submit" disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>Save</button>
+      </form>
+
+      <h2 className={cx(a, "title", "dw-title")}>Devices</h2>
+      <ul className="dw-sessions">
+        {sessions.map((s) => (
+          <li key={s.id} className="dw-session">
+            <div>
+              <div className="dw-session-name">{s.device}{s.current ? " (this device)" : ""}</div>
+              <div className="dw-menu-meta">{relTime(s.lastActiveAt)}{s.ipHint ? ` · ${s.ipHint}` : ""}</div>
+            </div>
+            {!s.current && (
+              <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-session-button")} onClick={() => run(async () => { await c.revokeSession(s.id); await reload(); return "Device signed out"; })}>
+                Sign out
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {others > 1 && (
+        <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary")} onClick={() => run(async () => { const n = await c.revokeOtherSessions(); await reload(); return `Signed out ${n} other device(s)`; })}>
+          Sign out all other devices
+        </button>
+      )}
+      {msg?.error && <p role="alert" className={cx(a, "error", "dw-error")}>{msg.error}</p>}
+      {msg?.ok && <p role="status" className={cx(a, "info", "dw-info")}>{msg.ok}</p>}
+      <a className={cx(a, "link", "dw-link")} href={c.hostedUrl("account", window.location.href)}>Password, two-factor and passkeys</a>
     </div>
   );
 }

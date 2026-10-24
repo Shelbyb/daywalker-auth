@@ -55,7 +55,9 @@ export const instances = pgTable(
         /** Cloudflare Turnstile site key; the secret is in captcha_secret_enc. */
         captchaSiteKey?: string | null;
         /** Two-factor policy: required for everyone, after a grace period that ends at this time. */
-        requireTwoFactor?: boolean; twoFactorGraceUntil?: string | null }>()
+        requireTwoFactor?: boolean; twoFactorGraceUntil?: string | null;
+        /** Hosted page look: logo, colors, heading. */
+        branding?: { logoUrl?: string | null; primaryColor?: string | null; backgroundColor?: string | null; title?: string | null } }>()
       .notNull()
       .default({ passwordMinLength: 8, sessionLifetimeDays: 7, tokenTtlSeconds: 60 }),
     // Terms new users must accept. `version` is recorded with each acceptance.
@@ -578,4 +580,18 @@ export const samlDomains = pgTable(
     connectionId: text("connection_id").notNull().references(() => samlConnections.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.instanceId, t.domain] }), index("saml_domains_connection_idx").on(t.connectionId)],
+);
+
+/** Custom hostnames for an instance's hosted pages. Active only once its DNS CNAME is verified. */
+export const customDomains = pgTable(
+  "custom_domains",
+  {
+    id: id(),
+    instanceId: text("instance_id").notNull().references(() => instances.id, { onDelete: "cascade" }),
+    hostname: text("hostname").notNull(),
+    verifyToken: text("verify_token").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("custom_domains_hostname_idx").on(t.hostname), index("custom_domains_instance_idx").on(t.instanceId)],
 );
