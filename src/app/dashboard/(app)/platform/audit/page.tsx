@@ -6,6 +6,7 @@ import { requirePlatformPage } from "../../guard";
 import { Badge, EmptyState, PageHeader, Skeleton } from "../../ui";
 import { btnCls, inputCls } from "../../styles";
 import { fmtDateTime } from "../../server";
+import { Pager, pageSize } from "../../pager";
 
 export const metadata = { title: "Platform audit log" };
 
@@ -28,8 +29,8 @@ function Details({ data }: { data: Record<string, unknown> | null }) {
 
 type Q = { type?: string; actor?: string; instance?: string; target?: string; before?: string };
 
-async function Events({ q }: { q: Q }) {
-  const { data, nextCursor } = await listPlatformAudit({ ...q, limit: 50 });
+async function Events({ q, size }: { q: Q; size: number }) {
+  const { data, nextCursor } = await listPlatformAudit({ ...q, limit: size });
   const [actors, instances] = await Promise.all([staffNames(data.map((e) => e.actorId)), instanceNames(data.map((e) => e.instanceId))]);
   const base = "/dashboard/platform/audit";
   const qs = (extra: Partial<Q>) => {
@@ -59,10 +60,7 @@ async function Events({ q }: { q: Q }) {
           </tbody>
         </table>
       </div>
-      <nav aria-label="Pagination" className="flex items-center justify-between text-sm">
-        {q.before ? <Link href={qs({ before: undefined })} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">&larr; Newest</Link> : <span />}
-        {nextCursor ? <Link href={qs({ before: nextCursor })} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">Older &rarr;</Link> : <span />}
-      </nav>
+      <Pager base={base} params={{ type: q.type, actor: q.actor, instance: q.instance, target: q.target }} size={size} defaultSize={50} cursor={q.before} nextCursor={nextCursor} />
     </div>
   );
 }
@@ -72,6 +70,7 @@ export default async function PlatformAuditPage({ searchParams }: { searchParams
   const one = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).slice(0, 100) : undefined) || undefined;
   const type = (PLATFORM_AUDIT_TYPES as readonly string[]).includes(one("type") ?? "") ? one("type") : undefined;
   const q: Q = { type, actor: one("actor"), instance: one("instance"), target: one("target"), before: one("before") };
+  const size = pageSize(sp, 50);
   const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]);
   await requirePlatformPage(`/dashboard/platform/audit${p.size ? `?${p}` : ""}`);
   const filtered = !!(q.type || q.actor || q.instance || q.target);
@@ -92,11 +91,12 @@ export default async function PlatformAuditPage({ searchParams }: { searchParams
         </label>
         {q.actor && <input type="hidden" name="actor" value={q.actor} />}
         {q.instance && <input type="hidden" name="instance" value={q.instance} />}
+        {size !== 50 && <input type="hidden" name="size" value={size} />}
         <button className={btnCls.ghost}>Filter</button>
         {filtered && <Link href="/dashboard/platform/audit" className="py-2 text-sm text-stone-600 underline underline-offset-4">Clear</Link>}
       </form>
-      <Suspense key={JSON.stringify(q)} fallback={<Skeleton lines={8} />}>
-        <Events q={q} />
+      <Suspense key={JSON.stringify({ q, size })} fallback={<Skeleton lines={8} />}>
+        <Events q={q} size={size} />
       </Suspense>
     </div>
   );

@@ -7,19 +7,22 @@ import { ActionForm } from "./forms";
 import { Badge, Card, EmptyState, Field, PageHeader, Skeleton } from "./ui";
 import { inputCls } from "./styles";
 import { fmtDate } from "./server";
+import { Pager, pageNum, pageSize } from "./pager";
 
 export const metadata = { title: "Instances" };
 
-async function Instances() {
+async function Instances({ page, size }: { page: number; size: number }) {
   const { userId } = await requireDashboardUser();
-  const list = await listInstances(userId);
-  if (!list.length)
+  const all = await listInstances(userId);
+  const list = all.slice((page - 1) * size, page * size);
+  if (!all.length)
     return (
       <EmptyState title="No instances yet">
         An instance is one app (or one environment of an app, like development or production) with its own separate set of users, keys and settings. Create your first one below.
       </EmptyState>
     );
   return (
+    <div className="space-y-3">
     <ul className="grid gap-3 sm:grid-cols-2">
       {list.map((i) => (
         <li key={i.id}>
@@ -34,16 +37,21 @@ async function Instances() {
         </li>
       ))}
     </ul>
+    <Pager base="/dashboard" size={size} page={page} hasNext={all.length > page * size} />
+    </div>
   );
 }
 
-export default async function DashboardHome() {
+export default async function DashboardHome({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const page = pageNum(sp);
+  const size = pageSize(sp);
   await requireUser("/dashboard");
   return (
     <div className="space-y-8">
       <PageHeader title="Your instances" description="Each instance is a separate app or environment with its own users. Pick one to manage it, or create a new one." />
-      <Suspense fallback={<Skeleton lines={4} />}>
-        <Instances />
+      <Suspense key={`${page}:${size}`} fallback={<Skeleton lines={4} />}>
+        <Instances page={page} size={size} />
       </Suspense>
       <Card title="Create an instance" description="You'll get a publishable key (for your frontend) and a secret key (for your server). The secret is shown once.">
         <ActionForm action={createInstanceAction} submit="Create instance" resetOnSuccess showKeys secretLabel="Secret key" className="max-w-md space-y-4">

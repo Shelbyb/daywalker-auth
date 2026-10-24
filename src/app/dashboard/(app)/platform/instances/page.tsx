@@ -5,15 +5,13 @@ import { requirePlatformPage } from "../../guard";
 import { Badge, EmptyState, PageHeader, Skeleton } from "../../ui";
 import { btnCls, inputCls } from "../../styles";
 import { fmtDate } from "../../server";
+import { Pager, pageNum, pageSize } from "../../pager";
 
 export const metadata = { title: "Instances" };
 
-const PAGE = 50;
-
-async function List({ search, page }: { search?: string; page: number }) {
-  const rows = await allInstances({ search, limit: PAGE + 1, offset: page * PAGE });
+async function List({ search, page, size }: { search?: string; page: number; size: number }) {
+  const rows = await allInstances({ search, limit: size + 1, offset: (page - 1) * size });
   if (!rows.length) return <EmptyState title="No instances">{search ? "Nothing matches that search." : "No customer has created an instance yet."}</EmptyState>;
-  const qs = (p: number) => `/dashboard/platform/instances?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(p ? { page: String(p) } : {}) })}`;
   return (
     <div className="space-y-3">
       <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
@@ -22,7 +20,7 @@ async function List({ search, page }: { search?: string; page: number }) {
             <tr><th className="p-3">Instance</th><th className="p-3">Account</th><th className="p-3">Users</th><th className="p-3">Created</th><th className="p-3" /></tr>
           </thead>
           <tbody>
-            {rows.slice(0, PAGE).map((i) => (
+            {rows.slice(0, size).map((i) => (
               <tr key={i.id} className="border-b border-stone-100 last:border-0">
                 <td className="p-3">
                   <span className="font-medium">{i.name}</span> <Badge tone={i.environment === "production" ? "warn" : "neutral"}>{i.environment}</Badge>
@@ -40,10 +38,7 @@ async function List({ search, page }: { search?: string; page: number }) {
           </tbody>
         </table>
       </div>
-      <nav aria-label="Pagination" className="flex items-center justify-between text-sm">
-        {page > 0 ? <Link href={qs(page - 1)} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">&larr; Previous</Link> : <span />}
-        {rows.length > PAGE ? <Link href={qs(page + 1)} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">Next &rarr;</Link> : <span />}
-      </nav>
+      <Pager base="/dashboard/platform/instances" params={{ q: search }} size={size} page={page} hasNext={rows.length > size} />
     </div>
   );
 }
@@ -51,7 +46,8 @@ async function List({ search, page }: { search?: string; page: number }) {
 export default async function PlatformInstances({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const search = typeof sp.q === "string" ? sp.q.slice(0, 100) : undefined;
-  const page = Math.min(Math.max(Number(typeof sp.page === "string" ? sp.page : 0) || 0, 0), 1000);
+  const page = pageNum(sp);
+  const size = pageSize(sp);
   await requirePlatformPage("/dashboard/platform/instances");
   return (
     <div className="space-y-6">
@@ -63,8 +59,8 @@ export default async function PlatformInstances({ searchParams }: { searchParams
         </label>
         <button className={btnCls.ghost}>Search</button>
       </form>
-      <Suspense key={`${search}:${page}`} fallback={<Skeleton lines={8} />}>
-        <List search={search} page={page} />
+      <Suspense key={`${search}:${page}:${size}`} fallback={<Skeleton lines={8} />}>
+        <List search={search} page={page} size={size} />
       </Suspense>
     </div>
   );

@@ -6,6 +6,7 @@ import { requireUser } from "../../../guard";
 import { Badge, EmptyState, PageHeader, Skeleton } from "../../../ui";
 import { inputCls, btnCls } from "../../../styles";
 import { fmtDateTime, guarded } from "../../../server";
+import { Pager, pageSize } from "../../../pager";
 
 export const metadata = { title: "Audit log" };
 
@@ -27,8 +28,8 @@ function Details({ data }: { data: Record<string, unknown> | null }) {
   );
 }
 
-async function Events({ userId, id, q }: { userId: string; id: string; q: { type?: string; target?: string; before?: string } }) {
-  const { data, nextCursor } = await guarded(() => auditFor(userId, id, { ...q, limit: 50 }));
+async function Events({ userId, id, q, size }: { userId: string; id: string; q: { type?: string; target?: string; before?: string }; size: number }) {
+  const { data, nextCursor } = await guarded(() => auditFor(userId, id, { ...q, limit: size }));
   const base = `/dashboard/instances/${encodeURIComponent(id)}/audit`;
   const qs = (extra: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
@@ -59,10 +60,7 @@ async function Events({ userId, id, q }: { userId: string; id: string; q: { type
           </tbody>
         </table>
       </div>
-      <nav aria-label="Pagination" className="flex items-center justify-between text-sm">
-        {q.before ? <Link href={qs({})} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">&larr; Newest</Link> : <span />}
-        {nextCursor ? <Link href={qs({ before: nextCursor })} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">Older &rarr;</Link> : <span />}
-      </nav>
+      <Pager base={base} params={{ type: q.type, target: q.target }} size={size} defaultSize={50} cursor={q.before} nextCursor={nextCursor} />
     </div>
   );
 }
@@ -73,6 +71,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   const one = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).slice(0, 100) : undefined) || undefined;
   const type = (AUDIT_TYPES as readonly string[]).includes(one("type") ?? "") ? one("type") : undefined;
   const q = { type, target: one("target"), before: one("before") };
+  const size = pageSize(sp, 50);
   const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]);
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/audit${p.size ? `?${p}` : ""}`);
   return (
@@ -90,11 +89,12 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
           <span className="mb-1 block font-medium">Target ID</span>
           <input name="target" defaultValue={q.target ?? ""} placeholder="user_… or we_…" className={`${inputCls} w-64`} />
         </label>
+        {size !== 50 && <input type="hidden" name="size" value={size} />}
         <button className={btnCls.ghost}>Filter</button>
         {(type || q.target) && <Link href={`/dashboard/instances/${encodeURIComponent(id)}/audit`} className="py-2 text-sm text-stone-600 underline underline-offset-4">Clear</Link>}
       </form>
-      <Suspense key={JSON.stringify(q)} fallback={<Skeleton lines={8} />}>
-        <Events userId={userId} id={id} q={q} />
+      <Suspense key={JSON.stringify({ q, size })} fallback={<Skeleton lines={8} />}>
+        <Events userId={userId} id={id} q={q} size={size} />
       </Suspense>
     </div>
   );

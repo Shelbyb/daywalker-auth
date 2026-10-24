@@ -1,19 +1,18 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { listUsers } from "@/lib/dashboard";
 import { requireUser } from "../../../guard";
 import { banUserAction, removeUserAction } from "../../../actions";
 import { ConfirmAction } from "../../../forms";
 import { Badge, EmptyState, PageHeader, Skeleton } from "../../../ui";
 import { fmtDate, fmtDateTime, guarded } from "../../../server";
+import { Pager, pageNum, pageSize } from "../../../pager";
 
 export const metadata = { title: "Users" };
-const PER_PAGE = 20;
 
-async function Users({ userId, id, page }: { userId: string; id: string; page: number }) {
-  const rows = await guarded(() => listUsers(userId, id, { limit: PER_PAGE + 1, offset: (page - 1) * PER_PAGE }));
-  const users = rows.slice(0, PER_PAGE);
-  const hasNext = rows.length > PER_PAGE;
+async function Users({ userId, id, page, size }: { userId: string; id: string; page: number; size: number }) {
+  const rows = await guarded(() => listUsers(userId, id, { limit: size + 1, offset: (page - 1) * size }));
+  const users = rows.slice(0, size);
+  const hasNext = rows.length > size;
   const base = `/dashboard/instances/${encodeURIComponent(id)}/users`;
   if (!users.length)
     return <EmptyState title={page > 1 ? "No more users" : "No users yet"}>{page > 1 ? "You have reached the end of the list." : "People who sign up to your app will show up here."}</EmptyState>;
@@ -62,25 +61,22 @@ async function Users({ userId, id, page }: { userId: string; id: string; page: n
           </tbody>
         </table>
       </div>
-      <nav aria-label="Pagination" className="flex items-center justify-between text-sm">
-        {page > 1 ? <Link href={page === 2 ? base : `${base}?page=${page - 1}`} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">&larr; Previous</Link> : <span />}
-        <span className="text-stone-500">Page {page}</span>
-        {hasNext ? <Link href={`${base}?page=${page + 1}`} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">Next &rarr;</Link> : <span />}
-      </nav>
+      <Pager base={base} size={size} page={page} hasNext={hasNext} />
     </div>
   );
 }
 
-export default async function UsersPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ page?: string }> }) {
+export default async function UsersPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params;
   const sp = await searchParams;
-  const page = Math.min(Math.max(parseInt(typeof sp.page === "string" ? sp.page : "1", 10) || 1, 1), 100_000);
+  const page = pageNum(sp);
+  const size = pageSize(sp);
   const { userId } = await requireUser(`/dashboard/instances/${encodeURIComponent(id)}/users${page > 1 ? `?page=${page}` : ""}`);
   return (
     <div className="space-y-6">
       <PageHeader title="Users" description="People who have signed up to this instance. Suspended users can't sign in until you restore them. Deleting a user is permanent." />
-      <Suspense fallback={<Skeleton lines={6} />}>
-        <Users userId={userId} id={id} page={page} />
+      <Suspense key={`${page}:${size}`} fallback={<Skeleton lines={6} />}>
+        <Users userId={userId} id={id} page={page} size={size} />
       </Suspense>
     </div>
   );

@@ -7,15 +7,13 @@ import { Badge, EmptyState, PageHeader, Skeleton } from "../../../ui";
 import { btnCls, inputCls } from "../../../styles";
 import { fmtDateTime, guarded } from "../../../server";
 import { impersonateAction } from "../../actions";
+import { Pager, pageNum, pageSize } from "../../../pager";
 
 export const metadata = { title: "Instance users" };
 
-const PAGE = 25;
-
-async function Users({ id, search, page }: { id: string; search?: string; page: number }) {
-  const { instance, users } = await guarded(() => instanceUsers(id, { search, limit: PAGE + 1, offset: page * PAGE }));
+async function Users({ id, search, page, size }: { id: string; search?: string; page: number; size: number }) {
+  const { instance, users } = await guarded(() => instanceUsers(id, { search, limit: size + 1, offset: (page - 1) * size }));
   const base = `/dashboard/platform/instances/${encodeURIComponent(id)}`;
-  const qs = (p: number) => `${base}?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(p ? { page: String(p) } : {}) })}`;
   return (
     <div className="space-y-4">
       <p className="text-sm text-stone-600">
@@ -26,7 +24,7 @@ async function Users({ id, search, page }: { id: string; search?: string; page: 
         <EmptyState title="No users">{search ? "No user has exactly that email or ID." : "This instance has no users yet."}</EmptyState>
       ) : (
         <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white text-sm">
-          {users.slice(0, PAGE).map((u) => (
+          {users.slice(0, size).map((u) => (
             <li key={u.id} className="flex flex-wrap items-start justify-between gap-3 p-3">
               <span className="min-w-0">
                 <span className="font-medium">{u.email ?? "No email"}</span> {u.name && <span className="text-stone-500">({u.name})</span>}{" "}
@@ -55,10 +53,7 @@ async function Users({ id, search, page }: { id: string; search?: string; page: 
         </ul>
       )}
       {!search && (
-        <nav aria-label="Pagination" className="flex items-center justify-between text-sm">
-          {page > 0 ? <Link href={qs(page - 1)} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">&larr; Previous</Link> : <span />}
-          {users.length > PAGE ? <Link href={qs(page + 1)} className="font-medium underline decoration-dawn decoration-2 underline-offset-4">Next &rarr;</Link> : <span />}
-        </nav>
+        <Pager base={base} size={size} page={page} hasNext={users.length > size} />
       )}
     </div>
   );
@@ -68,7 +63,8 @@ export default async function PlatformInstanceUsers({ params, searchParams }: { 
   const { id } = await params;
   const sp = await searchParams;
   const search = typeof sp.q === "string" ? sp.q.slice(0, 254) : undefined;
-  const page = Math.min(Math.max(Number(typeof sp.page === "string" ? sp.page : 0) || 0, 0), 1000);
+  const page = pageNum(sp);
+  const size = pageSize(sp);
   await requirePlatformPage(`/dashboard/platform/instances/${encodeURIComponent(id)}`);
   return (
     <div className="space-y-6">
@@ -83,8 +79,8 @@ export default async function PlatformInstanceUsers({ params, searchParams }: { 
         </label>
         <button className={btnCls.ghost}>Find</button>
       </form>
-      <Suspense key={`${search}:${page}`} fallback={<Skeleton lines={6} />}>
-        <Users id={id} search={search} page={page} />
+      <Suspense key={`${search}:${page}:${size}`} fallback={<Skeleton lines={6} />}>
+        <Users id={id} search={search} page={page} size={size} />
       </Suspense>
     </div>
   );
