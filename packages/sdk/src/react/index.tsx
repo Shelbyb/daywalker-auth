@@ -18,9 +18,9 @@ export const useAuthUrls = () => useContext(UrlsCtx);
 function usePageUrl() {
   const c = useAuthClient();
   const u = useAuthUrls();
-  return (page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in", redirectUrl?: string) => {
+  return (page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in" | "organization" | "create-organization", redirectUrl?: string, opts?: { organizationId?: string }) => {
     const own = page === "sign-in" ? u.signInUrl : page === "sign-up" ? u.signUpUrl : undefined;
-    if (!own) return c.hostedUrl(page, redirectUrl);
+    if (!own) return c.hostedUrl(page, redirectUrl, opts);
     if (!redirectUrl || typeof window === "undefined") return own;
     const url = new URL(own, window.location.href);
     url.searchParams.set("redirect_url", redirectUrl);
@@ -205,12 +205,12 @@ export function RedirectToSignIn({ redirectUrl, mode = "sign-in" }: { redirectUr
  * A plain `<a>` link to a hosted page, for when you'd rather not embed the SDK component.
  * The user comes back to the current URL (or `redirectUrl`) when done.
  */
-export function HostedLink({ page, children, className, redirectUrl }: ButtonProps & { page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in"; redirectUrl?: string | false }) {
+export function HostedLink({ page, children, className, redirectUrl, organizationId }: ButtonProps & { page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in" | "organization" | "create-organization"; redirectUrl?: string | false; organizationId?: string }) {
   const c = useAuthClient();
   const pageUrl = usePageUrl();
   const [href, setHref] = useState(() => c.hostedUrl(page, redirectUrl || undefined));
-  useEffect(() => setHref(pageUrl(page, redirectUrl === false ? undefined : redirectUrl ?? window.location.href)), [page, redirectUrl]); // eslint-disable-line react-hooks/exhaustive-deps
-  const label = { "sign-in": "Sign in", "sign-up": "Sign up", "forgot-password": "Forgot password?", account: "Manage account", "unauthorized-sign-in": "Unauthorized sign in" }[page];
+  useEffect(() => setHref(pageUrl(page, redirectUrl === false ? undefined : redirectUrl ?? window.location.href, { organizationId })), [page, redirectUrl, organizationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const label = { "sign-in": "Sign in", "sign-up": "Sign up", "forgot-password": "Forgot password?", account: "Manage account", "unauthorized-sign-in": "Unauthorized sign in", organization: "Manage organization", "create-organization": "Create organization" }[page];
   return <a href={href} className={className}>{children ?? label}</a>;
 }
 
@@ -224,6 +224,8 @@ export const HostedSignUp = (p: HostedProps) => <HostedLink {...p} page="sign-up
 export const HostedForgotPassword = (p: HostedProps) => <HostedLink {...p} page="forgot-password" />;
 /** Link to the hosted account page (hosted counterpart of `<UserProfile />`). */
 export const HostedUserProfile = (p: HostedProps) => <HostedLink {...p} page="account" />;
+export const HostedOrganizationProfile = (p: HostedProps & { organizationId?: string }) => <HostedLink {...p} page="organization" />;
+export const HostedCreateOrganization = (p: HostedProps) => <HostedLink {...p} page="create-organization" />;
 
 const PROVIDER_LABEL: Record<OAuthProvider, string> = {
   google: "Google", github: "GitHub", microsoft: "Microsoft", apple: "Apple", discord: "Discord", gitlab: "GitLab", oidc: "single sign-on",
@@ -256,10 +258,11 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
 }
 
 export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo, type OrgRoleInfo, type OrgDomainInfo, type OrgSuggestion, type OrganizationSettings } from "../core/client";
-export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, Captcha, type Appearance, type EnvironmentInfo } from "./components";
+export { SignIn, SignUp, UserButton, UserProfile, OrganizationSwitcher, CreateOrganization, OrganizationProfile, Captcha, type Appearance, type EnvironmentInfo } from "./components";
 
 /** Account Portal names for the hosted links (same components). */
 export const AccountPortalLink = HostedLink;
+export { HostedOrganizationProfile as AccountPortalOrganization, HostedCreateOrganization as AccountPortalCreateOrganization };
 export { HostedSignIn as AccountPortalSignIn, HostedSignUp as AccountPortalSignUp, HostedUserProfile as AccountPortalProfile };
 
 function useSessionClaims(getToken: () => Promise<string | null>, sessionId: string | null) {

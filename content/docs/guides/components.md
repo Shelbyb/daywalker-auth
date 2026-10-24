@@ -12,7 +12,9 @@ The [hosted pages](/docs/quickstart) are the quickest way to add auth. When you'
 | `<SignIn />` | Password, passkey, social buttons, email codes, and the two-factor step when needed |
 | `<SignUp />` | Name, email and password, your terms checkbox if required, social buttons, then email verification |
 | `<UserButton />` | Avatar menu with the user's name, **Manage account** and **Sign out** |
-| `<OrganizationSwitcher />` | Switch between the personal account and organizations, or create a new organization |
+| `<OrganizationSwitcher />` | Switch between the personal account and organizations, create one, join one suggested by your email domain, or open **Manage organization** |
+| `<CreateOrganization />` | A form that creates an organization and makes it active |
+| `<OrganizationProfile />` | Members and roles, invitations, verified domains and settings for one organization. Tabs show only what the person's role allows |
 
 They read your instance's settings, so enabling GitHub or email codes in the dashboard makes the matching option appear without a code change.
 
@@ -83,6 +85,10 @@ When the app has the [human check](/docs/guides/sign-up-protection) on, `<SignUp
 `initialEnvironment` is the settings you already fetched on the server (skips the request and the loading flash), `initialError` is an error code from a redirect back (shown as a fixed message, never raw text from the URL), and `signedIn` shows the signed-in state straight away. The hosted sign-in and sign-up pages at `users.daywalker.dev` are these same components, so what you build matches them.
 | `<UserButton>` | `afterSignOutUrl?`, `className?`, `appearance?` |
 | `<OrganizationSwitcher>` | `hidePersonal?`, `onChange?(org)`, `appearance?` |
+| `<CreateOrganization>` | `afterCreateUrl?` (or `onCreated?(org)`), `className?`, `appearance?` |
+| `<OrganizationProfile>` | `organizationId?` (default: the active organization), `afterLeaveUrl?` / `onLeave?`, `className?`, `appearance?` |
+
+`<OrganizationProfile>` hides tabs the role can't use (invitations need `invitations:manage`, domains and settings need `org:manage`), but the server enforces every action. Your [custom roles](/docs/guides/organization-roles) show up in the role pickers. Respect the instance's organization rules: when organizations or creation are off, `<CreateOrganization>` says so.
 
 `onSignedIn` replaces the redirect, for example to close a modal. Social sign-in always does a full-page redirect and comes back to `redirectUrl` (or the current page).
 

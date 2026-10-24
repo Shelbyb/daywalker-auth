@@ -48,5 +48,8 @@ body {
 
 /* The hosted pages already sit in a card; drop the component's own frame. */
 .hosted-embed .dw-root { max-width: none; padding: 0; border: 0; background: transparent; }
+/* The site theme is dark, so the embedded components use their dark palette (otherwise titles and labels are dark on dark). */
+.hosted-embed .dw-root { --dw-bg: #1e2126; --dw-fg: #f2e8d2; --dw-muted: #a8a08f; --dw-border: #3a3e46; --dw-accent: #f2e8d2; --dw-accent-fg: #16181c; --dw-danger: #f0845c; color: var(--dw-fg); }
+.hosted-embed .dw-input { background: transparent; }
 
 .docs-prose .plan-badge { @apply ml-2 inline-block rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 align-middle text-[11px] font-semibold text-violet-700; }

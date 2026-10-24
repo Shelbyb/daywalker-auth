@@ -96,6 +96,7 @@ Returns the underlying [browser client](/docs/sdk/client), for example to build 
 | `<UserButton afterSignOutUrl? className? appearance?>` | Initials avatar with name, email, **Manage account** ([account page](/docs/guides/account-page)) and **Sign out** |
 | `<SignIn>` / `<SignUp>` | Full sign-in and sign-up forms on your own page. See [Drop-in components](/docs/guides/components) |
 | `<OrganizationSwitcher>` | Switch or create organizations. See [Drop-in components](/docs/guides/components) |
+| `<CreateOrganization>`, `<OrganizationProfile>` | Create an organization; manage members, roles, invitations, domains and settings. See [Drop-in components](/docs/guides/components) |
 
 All buttons accept `children` to change their label:
 

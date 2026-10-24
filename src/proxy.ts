@@ -7,7 +7,7 @@ const prod = process.env.NODE_ENV === "production";
  * request's random nonce, so injected markup can't execute even if it slips past escaping.
  * These pages render per request anyway (they read search params and cookies).
  */
-const STRICT = /^\/(sign-in|sign-up|forgot-password|second-factor|magic-link|accept-invite|unauthorized-sign-in|account|dashboard)(\/|$)/;
+const STRICT = /^\/(sign-in|sign-up|forgot-password|second-factor|magic-link|accept-invite|unauthorized-sign-in|account|organization|create-organization|dashboard)(\/|$)/;
 
 function policy(nonce: string | null) {
   const script = nonce
@@ -30,7 +30,7 @@ function policy(nonce: string | null) {
 }
 
 /** Default hosted-page URL: /h/<publishable key>/<page>, unique per instance and needing no subdomain. */
-const HOSTED = /^\/h\/(pk_(?:test|live)_[A-Za-z0-9_-]+)(\/(?:sign-in|sign-up|forgot-password|unauthorized-sign-in|account)(?:\/.*)?)?$/;
+const HOSTED = /^\/h\/(pk_(?:test|live)_[A-Za-z0-9_-]+)(\/(?:sign-in|sign-up|forgot-password|unauthorized-sign-in|account|organization|create-organization)(?:\/.*)?)?$/;
 
 export function proxy(req: NextRequest) {
   const hosted = HOSTED.exec(req.nextUrl.pathname);

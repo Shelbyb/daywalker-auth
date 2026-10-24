@@ -18,7 +18,7 @@ Order of work, one commit per feature, each with migration, API, UI, SDK, docs p
 
 1. [x] Real account lockout (migration 0022, `auth/lockout.ts`, `scripts/lockout-e2e.ts`; see `guides/account-lockout.md`) (progressive, per account, Valkey + persistent state, email unlock link, admin unlock, `user.locked` / `user.unlocked`)
 2. [x] Custom organization roles and permissions (migration 0023, `auth/org-roles.ts`, `auth/org-domains.ts`, `scripts/orgroles-e2e.ts`; `guides/organization-roles.md`). Domain verification by DNS TXT is tested only against the `DNS_TXT_TEST_FILE` stub, not real DNS; the email path uses role mailboxes (admin@, postmaster@ ...)
-3. [ ] SDK `<CreateOrganization/>` and `<OrganizationProfile/>` + hosted organization pages
+3. [x] SDK `<CreateOrganization/>` and `<OrganizationProfile/>` + hosted `/organization` and `/create-organization` (`packages/sdk/src/react/components.tsx`, `src/app/components/hosted-org.tsx`, `scripts/orgui-e2e.ts`, browser walkthrough `scripts/browser/organization.py` run locally with Chromium). Also made the hosted embed use the dark palette (titles were dark-on-dark on the hosted pages)
 4. [ ] Self-service account deletion (re-auth, grace period, `user.deleted`, purge job) + data export (rate limited, audited)
 
 New-device sign-in alerts were dropped on purpose (not wanted).
@@ -217,8 +217,8 @@ Commits: author Shelbyb `<Shelbyb@users.noreply.github.com>`, no co-author or at
 | 4 | Session custom claims / JWT templates | P1 | Custom session claims + named JWT templates | planned (in progress) |
 | 5 | Per-instance bot protection config | P3 | Turnstile toggle exists; add mode/strictness and per-flow options | partial |
 | 6 | Org roles/permissions + domain auto-join | P1 | Custom roles/permissions, verified domains with suggest/auto-join | done (UI for domains comes with #3/#8) |
-| 7 | Account Portal org pages | P2 | Hosted org switcher, create-org, org profile pages | missing |
-| 8 | SDK org components | P2 | `OrganizationSwitcher` exists; add `CreateOrganization`, `OrganizationProfile` | partial |
+| 7 | Account Portal org pages | P2 | Hosted org switcher, create-org, org profile pages | done (create + profile; switcher is the component) |
+| 8 | SDK org components | P2 | `OrganizationSwitcher` exists; add `CreateOrganization`, `OrganizationProfile` | done |
 | 9 | Dev → prod instance cloning | P3 | Copy settings/branding/providers to a new production instance | missing |
 | 10 | Satellite domains / multi-domain | P3 | Satellite domain config + cross-domain session sync | missing |
 

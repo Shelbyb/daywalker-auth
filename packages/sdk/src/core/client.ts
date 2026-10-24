@@ -70,7 +70,7 @@ export type OrganizationSettings = {
   allowPersonalAccounts: boolean;
 };
 export type OrgInfo = { id: string; name: string; slug: string; role: OrgRole; /** Permissions of your role in this organization (for showing or hiding UI; enforce on your server). */ permissions?: string[]; requireTwoFactor?: boolean; createdAt?: string };
-export type OrgMember = { userId: string; role: OrgRole; email?: string | null; firstName?: string | null; lastName?: string | null; joinedAt: string };
+export type OrgMember = { userId: string; role: OrgRole; email?: string | null; name?: string | null; firstName?: string | null; lastName?: string | null; joinedAt: string };
 export type OrgInvitation = { id: string; email: string; role: OrgRole; expiresAt: string; createdAt: string };
 
 export class AuthError extends Error {
@@ -670,10 +670,11 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** URL of the hosted sign-in / sign-up page that returns to `redirectUrl` afterwards. */
-  function hostedUrl(page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in", redirectUrl?: string) {
+  function hostedUrl(page: "sign-in" | "sign-up" | "forgot-password" | "account" | "unauthorized-sign-in" | "organization" | "create-organization", redirectUrl?: string, opts: { organizationId?: string } = {}) {
     const u = new URL(`${config.hostedDomain ? normalizeOrigin(config.hostedDomain) : base}/${page}`);
     if (!config.hostedDomain) u.searchParams.set("pk", config.publishableKey);
     if (redirectUrl) u.searchParams.set("redirect_url", redirectUrl);
+    if (opts.organizationId) u.searchParams.set("org", opts.organizationId);
     return u.toString();
   }
 

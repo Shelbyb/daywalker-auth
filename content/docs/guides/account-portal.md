@@ -5,7 +5,7 @@ description: Fully hosted sign-in, sign-up, password reset and account pages, se
 
 # Account Portal
 
-The Account Portal is a set of pages we host for your instance: **sign in**, **sign up**, **forgot password** and the **user profile** (account page). They support everything the SDK components do: email and password, email codes, social sign-in, passkeys, two-factor and password reset. Use the portal instead of the components, or alongside them.
+The Account Portal is a set of pages we host for your instance: **sign in**, **sign up**, **forgot password** and the **user profile** (account page). Organization pages are hosted too: `/create-organization` and `/organization?org=<id>` render `<CreateOrganization />` and `<OrganizationProfile />`, and `<OrganizationSwitcher />` links to them from **Manage organization**. They support everything the SDK components do: email and password, email codes, social sign-in, passkeys, two-factor and password reset. Use the portal instead of the components, or alongside them.
 
 ## Set it up in the dashboard
 
@@ -66,6 +66,8 @@ import { AccountPortalSignIn, AccountPortalProfile } from "@daywalker/auth/react
 <AccountPortalSignIn />                  {/* returns to the current page */}
 <AccountPortalSignIn redirectUrl={false} /> {/* uses the "After sign-in fallback" */}
 <AccountPortalProfile>Manage account</AccountPortalProfile>
+<AccountPortalOrganization organizationId="org_…">Manage organization</AccountPortalOrganization>
+<AccountPortalCreateOrganization>New organization</AccountPortalCreateOrganization>
 ```
 
 If you use a custom domain, set `hostedDomain` on `<AuthProvider>` (or `NEXT_PUBLIC_DAYWALKER_HOSTED_DOMAIN`) so links go straight there.

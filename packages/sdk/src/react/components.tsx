@@ -9,7 +9,7 @@
  * - They read the instance's settings (enabled providers, email codes, terms) and adapt.
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { AuthError, type OAuthProvider, type OrgInfo, type OrganizationSettings, type SessionInfo, type User } from "../core/client";
+import { AuthError, type OAuthProvider, type OrgInfo, type OrgRoleInfo, type OrgDomainInfo, type OrgMember, type OrgInvitation, type OrgSuggestion, type OrganizationSettings, type SessionInfo, type User } from "../core/client";
 import { useAuthClient, useAuthUrls, useUser } from "./index";
 
 /** `?redirect_url=` from the current page if it is same-origin, else the configured fallback (Clerk-style). */
@@ -41,7 +41,7 @@ export type Appearance = {
 type Part =
   | "root" | "header" | "title" | "subtitle" | "form" | "field" | "label" | "input" | "button" | "buttonSecondary"
   | "providers" | "divider" | "error" | "info" | "footer" | "link" | "checkbox"
-  | "userButton" | "avatar" | "menu" | "menuItem" | "orgSwitcher";
+  | "userButton" | "avatar" | "menu" | "menuItem" | "orgSwitcher" | "tabs" | "tab" | "list" | "listItem" | "select";
 
 const cx = (appearance: Appearance | undefined, part: Part, base: string) => [base, appearance?.classNames?.[part]].filter(Boolean).join(" ");
 
@@ -629,6 +629,7 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rules, setRules] = useState<OrganizationSettings | null>(null);
+  const [suggestions, setSuggestions] = useState<OrgSuggestion[]>([]);
   const ref = useDismiss(open, () => setOpen(false));
 
   useEffect(() => {
@@ -645,6 +646,7 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
         setActive(id);
       })
       .catch((e) => live && setError(message(e)));
+    c.listOrgSuggestions().then((l) => live && setSuggestions(l)).catch(() => undefined);
     return () => {
       live = false;
     };
@@ -681,6 +683,21 @@ export function OrganizationSwitcher({ appearance: a, hidePersonal = false, onCh
           {(orgs ?? []).map((o) => (
             <button key={o.id} role="menuitemradio" aria-checked={o.id === active} type="button" className={cx(a, "menuItem", "dw-menu-item")} onClick={() => void select(o)}>
               {o.name} <span className="dw-menu-meta">{o.role}</span>
+            </button>
+          ))}
+          {active && <a role="menuitem" className={cx(a, "menuItem", "dw-menu-item dw-org-manage")} href={c.hostedUrl("organization", window.location.href, { organizationId: active })}>Manage organization</a>}
+          {suggestions.map((sg) => (
+            <button key={sg.id} type="button" className={cx(a, "menuItem", "dw-menu-item dw-org-suggestion")} onClick={async () => {
+              try {
+                const org = await c.acceptOrgSuggestion(sg.id);
+                setSuggestions((l) => l.filter((x) => x.id !== sg.id));
+                setOrgs((l) => [...(l ?? []), org]);
+                await select(org);
+              } catch (err) {
+                setError(message(err));
+              }
+            }}>
+              Join {sg.name} <span className="dw-menu-meta">@{sg.domain}</span>
             </button>
           ))}
           {creating ? (
@@ -798,6 +815,323 @@ export function UserProfile({ appearance: a, className }: { appearance?: Appeara
       {msg?.error && <p role="alert" className={cx(a, "error", "dw-error")}>{msg.error}</p>}
       {msg?.ok && <p role="status" className={cx(a, "info", "dw-info")}>{msg.ok}</p>}
       <a className={cx(a, "link", "dw-link")} href={c.hostedUrl("account", window.location.href)}>Password, two-factor and passkeys</a>
+    </div>
+  );
+}
+
+
+// ---------- <CreateOrganization /> ----------
+
+/** A form that creates an organization, makes it the active one, and then calls `onCreated` or goes to `afterCreateUrl`. */
+export function CreateOrganization({ appearance: a, className, afterCreateUrl, onCreated }: { appearance?: Appearance; className?: string; afterCreateUrl?: string; onCreated?: (org: OrgInfo) => void }) {
+  const c = useAuthClient();
+  const { user } = useUser();
+  const [rules, setRules] = useState<OrganizationSettings | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const url = useAfterAuthUrl(afterCreateUrl, undefined);
+  const id = useId();
+  useEffect(() => {
+    c.getEnvironment().then((e) => setRules(e.organizations ?? null)).catch(() => undefined);
+  }, [c]);
+  if (!user) return null;
+  if (rules && (!rules.enabled || !rules.allowUserCreation))
+    return <Shell a={a} title="Create organization"><Alert a={a}>Creating organizations is turned off for this application.</Alert></Shell>;
+  return (
+    <div className={[cx(a, "root", "dw-root dw-create-org"), className].filter(Boolean).join(" ")}>
+      <div className={cx(a, "header", "dw-header")}>
+        <h2 className={cx(a, "title", "dw-title")}>Create organization</h2>
+        <p className={cx(a, "subtitle", "dw-subtitle")}>You will be its first member. Invite others afterwards.</p>
+      </div>
+      <form className={cx(a, "form", "dw-form")} onSubmit={async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const name = String(new FormData(e.currentTarget).get("name") ?? "").trim();
+        if (!name) return;
+        setBusy(true);
+        setError(null);
+        try {
+          const org = await c.createOrganization(name);
+          await c.setActiveOrganization(org.id).catch(() => undefined);
+          if (onCreated) onCreated(org);
+          else if (url) window.location.assign(url);
+        } catch (err) {
+          setError(message(err));
+        } finally {
+          setBusy(false);
+        }
+      }}>
+        <div className={cx(a, "field", "dw-field")}>
+          <label htmlFor={`${id}-n`} className={cx(a, "label", "dw-label")}>Organization name</label>
+          <input id={`${id}-n`} name="name" required maxLength={80} autoFocus className={cx(a, "input", "dw-input")} />
+        </div>
+        {error && <Alert a={a}>{error}</Alert>}
+        <button type="submit" disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Creating…" : "Create organization"}</button>
+      </form>
+    </div>
+  );
+}
+
+// ---------- <OrganizationProfile /> ----------
+
+type OrgTab = "members" | "invitations" | "domains" | "settings";
+
+/** Two clicks for destructive actions, without a browser dialog. */
+function Confirm({ a, label, confirmLabel = "Sure?", onConfirm, disabled }: { a?: Appearance; label: string; confirmLabel?: string; onConfirm: () => void; disabled?: boolean }) {
+  const [armed, setArmed] = useState(false);
+  return (
+    <button type="button" disabled={disabled} className={cx(a, "buttonSecondary", `dw-button dw-button-secondary dw-small${armed ? " dw-danger" : ""}`)} onClick={() => { if (armed) { setArmed(false); onConfirm(); } else setArmed(true); }} onBlur={() => setArmed(false)}>
+      {armed ? confirmLabel : label}
+    </button>
+  );
+}
+
+const ENROLLMENT_LABEL = { none: "No automatic joining", suggest: "Suggest the organization", auto_join: "Join automatically" } as const;
+
+/**
+ * Manage one organization: members and roles, invitations, verified domains, and settings. Tabs show only what
+ * your role's permissions allow (the server enforces every action regardless).
+ * Pass `organizationId`, or it uses the active organization, else the first one you belong to.
+ */
+export function OrganizationProfile({ organizationId, appearance: a, className, afterLeaveUrl, onLeave }: { organizationId?: string; appearance?: Appearance; className?: string; afterLeaveUrl?: string; onLeave?: () => void }) {
+  const c = useAuthClient();
+  const { user } = useUser();
+  const [org, setOrg] = useState<OrgInfo | null | undefined>(undefined);
+  const [roles, setRoles] = useState<OrgRoleInfo[]>([]);
+  const [rules, setRules] = useState<OrganizationSettings | null>(null);
+  const [tab, setTab] = useState<OrgTab>("members");
+  const [msg, setMsg] = useState<{ error?: string; ok?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    Promise.all([c.listOrganizations(), activeOrgId(c.getToken), c.listOrganizationRoles().catch(() => [] as OrgRoleInfo[]), c.getEnvironment().catch(() => null)])
+      .then(([list, active, rs, env]) => {
+        if (!live) return;
+        setRoles(rs);
+        setRules(env?.organizations ?? null);
+        setOrg((organizationId ? list.find((o) => o.id === organizationId) : (list.find((o) => o.id === active) ?? list[0])) ?? null);
+      })
+      .catch((e) => {
+        if (!live) return;
+        setOrg(null);
+        setMsg({ error: message(e) });
+      });
+    return () => { live = false; };
+  }, [c, user?.id, organizationId]);
+
+  if (!user || org === undefined) return null;
+  if (org === null)
+    return <Shell a={a} title="Organization">{msg?.error ? <Alert a={a}>{msg.error}</Alert> : <Alert a={a} tone="info">You are not a member of this organization.</Alert>}</Shell>;
+
+  const perms = org.permissions ?? [];
+  const can = (p: string) => perms.includes(p);
+  const tabs: [OrgTab, string][] = [["members", "Members"]];
+  if (can("invitations:manage")) tabs.push(["invitations", "Invitations"]);
+  if (can("org:manage")) tabs.push(["domains", "Domains"], ["settings", "Settings"]);
+  const current: OrgTab = tabs.some(([t]) => t === tab) ? tab : "members";
+  const role = (key: string) => roles.find((r) => r.key === key)?.name ?? key;
+  async function run(fn: () => Promise<string | void>) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const ok = await fn();
+      if (ok) setMsg({ ok });
+    } catch (e) {
+      setMsg({ error: message(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+  const leave = () => (onLeave ? onLeave() : afterLeaveUrl ? window.location.assign(afterLeaveUrl) : window.location.reload());
+  const props: TabProps = { a, c, org, roles, run, busy, can, role, user, rules, leave, setOrg };
+
+  return (
+    <div className={[cx(a, "root", "dw-root dw-org-profile"), className].filter(Boolean).join(" ")}>
+      <div className={cx(a, "header", "dw-header")}>
+        <h2 className={cx(a, "title", "dw-title")}>{org.name}</h2>
+        <p className={cx(a, "subtitle", "dw-subtitle")}>Your role: {role(org.role)}</p>
+      </div>
+      <div role="tablist" className={cx(a, "tabs", "dw-tabs")}>
+        {tabs.map(([t, label]) => (
+          <button key={t} role="tab" type="button" aria-selected={t === current} className={cx(a, "tab", "dw-tab")} onClick={() => { setTab(t); setMsg(null); }}>{label}</button>
+        ))}
+      </div>
+      {current === "members" && <OrgMembers {...props} />}
+      {current === "invitations" && <OrgInvitations {...props} />}
+      {current === "domains" && <OrgDomains {...props} />}
+      {current === "settings" && <OrgSettingsTab {...props} />}
+      {msg?.error && <Alert a={a}>{msg.error}</Alert>}
+      {msg?.ok && <Alert a={a} tone="info">{msg.ok}</Alert>}
+    </div>
+  );
+}
+
+type TabProps = {
+  a?: Appearance; c: ReturnType<typeof useAuthClient>; org: OrgInfo; roles: OrgRoleInfo[]; busy: boolean; can: (p: string) => boolean; role: (k: string) => string; user: User;
+  rules: OrganizationSettings | null; run: (fn: () => Promise<string | void>) => Promise<void>; leave: () => void; setOrg: (o: OrgInfo) => void;
+};
+
+function RoleSelect({ a, roles, value, onChange, disabled, label }: { a?: Appearance; roles: OrgRoleInfo[]; value: string; onChange: (v: string) => void; disabled?: boolean; label: string }) {
+  return (
+    <select aria-label={label} value={value} disabled={disabled} className={cx(a, "select", "dw-input dw-select")} onChange={(e) => onChange(e.target.value)}>
+      {roles.map((r) => <option key={r.key} value={r.key}>{r.name}</option>)}
+    </select>
+  );
+}
+
+function OrgMembers({ a, c, org, roles, busy, can, run, user, leave }: TabProps) {
+  const [members, setMembers] = useState<OrgMember[] | null>(null);
+  const reload = () => c.listOrgMembers(org.id).then(setMembers).catch((e) => { setMembers([]); void run(async () => { throw e; }); });
+  useEffect(() => { void reload(); }, [org.id]);
+  const manage = can("members:manage");
+  return (
+    <div className="dw-section">
+      <ul className={cx(a, "list", "dw-list")}>
+        {(members ?? []).map((m) => {
+          const me = m.userId === user.id;
+          const name = m.name ?? [m.firstName, m.lastName].filter(Boolean).join(" ");
+          const who = m.email || name || m.userId;
+          return (
+            <li key={m.userId} className={cx(a, "listItem", "dw-list-item")}>
+              <div>
+                <div className="dw-session-name">{who}{me ? " (you)" : ""}</div>
+                {name && m.email && <div className="dw-menu-meta">{name}</div>}
+              </div>
+              <div className="dw-actions">
+                {manage ? (
+                  <RoleSelect a={a} roles={roles} value={m.role} label={`Role of ${who}`} disabled={busy} onChange={(r) => run(async () => { await c.changeOrgRole(org.id, m.userId, r); await reload(); return "Role changed"; })} />
+                ) : (
+                  <span className="dw-menu-meta">{roles.find((r) => r.key === m.role)?.name ?? m.role}</span>
+                )}
+                {manage && !me && <Confirm a={a} label="Remove" disabled={busy} onConfirm={() => run(async () => { await c.removeOrgMember(org.id, m.userId); await reload(); return "Member removed"; })} />}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <Confirm a={a} label="Leave organization" confirmLabel="Yes, leave" disabled={busy} onConfirm={() => run(async () => { await c.removeOrgMember(org.id, "me"); leave(); })} />
+    </div>
+  );
+}
+
+function OrgInvitations({ a, c, org, roles, busy, run, rules }: TabProps) {
+  const [list, setList] = useState<OrgInvitation[]>([]);
+  const [role, setRole] = useState(rules?.defaultRole ?? "member");
+  const reload = () => c.listOrgInvitations(org.id).then(setList).catch(() => undefined);
+  useEffect(() => { void reload(); }, [org.id]);
+  return (
+    <div className="dw-section">
+      <form className="dw-org-create" onSubmit={(e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const email = String(new FormData(form).get("email") ?? "").trim();
+        if (email) void run(async () => { await c.inviteToOrg(org.id, email, role); form.reset(); await reload(); return `Invitation sent to ${email}`; });
+      }}>
+        <input name="email" type="email" required maxLength={254} placeholder="name@company.com" aria-label="Email to invite" className={cx(a, "input", "dw-input")} />
+        <RoleSelect a={a} roles={roles} value={role} label="Role for the invitation" onChange={setRole} />
+        <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary dw-small")}>Invite</button>
+      </form>
+      <ul className={cx(a, "list", "dw-list")}>
+        {list.map((i) => (
+          <li key={i.id} className={cx(a, "listItem", "dw-list-item")}>
+            <div>
+              <div className="dw-session-name">{i.email}</div>
+              <div className="dw-menu-meta">{roles.find((r) => r.key === i.role)?.name ?? i.role} · expires {new Date(i.expiresAt).toLocaleDateString()}</div>
+            </div>
+            <Confirm a={a} label="Revoke" disabled={busy} onConfirm={() => run(async () => { await c.revokeOrgInvitation(org.id, i.id); await reload(); return "Invitation revoked"; })} />
+          </li>
+        ))}
+        {!list.length && <li className="dw-menu-meta">No pending invitations.</li>}
+      </ul>
+    </div>
+  );
+}
+
+function OrgDomains({ a, c, org, roles, busy, run }: TabProps) {
+  const [domains, setDomains] = useState<OrgDomainInfo[]>([]);
+  const [code, setCode] = useState<Record<string, string>>({});
+  const reload = () => c.listOrgDomains(org.id).then(setDomains).catch(() => undefined);
+  useEffect(() => { void reload(); }, [org.id]);
+  // Roles that manage the organization are refused for domain joins by the server; don't offer them.
+  const joinRoles = roles.filter((r) => r.key !== "admin" && !r.permissions.some((p) => ["org:manage", "members:manage", "invitations:manage"].includes(p)));
+  return (
+    <div className="dw-section">
+      <p className="dw-menu-meta">Prove you own an email domain, then let people with a verified address there find or join this organization.</p>
+      <form className="dw-org-create" onSubmit={(e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const domain = String(new FormData(form).get("domain") ?? "").trim();
+        if (domain) void run(async () => { await c.addOrgDomain(org.id, domain); form.reset(); await reload(); return "Domain added. Verify it below"; });
+      }}>
+        <input name="domain" required maxLength={253} placeholder="company.com" aria-label="Domain" className={cx(a, "input", "dw-input")} />
+        <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary dw-small")}>Add</button>
+      </form>
+      <ul className={cx(a, "list", "dw-list")}>
+        {domains.map((d) => (
+          <li key={d.id} className={cx(a, "listItem", "dw-list-item")}>
+            <div className="dw-domain-main">
+              <div className="dw-session-name">{d.domain} <span className="dw-badge">{d.verified ? "Verified" : "Unverified"}</span></div>
+              {!d.verified && d.dns && (
+                <div className="dw-domain-verify">
+                  <p className="dw-menu-meta">Add this DNS record, then check it:</p>
+                  <code className="dw-code">{d.dns.type} {d.dns.name} = {d.dns.value}</code>
+                  <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-small")} onClick={() => run(async () => { await c.verifyOrgDomainDns(org.id, d.id); await reload(); return "Domain verified"; })}>Check DNS record</button>
+                  <p className="dw-menu-meta">Or receive a code by email:</p>
+                  <div className="dw-org-create">
+                    {(["admin", "postmaster"] as const).map((m) => (
+                      <button key={m} type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-small")} onClick={() => run(async () => `Code sent to ${(await c.sendOrgDomainEmail(org.id, d.id, m)).sentTo}`)}>Send to {m}@</button>
+                    ))}
+                  </div>
+                  <div className="dw-org-create">
+                    <input inputMode="numeric" maxLength={6} placeholder="6-digit code" aria-label={`Code for ${d.domain}`} value={code[d.id] ?? ""} onChange={(e) => setCode((v) => ({ ...v, [d.id]: e.target.value }))} className={cx(a, "input", "dw-input")} />
+                    <button type="button" disabled={busy || (code[d.id] ?? "").length < 6} className={cx(a, "button", "dw-button dw-button-primary dw-small")} onClick={() => run(async () => { await c.verifyOrgDomainEmail(org.id, d.id, code[d.id]); await reload(); return "Domain verified"; })}>Verify</button>
+                  </div>
+                </div>
+              )}
+              {d.verified && (
+                <div className="dw-org-create">
+                  <select aria-label={`Enrollment for ${d.domain}`} value={d.enrollment} disabled={busy} className={cx(a, "select", "dw-input dw-select")} onChange={(e) => run(async () => { await c.updateOrgDomain(org.id, d.id, { enrollment: e.target.value as OrgDomainInfo["enrollment"] }); await reload(); return "Saved"; })}>
+                    {Object.entries(ENROLLMENT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                  <select aria-label={`Role for people joining through ${d.domain}`} value={d.role ?? ""} disabled={busy} className={cx(a, "select", "dw-input dw-select")} onChange={(e) => run(async () => { await c.updateOrgDomain(org.id, d.id, { role: e.target.value || null }); await reload(); return "Saved"; })}>
+                    <option value="">Default role</option>
+                    {joinRoles.map((r) => <option key={r.key} value={r.key}>{r.name}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <Confirm a={a} label="Remove" disabled={busy} onConfirm={() => run(async () => { await c.removeOrgDomain(org.id, d.id); await reload(); return "Domain removed"; })} />
+          </li>
+        ))}
+        {!domains.length && <li className="dw-menu-meta">No domains yet.</li>}
+      </ul>
+    </div>
+  );
+}
+
+function OrgSettingsTab({ a, c, org, busy, run, rules, leave, setOrg }: TabProps) {
+  const id = useId();
+  return (
+    <div className="dw-section">
+      <form className={cx(a, "form", "dw-form")} onSubmit={(e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const name = String(new FormData(e.currentTarget).get("name") ?? "").trim();
+        if (name) void run(async () => { await c.renameOrganization(org.id, name); setOrg({ ...org, name }); return "Name saved"; });
+      }}>
+        <div className={cx(a, "field", "dw-field")}>
+          <label htmlFor={`${id}-n`} className={cx(a, "label", "dw-label")}>Organization name</label>
+          <input id={`${id}-n`} name="name" defaultValue={org.name} required maxLength={80} className={cx(a, "input", "dw-input")} />
+        </div>
+        <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>Save</button>
+      </form>
+      <label className={cx(a, "checkbox", "dw-checkbox")}>
+        <input type="checkbox" defaultChecked={!!org.requireTwoFactor} disabled={busy} onChange={(e) => run(async () => { await c.setOrganizationTwoFactor(org.id, e.target.checked); setOrg({ ...org, requireTwoFactor: e.target.checked }); return "Saved"; })} />
+        <span>Require two-step verification for members</span>
+      </label>
+      {(rules?.allowAdminDelete ?? true) && (
+        <Confirm a={a} label="Delete organization" confirmLabel="Yes, delete it for everyone" disabled={busy} onConfirm={() => run(async () => { await c.deleteOrganization(org.id); leave(); })} />
+      )}
     </div>
   );
 }
