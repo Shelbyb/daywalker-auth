@@ -10,7 +10,7 @@ export const POST = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   await ctx.limit("sign_up", 10, 3600);
   const input = signUpInput.parse(await req.json());
-  await assertHuman(ctx.inst, input.captchaToken, clientIp(req));
+  await assertHuman(ctx.inst, input.captchaToken, clientIp(req), "signup");
   const userId = await signUp(ctx.inst, input);
   const s = await createSession(ctx.inst, userId, { userAgent: req.headers.get("user-agent"), ip: clientIp(req) });
   const { jwt, twoFactorSetupRequired } = await issueTokenOrSetup(ctx.inst, s.refreshToken, ctx.origin);

@@ -41,7 +41,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
               <span className="block text-stone-600">
                 {inst.smsConfigured
                   ? "Let people add a phone and receive sign-in codes by text, as an alternative to an authenticator app."
-                  : "Needs Twilio Verify credentials on the server (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID)."}
+                  : "Text messages aren't available on this service yet."}
               </span>
             </span>
           </label>
@@ -83,7 +83,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             </span>
           </label>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Turnstile site key (optional)" hint="From Cloudflare Turnstile. Adds a human check to sign-up and to emailing sign-in codes. Leave empty to turn it off.">
+            <Field label="Turnstile site key (optional)" hint="From Cloudflare Turnstile. Adds a human check to sign-up, sign-in, emailing sign-in codes and password reset. Add your app’s domains to the widget. Leave empty to turn it off.">
               <input name="captchaSiteKey" defaultValue={prot.captcha?.siteKey ?? ""} maxLength={200} spellCheck={false} className={`${inputCls} font-mono`} />
             </Field>
             <Field label="Turnstile secret key" hint={prot.captcha?.secretSet ? "Saved (encrypted). Leave empty to keep it." : "Stored encrypted, never shown again."}>

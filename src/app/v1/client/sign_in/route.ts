@@ -3,6 +3,7 @@ import { frontendContext, preflight, setTwoFactorCookie } from "@/lib/auth/front
 import { signIn, signInInput, getUser } from "@/lib/auth/users";
 import { createSession, issueTokenOrSetup } from "@/lib/auth/sessions";
 import { hasTwoFactor, createPendingSecondFactor } from "@/lib/auth/mfa";
+import { assertHuman } from "@/lib/auth/signup-protection";
 
 export const OPTIONS = preflight;
 
@@ -12,6 +13,7 @@ export const POST = handler(async (req: Request) => {
   // Per-IP and per-account limits: stops both spraying and targeted guessing.
   await ctx.limit("sign_in", 20, 300);
   await ctx.limit("sign_in_acct", 10, 900, input.email);
+  await assertHuman(ctx.inst, input.captchaToken, clientIp(req), "login");
   const userId = await signIn(ctx.inst, input);
 
   // Password was right, but the account needs a second factor: no session yet.

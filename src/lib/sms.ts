@@ -1,14 +1,13 @@
 /**
  * Twilio Verify: Twilio creates, sends and checks the codes (with its own fraud protection), so
- * no SMS code is ever stored here. Configured once per deployment; SMS is unavailable without it.
+ * no SMS code is ever stored here. Configured once for the whole platform (platform settings, or
+ * the TWILIO_* environment); SMS is unavailable without it.
  */
 import { env } from "./env";
 import { guardedFetch } from "./net-guard";
+import { effectiveSettings } from "./platform-settings";
 
-export const smsConfigured = () => {
-  const e = env();
-  return !!(e.TWILIO_ACCOUNT_SID && e.TWILIO_AUTH_TOKEN && e.TWILIO_VERIFY_SERVICE_SID);
-};
+export const smsConfigured = async () => !!(await effectiveSettings()).twilio;
 
 /** Tests point this at a local mock; never allowed on an HTTPS deployment. */
 function base() {
@@ -21,11 +20,12 @@ function base() {
 }
 
 async function call(path: string, form: Record<string, string>) {
-  const e = env();
-  const r = await guardedFetch(`${base()}/v2/Services/${e.TWILIO_VERIFY_SERVICE_SID}/${path}`, {
+  const t = (await effectiveSettings()).twilio;
+  if (!t) return { status: 503, body: {} as Record<string, unknown> };
+  const r = await guardedFetch(`${base()}/v2/Services/${t.verifyServiceSid}/${path}`, {
     method: "POST",
     headers: {
-      authorization: `Basic ${Buffer.from(`${e.TWILIO_ACCOUNT_SID}:${e.TWILIO_AUTH_TOKEN}`).toString("base64")}`,
+      authorization: `Basic ${Buffer.from(`${t.accountSid}:${t.authToken}`).toString("base64")}`,
       "content-type": "application/x-www-form-urlencoded",
       accept: "application/json",
     },

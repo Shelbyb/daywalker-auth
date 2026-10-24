@@ -19,17 +19,21 @@ The rules apply to **new accounts**, from email sign-up and social sign-in. Peop
 
 [Turnstile](https://developers.cloudflare.com/turnstile/) is a free, privacy-friendly CAPTCHA alternative. Most people never see a puzzle.
 
-1. In Cloudflare, create a Turnstile widget for your domains. You get a **site key** and a **secret key**.
+1. In Cloudflare, create a Turnstile widget for your app's domains, plus `users.daywalker.dev` if you use the hosted pages. You get a **site key** and a **secret key**.
 2. Paste both into the dashboard. The secret is stored encrypted and never shown again.
 
-From then on, **sign-up** and **emailing a sign-in code** need a fresh Turnstile answer. The hosted pages and the drop-in `<SignUp />` / `<SignIn />` components show the widget for you. In your own form, read the site key from `getEnvironment().captcha`, render the widget, and pass its token:
+From then on, **sign-up**, **password sign-in**, **emailing a sign-in code** and **password reset** need a fresh Turnstile answer. The hosted pages and the drop-in `<SignUp />` / `<SignIn />` components show the widget for you. In your own form, read the site key from `getEnvironment().captcha`, render the widget with the action of that form, and pass its token:
 
-```ts
-await client.signUp({ email, password, captchaToken });
-await client.sendSignInCode({ email, captchaToken });
-```
+| Form | Widget `action` | Call |
+| --- | --- | --- |
+| Sign-up | `signup` | `client.signUp({ email, password, captchaToken })` |
+| Password sign-in | `login` | `client.signIn({ email, password, captchaToken })` |
+| Email code | `email_code` | `client.sendSignInCode({ email, captchaToken })` |
+| Forgot password | `password_reset` | `client.requestPasswordReset(email, { captchaToken })` |
 
-Each answer works once. Password sign-in, passkeys and social sign-in don't need it (they already have their own rate limits and checks).
+With React, the exported `<Captcha siteKey action onToken round />` renders the widget for you.
+
+Each answer works once, so get a fresh one after every attempt (`turnstile.reset(widgetId)`). The server also checks that the answer was made for that form (its `action`) and on one of your allowed origins (or the hosted pages), so an answer from another form or site is refused. Passkeys and social sign-in don't need it (they already have their own checks).
 
 If Turnstile can't be reached, the request is refused rather than let through. If you use the components in your own app with a strict Content Security Policy, allow `https://challenges.cloudflare.com` in `script-src` and `frame-src`.
 

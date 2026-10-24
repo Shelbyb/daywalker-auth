@@ -11,7 +11,7 @@ description: What's protected, how, and what's still your responsibility.
 | Emails, names, private metadata, session IP and browser | **AES-256-GCM** ciphertext, bound to its table, column and row |
 | Email lookups | Keyed HMAC "blind index", scoped per instance |
 | Refresh tokens, secret keys | SHA-256 hash only. They're 256-bit random values, so this is irreversible. |
-| Verification and reset codes | Keyed HMAC in Valkey, deleted after 10 minutes, on use, or after 5 wrong guesses |
+| Verification and reset codes | Keyed HMAC in the cache, deleted after 10 minutes, on use, or after 5 wrong guesses |
 | 2FA secrets | AES-256-GCM per user |
 | Backup codes | Keyed HMAC; marked used atomically |
 | Passkeys | Public keys only; private keys never leave the user's device |
@@ -19,19 +19,13 @@ description: What's protected, how, and what's still your responsibility.
 | Social account IDs | Keyed HMAC only |
 | JWT signing keys | Private key AES-256-GCM encrypted; decrypted only into server memory |
 
-**The key hierarchy.**
-- A single `MASTER_KEY` (48 random bytes, `openssl rand -base64 48`) is the root.
-- It never encrypts data directly; separate keys for encryption and indexing are derived from it with HKDF.
-- Each ciphertext records its key version (`v1.`), so the master key can be rotated later.
+**Key management.** Encryption keys are managed by the service and versioned, so they can be rotated without exposing data. Each ciphertext records its key version.
 
 **Why bind ciphertext to its row?** If someone with database access copied an encrypted email from one row into another, decryption would fail rather than reveal data in the wrong place.
 
 ## Data in transit
 
-- In production the service **refuses to start** unless:
-  - `APP_URL` is HTTPS
-  - Postgres uses `sslmode=require` or stricter
-  - Valkey uses `rediss://` (TLS)
+- All traffic to the service is over HTTPS, and connections to its data stores are encrypted.
 - Pages send `Strict-Transport-Security` with preload.
 
 ## Sessions
@@ -62,17 +56,16 @@ description: What's protected, how, and what's still your responsibility.
 | A leaked or over-broad provisioning token | The SCIM token is random, only its SHA-256 is stored, it works for one connection's own domains and people only, and the last admin of an organization is never demoted by a group push |
 | Forged or replayed SSO logout | Logout messages must be signed by the IdP's certificate (unsigned redirect messages are refused), match its issuer and our URL, be recent, and work once; a logout answer can only send the browser to a redirect we stored |
 | Cloned security key | Signature counters must always increase |
-| Bot sign-ups and throwaway accounts | Optional Turnstile check (server-verified, single use, fails closed), domain allow/block lists, and a disposable-provider list |
+| Bot sign-ups, credential stuffing and throwaway accounts | Optional Turnstile check on sign-up, sign-in, email codes and password reset (server-verified, single use, action and hostname checked, fails closed), domain allow/block lists, and a disposable-provider list |
 | Stolen password on an account without 2FA | Optional two-factor requirement: no session token without it, app-wide or per organization |
 | Code guessing | 6 digits, 5 guesses, 10 minutes, single use |
 | Stolen database dump | Personal data encrypted; passwords hashed; tokens hashed |
-| Leaked logs or cache | Rate-limit keys are HMAC'd; no raw IPs or emails in Valkey |
+| Leaked logs or cache | Rate-limit keys are HMAC'd; no raw IPs or emails in the cache |
 
 ## Your responsibilities
 
-- **Keep `MASTER_KEY` and secret keys in a secrets manager.** Losing the master key makes stored personal data unrecoverable; leaking it exposes it.
+- **Keep your secret keys in a secrets manager.** Never put them in browser code or commit them.
 - **Check authorization** in your own code (scope queries by `userId`).
-- **Run behind a proxy that sets `X-Forwarded-For`** correctly; IP rate limits depend on it.
 - **Keep the allowed-origins list short**, with only domains you control.
 
 ## Webhooks

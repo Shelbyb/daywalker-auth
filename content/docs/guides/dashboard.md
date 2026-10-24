@@ -11,23 +11,7 @@ The dashboard lives at `/dashboard` on your Daywalker Auth service (for example 
 - **Publishable key** (`pk_…`): identifies your instance. It's safe to put in browser code.
 - **Secret key** (`sk_…`): lets your server call the [backend API](/docs/api/backend). Keep it on the server only.
 
-## First-time setup (service owners)
-
-The dashboard signs developers in through the service itself, so it needs one special "platform" instance. Create it once:
-
-```bash
-npm run bootstrap:platform
-```
-
-It prints a line like this:
-
-```text
-PLATFORM_PUBLISHABLE_KEY=pk_live_…
-```
-
-Add that line to your environment variables and redeploy. Until it is set, `/dashboard` returns a 404 on purpose. On DigitalOcean, see the [deployment guide](/docs/deployment-digitalocean).
-
-Then open `/dashboard`, create your account, and you're in. Every person who signs up gets their own private account.
+Open `/dashboard`, create your account, and you're in. Every person who signs up gets their own private account.
 
 ## What you can do
 

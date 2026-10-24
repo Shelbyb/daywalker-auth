@@ -28,7 +28,7 @@ export const signUpInput = z.object({
 /** Scoped per instance so the same email in two apps doesn't produce linkable index values. */
 const emailIndex = (instanceId: string, email: string) => blindIndex(email, `email:${instanceId}`);
 
-export const signInInput = z.object({ email, password: z.string().max(256) });
+export const signInInput = z.object({ email, password: z.string().max(256), captchaToken: z.string().max(2048).optional() });
 
 export async function signUp(inst: Instance, input: z.infer<typeof signUpInput>) {
   await assertSsoNotRequired(inst.id, input.email);

@@ -155,4 +155,4 @@ export function SignOutButton({ children = "Sign out", className, afterSignOutUr
 }
 
 export { AuthError, type User, type SignInResult, type SessionInfo, type PasskeyInfo, type SecurityKeyInfo, type OAuthProvider, type OrgInfo } from "../core/client";
-export { SignIn, SignUp, UserButton, OrganizationSwitcher, type Appearance, type EnvironmentInfo } from "./components";
+export { SignIn, SignUp, UserButton, OrganizationSwitcher, Captcha, type Appearance, type EnvironmentInfo } from "./components";

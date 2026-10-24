@@ -3,12 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AuthError } from "@daywalker/auth";
+import { Captcha } from "@daywalker/auth/react";
 import { hostedClient } from "./hosted-client";
 import { CodeInput, Submit, Alert } from "./code-input";
 
 /** Two steps: request a code, then set a new password with it. */
-export function ForgotPassword({ pk, redirect }: { pk: string; redirect?: string }) {
+export function ForgotPassword({ pk, redirect, captchaSiteKey }: { pk: string; redirect?: string; /** Cloudflare Turnstile, when the app has the human check on. */ captchaSiteKey?: string }) {
   const [email, setEmail] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -45,7 +48,11 @@ export function ForgotPassword({ pk, redirect }: { pk: string; redirect?: string
           e.preventDefault();
           const value = String(new FormData(e.currentTarget).get("email") ?? "");
           void run(async () => {
-            await hostedClient(pk).requestPasswordReset(value);
+            try {
+              await hostedClient(pk).requestPasswordReset(value, { captchaToken: captchaToken ?? undefined });
+            } finally {
+              setCaptchaRound((n) => n + 1); // each answer works once
+            }
             setEmail(value);
           });
         }}
@@ -55,8 +62,9 @@ export function ForgotPassword({ pk, redirect }: { pk: string; redirect?: string
           <input name="email" type="email" autoComplete="email" required maxLength={254}
             className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-dawn focus:ring-2 focus:ring-dawn/30" />
         </label>
+        {captchaSiteKey && <Captcha siteKey={captchaSiteKey} action="password_reset" onToken={setCaptchaToken} round={captchaRound} />}
         {error && <Alert>{error}</Alert>}
-        <Submit busy={busy}>Send reset code</Submit>
+        <Submit busy={busy} disabled={!!captchaSiteKey && !captchaToken}>Send reset code</Submit>
         <Link href={signInHref} className="block text-center text-sm text-stone-500 hover:text-ink">Back to sign in</Link>
       </form>
     );

@@ -11,7 +11,7 @@ export const POST = handler(async (req: Request) => {
   const ctx = await frontendContext(req);
   const input = sendInput.parse(await req.json());
   await ctx.limit("esi_send", 10, 900);
-  await assertHuman(ctx.inst, input.captchaToken, clientIp(req)); // emailing codes costs money and can be abused
+  await assertHuman(ctx.inst, input.captchaToken, clientIp(req), "email_code"); // emailing codes costs money and can be abused
   await sendSignInEmail(ctx.inst, input.email, safeRedirect(input.redirectUrl, ctx.inst.allowedOrigins));
   return ctx.json({ status: "sent" });
 });

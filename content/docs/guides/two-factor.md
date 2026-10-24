@@ -142,10 +142,8 @@ Users can also get their second-factor code by text message, instead of (or as w
 
 **Turn it on**
 
-1. Create a [Twilio Verify](https://www.twilio.com/docs/verify) service. Twilio generates, sends and checks the codes, and handles fraud protection.
-2. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SERVICE_SID` on the server.
-3. In the dashboard, open **Settings** and tick **Allow SMS two-factor**.
-4. Optional: under **SMS countries**, list the country calling codes people may add a phone from, like `1 44 49` for the US/Canada, UK and Germany. Leave it empty to allow every country. Limiting it is the best defence against SMS toll fraud, where someone enrols premium-rate numbers to run up your bill. It only applies when a phone is added: people who already have one keep it, so narrowing the list never locks anyone out. A number from another country gets the error `sms_country_not_allowed`.
+1. In the dashboard, open **Settings** and tick **Allow SMS two-factor**.
+2. Optional: under **SMS countries**, list the country calling codes people may add a phone from, like `1 44 49` for the US/Canada, UK and Germany. Leave it empty to allow every country. Limiting it is the best defence against SMS toll fraud, where someone enrols premium-rate numbers to run up your bill. It only applies when a phone is added: people who already have one keep it, so narrowing the list never locks anyone out. A number from another country gets the error `sms_country_not_allowed`.
 
 Users then see **Use text messages** on the account page. At sign-in they get a **Text a code to •••• 0100** option.
 

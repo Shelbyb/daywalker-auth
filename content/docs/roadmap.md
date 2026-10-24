@@ -10,7 +10,6 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
 | # | Feature | Why it matters | Status |
 | --- | --- | --- | --- |
 | 1 | **Signing-key rotation** | Replace the keys that sign session tokens without signing anyone out | Done |
-| 2 | **`MASTER_KEY` rotation** | Re-encrypt stored data under a new master key, with a script | Done |
 | 3 | **Audit logs** | A searchable record of sign-ins, key changes and settings changes per instance, in the dashboard and API | Done |
 | 4 | **Magic links and email codes** | Passwordless sign-in: click a link or type a code from your email | Done |
 | 5 | **Breached-password check** | Reject passwords found in known data breaches (privacy-preserving k-anonymity lookup) | Done |
@@ -22,4 +21,4 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
 
 ## Already done
 
-Email and password, email verification, password reset, social sign-in (Google, GitHub, Microsoft, Apple, Discord, GitLab, OpenID Connect), passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key and `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML) with an optional "SSO required" rule, single logout, and SCIM provisioning of users and groups (groups can grant organization admin), SMS two-factor with a country allow-list, sign-up protection (domain rules, throwaway-address blocking, Turnstile), required two-factor (app-wide or per organization), security keys (WebAuthn) as a second factor, and DigitalOcean deployment. See the [guides](/docs/quickstart).
+Email and password, email verification, password reset, social sign-in (Google, GitHub, Microsoft, Apple, Discord, GitLab, OpenID Connect), passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML) with an optional "SSO required" rule, single logout, and SCIM provisioning of users and groups (groups can grant organization admin), SMS two-factor with a country allow-list, sign-up protection (domain rules, throwaway-address blocking, Turnstile), required two-factor (app-wide or per organization), security keys (WebAuthn) as a second factor. See the [guides](/docs/quickstart).

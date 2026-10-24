@@ -15,18 +15,19 @@ import { appRequiresSetup, orgAllowed, setupRequiredError } from "./two-factor-p
 /** Cookie per instance so multiple apps on one auth origin don't collide. */
 export const refreshCookieName = (instanceId: string) => `__dw_rt_${instanceId.slice(4, 14)}`;
 
-type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string; activeOrgId?: string | null };
+type CachedSession = { id: string; userId: string; status: string; expiresAt: string; createdAt?: string; activeOrgId?: string | null; impersonatorId?: string | null };
 const sessKey = (refreshHash: string) => `sess:${refreshHash}`;
 
 export async function createSession(
   inst: Instance,
   userId: string,
-  meta: { userAgent?: string | null; ip?: string | null; method?: string },
+  meta: { userAgent?: string | null; ip?: string | null; method?: string; impersonatorId?: string; lifetimeMs?: number },
 ) {
   // Backstop for every sign-in path: only the identity provider may open a session for an SSO-required address.
-  if (meta.method !== "saml") await assertSsoNotRequiredForUser(inst.id, userId);
+  // Platform impersonation (see lib/platform.ts) is not a sign-in by the user, so it is exempt.
+  if (meta.method !== "saml" && !meta.impersonatorId) await assertSsoNotRequiredForUser(inst.id, userId);
   const refreshToken = newToken();
-  const expiresAt = new Date(Date.now() + inst.settings.sessionLifetimeDays * 86_400_000);
+  const expiresAt = new Date(Date.now() + (meta.lifetimeMs ?? inst.settings.sessionLifetimeDays * 86_400_000));
   const id = newId("sess");
   await db().insert(schema.sessions).values({
     id,
@@ -35,8 +36,11 @@ export async function createSession(
     refreshTokenHash: sha256(refreshToken),
     userAgentEnc: encryptNullable(meta.userAgent?.slice(0, 512), `sessions.user_agent:${id}`),
     ipAddressEnc: encryptNullable(meta.ip, `sessions.ip_address:${id}`),
+    impersonatorId: meta.impersonatorId ?? null,
     expiresAt,
   });
+  // Impersonation is recorded only in the platform audit log: the customer and the user never see it.
+  if (meta.impersonatorId) return { id, refreshToken, expiresAt };
   await db().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, userId));
   void emit(inst.id, "session.created", { sessionId: id, userId });
   void record(inst.id, "user.signed_in", { actor: { type: "user", id: userId }, target: userId, data: { sessionId: id, ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 200) ?? null, ...(meta.method ? { method: meta.method } : {}) } });
@@ -62,6 +66,7 @@ export async function resolveSession(instanceId: string, refreshToken: string) {
         expiresAt: schema.sessions.expiresAt,
         createdAt: schema.sessions.createdAt,
         activeOrgId: schema.sessions.activeOrgId,
+        impersonatorId: schema.sessions.impersonatorId,
         banned: schema.users.banned,
       })
       .from(schema.sessions)
@@ -76,6 +81,7 @@ export async function resolveSession(instanceId: string, refreshToken: string) {
         expiresAt: row.expiresAt.toISOString(),
         createdAt: row.createdAt.toISOString(),
         activeOrgId: row.activeOrgId,
+        impersonatorId: row.impersonatorId,
       };
       await cache().set(sessKey(h), JSON.stringify(s), "EX", 300);
     }
@@ -92,7 +98,7 @@ export async function issueToken(inst: Instance, refreshToken: string | undefine
   if (!refreshToken) throw errors.unauthorized();
   const s = await resolveSession(inst.id, refreshToken);
   if (!s) throw errors.unauthorized("Session is no longer active");
-  if (await appRequiresSetup(inst, s.userId, s.id)) throw setupRequiredError();
+  if (!s.impersonatorId && (await appRequiresSetup(inst, s.userId, s.id))) throw setupRequiredError();
   // Role is re-checked on every mint, so removal from an org drops the claims within a minute.
   // An organization that requires two-factor only appears in the token of members who have it.
   const orgRole = s.activeOrgId && (await orgAllowed(s.activeOrgId, s.userId)) ? await roleIn(inst.id, s.activeOrgId, s.userId) : null;
@@ -120,9 +126,9 @@ export async function endSession(instanceId: string, refreshToken: string, statu
     .update(schema.sessions)
     .set({ status })
     .where(and(eq(schema.sessions.refreshTokenHash, h), eq(schema.sessions.instanceId, instanceId)))
-    .returning({ id: schema.sessions.id, userId: schema.sessions.userId });
+    .returning({ id: schema.sessions.id, userId: schema.sessions.userId, impersonatorId: schema.sessions.impersonatorId });
   await cache().del(sessKey(h));
-  if (row && status === "ended") void record(instanceId, "user.signed_out", { actor: { type: "user", id: row.userId }, target: row.userId, data: { sessionId: row.id } });
+  if (row && status === "ended" && !row.impersonatorId) void record(instanceId, "user.signed_out", { actor: { type: "user", id: row.userId }, target: row.userId, data: { sessionId: row.id } });
 }
 
 /** Backend API: revoke by session ID (e.g. "sign out everywhere"). */

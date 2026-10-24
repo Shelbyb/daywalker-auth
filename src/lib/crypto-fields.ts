@@ -40,4 +40,7 @@ export const ENCRYPTED_FIELDS: EncryptedField[] = [
   byId("webhook_endpoints", "secret_enc", "secret"),
   byId("webhook_deliveries", "payload_enc", "payload"),
   byId("audit_events", "data_enc", "data"),
+  byId("platform_audit_events", "data_enc", "data"),
+  byId("platform_settings", "resend_api_key_enc", "resend_api_key"),
+  byId("platform_settings", "twilio_auth_token_enc", "twilio_auth_token"),
 ];

@@ -2,12 +2,24 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { dashboardProfile, requireDashboardUser } from "@/lib/dashboard";
 import { env } from "@/lib/env";
+import { platformRole } from "@/lib/platform-staff";
 import { SignOutButton } from "./sign-out";
 
 async function Email() {
   const { userId } = await requireDashboardUser();
   const { email } = await dashboardProfile(userId);
   return <span className="hidden max-w-[16rem] truncate text-sm text-stone-600 sm:inline">{email ?? "Signed in"}</span>;
+}
+
+/** Only platform staff see the link (the console itself re-checks the role). */
+async function PlatformLink() {
+  const { userId } = await requireDashboardUser();
+  if (!(await platformRole(userId))) return null;
+  return (
+    <Link href="/dashboard/platform" className="text-sm font-medium text-stone-700 underline decoration-ember decoration-2 underline-offset-4 hover:text-ink">
+      Platform
+    </Link>
+  );
 }
 
 /** Chrome around every dashboard page. The auth guard lives in layout.tsx and in each page. */
@@ -22,6 +34,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-4">
             <Suspense fallback={<span className="hidden h-4 w-32 animate-pulse rounded bg-stone-100 sm:inline-block" />}>
               <Email />
+            </Suspense>
+            <Suspense fallback={null}>
+              <PlatformLink />
             </Suspense>
             <Link href="/docs" className="text-sm font-medium text-stone-700 underline decoration-dawn decoration-2 underline-offset-4 hover:text-ink">
               Docs

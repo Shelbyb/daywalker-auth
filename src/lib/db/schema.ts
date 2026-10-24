@@ -161,6 +161,8 @@ export const sessions = pgTable(
     refreshTokenHash: text("refresh_token_hash").notNull(),
     status: sessionStatusEnum("status").notNull().default("active"),
     activeOrgId: text("active_org_id"), // carried in the JWT as org_id/org_role
+    /** Set when a platform staff member opened this session by impersonating the user (a platform-instance user ID). */
+    impersonatorId: text("impersonator_id"),
     userAgentEnc: text("user_agent_enc"),
     ipAddressEnc: text("ip_address_enc"),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),
@@ -522,6 +524,50 @@ export const scimGroupMembers = pgTable(
   },
   (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index("scim_group_members_user_idx").on(t.userId)],
 );
+
+export const platformRoleEnum = pgEnum("platform_role", ["admin", "user"]);
+
+/**
+ * Operators of the whole service (people signed in to the platform instance). "admin" can do
+ * everything, including platform settings and managing staff; "user" can see every instance,
+ * the analytics and the platform audit log, and impersonate.
+ */
+export const platformStaff = pgTable("platform_staff", {
+  userId: text("user_id").primaryKey(), // a user of the platform instance
+  role: platformRoleEnum("role").notNull().default("user"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+});
+
+/**
+ * What platform staff did: impersonation, settings and staff changes. Never shown to customers.
+ * Instance-independent; details (reason, emails, IP) are encrypted.
+ */
+export const platformAuditEvents = pgTable(
+  "platform_audit_events",
+  {
+    id: id(),
+    type: text("type").notNull(),
+    actorId: text("actor_id"),
+    instanceId: text("instance_id"),
+    targetId: text("target_id"),
+    dataEnc: text("data_enc"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("platform_audit_created_idx").on(t.createdAt), index("platform_audit_type_idx").on(t.type, t.createdAt)],
+);
+
+/** Settings the whole platform uses (one row, id "default"). Secrets are encrypted; unset fields fall back to env. */
+export const platformSettings = pgTable("platform_settings", {
+  id: id(),
+  mailFrom: text("mail_from"),
+  resendApiKeyEnc: text("resend_api_key_enc"),
+  twilioAccountSid: text("twilio_account_sid"),
+  twilioAuthTokenEnc: text("twilio_auth_token_enc"),
+  twilioVerifyServiceSid: text("twilio_verify_service_sid"),
+  updatedBy: text("updated_by"),
+  updatedAt: updatedAt(),
+});
 
 /** Each email domain routes to at most one connection per instance. */
 export const samlDomains = pgTable(

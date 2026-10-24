@@ -55,8 +55,11 @@ function loadTurnstile() {
   }));
 }
 
-/** Renders the widget; `onToken` gets each answer (or null when it expires). Change `round` to get a fresh one. */
-function Captcha({ siteKey, onToken, round }: { siteKey: string; onToken: (t: string | null) => void; round: number }) {
+/**
+ * Renders the widget; `onToken` gets each answer (or null when it expires). Change `round` to get a
+ * fresh one (answers work once). `action` names the form; the server checks it.
+ */
+export function Captcha({ siteKey, action, onToken, round }: { siteKey: string; action: "signup" | "login" | "email_code" | "password_reset"; onToken: (t: string | null) => void; round: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const cb = useRef(onToken);
   cb.current = onToken;
@@ -67,14 +70,14 @@ function Captcha({ siteKey, onToken, round }: { siteKey: string; onToken: (t: st
       .then((t) => {
         if (!live || !ref.current) return;
         api = t;
-        id = t.render(ref.current, { sitekey: siteKey, callback: (tok: string) => cb.current(tok), "expired-callback": () => cb.current(null), "error-callback": () => cb.current(null) });
+        id = t.render(ref.current, { sitekey: siteKey, action, callback: (tok: string) => cb.current(tok), "expired-callback": () => cb.current(null), "error-callback": () => cb.current(null) });
       })
       .catch(() => undefined);
     return () => {
       live = false;
       if (api && id) api.remove(id);
     };
-  }, [siteKey, round]);
+  }, [siteKey, action, round]);
   return <div ref={ref} className="dw-captcha" />;
 }
 
@@ -310,7 +313,7 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
         {step === "email-code" ? (
           <form className={cx(a, "form", "dw-form")} onSubmit={(e) => { e.preventDefault(); void run(async () => { try { await c.sendSignInCode({ email, redirectUrl, captchaToken: captchaToken ?? undefined }); } finally { setCaptchaRound((n) => n + 1); } setInfo(`If ${email} has an account, we've sent it a code and a sign-in link.`); setStep("code-sent"); }); }}>
             <Field a={a} label="Email" name="email" type="email" autoComplete="email" required value={email} onChange={setEmail} autoFocus />
-            {env.captcha && <Captcha siteKey={env.captcha.siteKey} onToken={setCaptchaToken} round={captchaRound} />}
+            {env.captcha && <Captcha siteKey={env.captcha.siteKey} action="email_code" onToken={setCaptchaToken} round={captchaRound} />}
             {error && <Alert a={a}>{error}</Alert>}
             <button disabled={busy || (!!env.captcha && !captchaToken)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Email me a code"}</button>
             <button type="button" className={cx(a, "link", "dw-link")} onClick={() => { setStep("password"); setError(null); }}>Use a password instead</button>
@@ -347,7 +350,12 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         void run(async () => {
-          const r = await c.signIn({ email: String(f.get("email") ?? ""), password: String(f.get("password") ?? "") });
+          let r;
+          try {
+            r = await c.signIn({ email: String(f.get("email") ?? ""), password: String(f.get("password") ?? ""), captchaToken: captchaToken ?? undefined });
+          } finally {
+            setCaptchaRound((n) => n + 1); // each answer works once
+          }
           if (r.status === "needs_second_factor") setStep("second-factor");
           else done(r.user);
         });
@@ -355,8 +363,9 @@ export function SignIn({ redirectUrl, onSignedIn, appearance: a, signUpUrl, init
         <Field a={a} label="Email" name="email" type="email" autoComplete="email" required value={email} onChange={setEmail} />
         <Field a={a} label="Password" name="password" type="password" autoComplete="current-password" required maxLength={256} />
         <a href={c.hostedUrl("forgot-password", redirectUrl ?? window.location.href)} className={cx(a, "link", "dw-link dw-forgot")}>Forgot password?</a>
+        {env.captcha && <Captcha siteKey={env.captcha.siteKey} action="login" onToken={setCaptchaToken} round={captchaRound} />}
         {error && <Alert a={a}>{error}</Alert>}
-        <button disabled={busy} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Continue"}</button>
+        <button disabled={busy || (!!env.captcha && !captchaToken)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Continue"}</button>
         {env.ssoEnabled && (
           <button type="button" disabled={busy} className={cx(a, "buttonSecondary", "dw-button dw-button-secondary dw-sso")} onClick={() => void run(async () => {
             if (!/^[^@\s]+@[^@\s]+$/.test(email.trim())) throw new AuthError(400, "email_required", "Enter your work email first");
@@ -484,7 +493,7 @@ export function SignUp({ redirectUrl, onSignedIn, appearance: a, signInUrl, init
         </div>
         <Field a={a} label="Email" name="email" type="email" autoComplete="email" required />
         <Field a={a} label={`Password (at least ${env.passwordMinLength} characters)`} name="password" type="password" autoComplete="new-password" required maxLength={256} />
-        {env.captcha && <Captcha siteKey={env.captcha.siteKey} onToken={setCaptchaToken} round={captchaRound} />}
+        {env.captcha && <Captcha siteKey={env.captcha.siteKey} action="signup" onToken={setCaptchaToken} round={captchaRound} />}
         {Object.values(fieldErrors)[0] && <Alert a={a}>{Object.values(fieldErrors)[0]}</Alert>}
         {error && !Object.keys(fieldErrors).length && <Alert a={a}>{error}</Alert>}
         <button disabled={busy || (needsConsent && !accepted) || (!!env.captcha && !captchaToken)} className={cx(a, "button", "dw-button dw-button-primary")}>{busy ? "Please wait…" : "Create account"}</button>

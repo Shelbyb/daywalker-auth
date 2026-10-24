@@ -73,7 +73,8 @@ export async function listSessions(instanceId: string, userId: string, currentSe
     .where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.instanceId, instanceId), eq(schema.sessions.status, "active")))
     .orderBy(desc(schema.sessions.lastActiveAt));
   return rows
-    .filter((s) => s.expiresAt > new Date())
+    // Platform impersonation sessions stay private to the platform audit log (except the one in use).
+    .filter((s) => s.expiresAt > new Date() && (!s.impersonatorId || s.id === currentSessionId))
     .map((s) => ({
       id: s.id,
       current: s.id === currentSessionId,

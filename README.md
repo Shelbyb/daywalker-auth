@@ -27,6 +27,7 @@ scripts/           seed, migrate, bootstrap-platform and the end-to-end test sui
 | Terms | Optional required terms acceptance at sign-up, recorded per user and version |
 | Emails | Per-instance wording for every email, brand color, preview and test sends; plain text with escaped placeholders |
 | Dashboard | `/dashboard`: instances, keys, allowed origins, social providers, terms, users, emails, webhooks, audit log |
+| Platform console | `/dashboard/platform`, for operators only: platform admin and platform user roles, site analytics, every customer instance, audited impersonation of any end user, a platform-only audit log, and platform settings (Resend, Twilio) |
 | SDK | Browser client, React hooks, drop-in `<SignIn />` / `<SignUp />` / `<UserButton />` / `<OrganizationSwitcher />`, server `verifyToken`/`verifyWebhook`/backend client, Next.js `auth()` and `authProxy` |
 
 ## Run locally
@@ -43,6 +44,13 @@ npm run dev
 Seeding prints a publishable key (public) and a secret key (shown once). Hosted pages: `/sign-in?pk=<publishable key>` and `/sign-up?pk=...`.
 
 To use the dashboard locally, run `npm run bootstrap:platform` once and put the printed `PLATFORM_PUBLISHABLE_KEY` in `.env`, then open `/dashboard`.
+
+To get the platform console, sign in to `/dashboard` once, then make yourself the first platform admin with `npm run platform:staff -- you@example.com admin`. After that, admins manage staff at `/dashboard/platform/staff`.
+
+- **Platform admin**: everything, including platform settings and the staff list.
+- **Platform user**: every customer instance, analytics, the platform audit log, and impersonation.
+
+Impersonation needs two-factor on the staff member's own account and a written reason, and it lasts 30 minutes. It is recorded only in the platform audit log: there is no instance audit entry and no webhook, and the user's session list doesn't show it. Resend and Twilio credentials saved in the platform settings override the environment variables.
 
 Run the example app against it:
 
@@ -64,7 +72,7 @@ About 330 checks in total, covering auth flows, encryption at rest, CSRF, revoca
 
 ## Deploying
 
-See [`content/docs/deployment-digitalocean.md`](content/docs/deployment-digitalocean.md): a `Dockerfile` and `.do/app.yaml` for DigitalOcean App Platform with managed Postgres and Valkey, a pre-deploy migration job, and `/healthz`.
+See [`platform-docs/pages/deployment-digitalocean.md`](platform-docs/pages/deployment-digitalocean.md) (operator docs, kept out of the public `/docs`): a `Dockerfile` and `.do/app.yaml` for DigitalOcean App Platform with managed Postgres and Valkey, a pre-deploy migration job, and `/healthz`.
 
 ## APIs
 
@@ -117,7 +125,7 @@ Full reference: `/docs/api/frontend` and `/docs/api/backend`. Your app verifies 
 - Generate `MASTER_KEY` in a secrets manager (KMS / Secrets Manager); never commit it. Losing it makes PII unrecoverable.
 - Enable Valkey AUTH/ACLs and TLS; restrict Postgres to the app's network.
 - Put the service behind a proxy that sets a trustworthy `X-Forwarded-For` and set `TRUST_PROXY_HOPS` to the number of proxies (rate limits key on it).
-- Rotate signing keys periodically from the dashboard (old keys stay in the JWKS for 24 hours), and rotate `MASTER_KEY` if it may have leaked. See [Rotating keys](content/docs/guides/rotating-keys.md).
+- Rotate signing keys periodically from the dashboard (old keys stay in the JWKS for 24 hours), and rotate `MASTER_KEY` if it may have leaked (`npm run keys:print-index-key`, then `npm run keys:rotate-master`). The operator instructions live in [`platform-docs/`](platform-docs/README.md); they are not in the public docs.
 
 ## Next steps
 

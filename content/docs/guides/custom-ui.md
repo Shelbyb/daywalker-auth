@@ -9,9 +9,7 @@ The hosted pages are the quickest option. To keep users on your own domain with 
 
 Add your app's origin to the instance's **allowed origins**. The service rejects sign-in requests from origins it doesn't know, which stops other sites from submitting forms on your users' behalf.
 
-```bash
-npm run seed -- https://app.example.com
-```
+In the dashboard, add it under **Settings > Allowed origins**.
 
 ## Sign-in form
 

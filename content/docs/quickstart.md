@@ -13,13 +13,7 @@ By the end of this page you'll have:
 
 ## 1. Get your keys
 
-Every app gets an **instance** with two keys. If you're running Daywalker Auth yourself, create one from the service folder and pass your app's URL so the service accepts requests from it:
-
-```bash
-npm run seed -- http://localhost:3001
-```
-
-(Prefer clicking? Use the [developer dashboard](/docs/guides/dashboard) instead: create an instance, add `http://localhost:3001` under **Settings > Allowed origins**, and copy the keys from the **Overview** and **API keys** tabs.)
+Every app gets an **instance** with two keys. In the [developer dashboard](/docs/guides/dashboard), create an instance, add `http://localhost:3001` under **Settings > Allowed origins**, and copy the keys from the **Overview** and **API keys** tabs.
 
 ```text
 Instance:        ins_…

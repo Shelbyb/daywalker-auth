@@ -1,0 +1,213 @@
+diff --git b/content/docs/guides/custom-ui.md a/content/docs/guides/custom-ui.md
+index 31a75d7..346ee23 100644
+--- b/content/docs/guides/custom-ui.md
++++ a/content/docs/guides/custom-ui.md
+@@ -9,7 +9,9 @@ The hosted pages are the quickest option. To keep users on your own domain with
+ 
+ Add your app's origin to the instance's **allowed origins**. The service rejects sign-in requests from origins it doesn't know, which stops other sites from submitting forms on your users' behalf.
+ 
+-In the dashboard, add it under **Settings > Allowed origins**.
++```bash
++npm run seed -- https://app.example.com
++```
+ 
+ ## Sign-in form
+ 
+diff --git b/content/docs/guides/dashboard.md a/content/docs/guides/dashboard.md
+index 08d83a7..7be4fe1 100644
+--- b/content/docs/guides/dashboard.md
++++ a/content/docs/guides/dashboard.md
+@@ -11,7 +11,23 @@ The dashboard lives at `/dashboard` on your Daywalker Auth service (for example
+ - **Publishable key** (`pk_…`): identifies your instance. It's safe to put in browser code.
+ - **Secret key** (`sk_…`): lets your server call the [backend API](/docs/api/backend). Keep it on the server only.
+ 
+-Open `/dashboard`, create your account, and you're in. Every person who signs up gets their own private account.
++## First-time setup (service owners)
++
++The dashboard signs developers in through the service itself, so it needs one special "platform" instance. Create it once:
++
++```bash
++npm run bootstrap:platform
++```
++
++It prints a line like this:
++
++```text
++PLATFORM_PUBLISHABLE_KEY=pk_live_…
++```
++
++Add that line to your environment variables and redeploy. Until it is set, `/dashboard` returns a 404 on purpose. On DigitalOcean, see the [deployment guide](/docs/deployment-digitalocean).
++
++Then open `/dashboard`, create your account, and you're in. Every person who signs up gets their own private account.
+ 
+ ## What you can do
+ 
+diff --git b/content/docs/guides/email-codes.md a/content/docs/guides/email-codes.md
+index 5963276..05034a5 100644
+--- b/content/docs/guides/email-codes.md
++++ a/content/docs/guides/email-codes.md
+@@ -45,7 +45,7 @@ if (r.status === "complete" && r.redirectUrl) location.assign(r.redirectUrl);
+ - **Limited guesses.** 5 wrong codes and that email's code and link stop working.
+ - **Nothing to find out.** The send step answers the same way whether or not the email has an account, and nothing is sent to unknown addresses.
+ - **Throttled.** At most 5 emails an hour per address, plus per-IP limits.
+-- **Not stored in the clear.** Only a keyed hash of the code and a SHA-256 of the link token are kept, in the cache.
++- **Not stored in the clear.** Only a keyed hash of the code and a SHA-256 of the link token are kept, in Valkey.
+ - **Safe against link scanners.** The token is in the URL fragment, so it's never sent to a server or written to logs, and the page needs a click. Mail filters that open links can't use it up.
+ - **Logged.** Sign-ins (with `method: "email_code"` or `"magic_link"`) and wrong codes appear in the [audit log](/docs/guides/audit-logs).
+ 
+diff --git b/content/docs/guides/rotating-keys.md a/content/docs/guides/rotating-keys.md
+index e49cfbe..bd18592 100644
+--- b/content/docs/guides/rotating-keys.md
++++ a/content/docs/guides/rotating-keys.md
+@@ -1,10 +1,12 @@
+ ---
+ title: Rotating keys
+-description: Rotate your instance signing keys without locking anyone out.
++description: Rotate signing keys and your MASTER_KEY without locking anyone out.
+ ---
+ 
+ # Rotating keys
+ 
++Daywalker uses two kinds of secrets. You can rotate both.
++
+ ## Signing keys (per instance)
+ 
+ Signing keys sign the session tokens your app verifies. Rotating is safe to do any time.
+@@ -18,3 +20,19 @@ curl -X POST https://users.daywalker.dev/v1/instance/signing_keys/rotate \
+ 
+ The new key signs everything from now on. The old key is retired but stays in your public keys (JWKS) for 24 hours, so tokens already issued keep working. After that it is purged automatically.
+ 
++## MASTER_KEY
++
++`MASTER_KEY` encrypts personal data at rest: names, emails, 2FA secrets, webhook URLs and secrets, signing keys and more. Rotate it if you think it leaked, or on a schedule.
++
++Lookups by email use a blind index. To keep those working while the master key changes, the index key is pinned separately as `INDEX_KEY`.
++
++1. **Pin the index key first.** With your current key set, run `npm run keys:print-index-key` and add the printed `INDEX_KEY=...` to your environment. Redeploy.
++2. **Generate a new key:** `openssl rand -base64 48`.
++3. **Schedule a short maintenance window.** The rotation locks the encrypted tables while it runs.
++4. **Rehearse:** `OLD_MASTER_KEY=... NEW_MASTER_KEY=... INDEX_KEY=... DRY_RUN=1 npm run keys:rotate-master`. Nothing is changed.
++5. **Run it for real** without `DRY_RUN`. It re-encrypts every value in one transaction, verifies each one, and rolls back on any error.
++6. **Set `MASTER_KEY` to the new value**, keep `INDEX_KEY`, and redeploy.
++
++Running it again with the old key fails safely.
++
++Rotating also resets short-lived state in Valkey: in-progress sign-ins, 2FA challenges and rate-limit counters. Users may need to retry once.
+diff --git b/content/docs/guides/two-factor.md a/content/docs/guides/two-factor.md
+index a2d8eba..6b53a7b 100644
+--- b/content/docs/guides/two-factor.md
++++ a/content/docs/guides/two-factor.md
+@@ -142,8 +142,10 @@ Users can also get their second-factor code by text message, instead of (or as w
+ 
+ **Turn it on**
+ 
+-1. In the dashboard, open **Settings** and tick **Allow SMS two-factor**.
+-2. Optional: under **SMS countries**, list the country calling codes people may add a phone from, like `1 44 49` for the US/Canada, UK and Germany. Leave it empty to allow every country. Limiting it is the best defence against SMS toll fraud, where someone enrols premium-rate numbers to run up your bill. It only applies when a phone is added: people who already have one keep it, so narrowing the list never locks anyone out. A number from another country gets the error `sms_country_not_allowed`.
++1. Create a [Twilio Verify](https://www.twilio.com/docs/verify) service. Twilio generates, sends and checks the codes, and handles fraud protection.
++2. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SERVICE_SID` on the server.
++3. In the dashboard, open **Settings** and tick **Allow SMS two-factor**.
++4. Optional: under **SMS countries**, list the country calling codes people may add a phone from, like `1 44 49` for the US/Canada, UK and Germany. Leave it empty to allow every country. Limiting it is the best defence against SMS toll fraud, where someone enrols premium-rate numbers to run up your bill. It only applies when a phone is added: people who already have one keep it, so narrowing the list never locks anyone out. A number from another country gets the error `sms_country_not_allowed`.
+ 
+ Users then see **Use text messages** on the account page. At sign-in they get a **Text a code to •••• 0100** option.
+ 
+diff --git b/content/docs/quickstart.md a/content/docs/quickstart.md
+index 21b0ad0..09a1d78 100644
+--- b/content/docs/quickstart.md
++++ a/content/docs/quickstart.md
+@@ -13,7 +13,13 @@ By the end of this page you'll have:
+ 
+ ## 1. Get your keys
+ 
+-Every app gets an **instance** with two keys. In the [developer dashboard](/docs/guides/dashboard), create an instance, add `http://localhost:3001` under **Settings > Allowed origins**, and copy the keys from the **Overview** and **API keys** tabs.
++Every app gets an **instance** with two keys. If you're running Daywalker Auth yourself, create one from the service folder and pass your app's URL so the service accepts requests from it:
++
++```bash
++npm run seed -- http://localhost:3001
++```
++
++(Prefer clicking? Use the [developer dashboard](/docs/guides/dashboard) instead: create an instance, add `http://localhost:3001` under **Settings > Allowed origins**, and copy the keys from the **Overview** and **API keys** tabs.)
+ 
+ ```text
+ Instance:        ins_…
+diff --git b/content/docs/roadmap.md a/content/docs/roadmap.md
+index 50ab3ad..e9a8b0f 100644
+--- b/content/docs/roadmap.md
++++ a/content/docs/roadmap.md
+@@ -10,6 +10,7 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
+ | # | Feature | Why it matters | Status |
+ | --- | --- | --- | --- |
+ | 1 | **Signing-key rotation** | Replace the keys that sign session tokens without signing anyone out | Done |
++| 2 | **`MASTER_KEY` rotation** | Re-encrypt stored data under a new master key, with a script | Done |
+ | 3 | **Audit logs** | A searchable record of sign-ins, key changes and settings changes per instance, in the dashboard and API | Done |
+ | 4 | **Magic links and email codes** | Passwordless sign-in: click a link or type a code from your email | Done |
+ | 5 | **Breached-password check** | Reject passwords found in known data breaches (privacy-preserving k-anonymity lookup) | Done |
+@@ -21,4 +22,4 @@ Everything on the [Overview](/docs) page is built and tested. This page lists wh
+ 
+ ## Already done
+ 
+-Email and password, email verification, password reset, social sign-in (Google, GitHub, Microsoft, Apple, Discord, GitLab, OpenID Connect), passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML) with an optional "SSO required" rule, single logout, and SCIM provisioning of users and groups (groups can grant organization admin), SMS two-factor with a country allow-list, sign-up protection (domain rules, throwaway-address blocking, Turnstile), required two-factor (app-wide or per organization), security keys (WebAuthn) as a second factor. See the [guides](/docs/quickstart).
++Email and password, email verification, password reset, social sign-in (Google, GitHub, Microsoft, Apple, Discord, GitLab, OpenID Connect), passkeys, two-factor, organizations and invitations, webhooks, required terms acceptance, the hosted account page, the developer dashboard, signing-key and `MASTER_KEY` rotation, audit logs, magic links and email codes, the breached-password check, custom email templates, more social providers, drop-in React components, enterprise SSO (SAML) with an optional "SSO required" rule, single logout, and SCIM provisioning of users and groups (groups can grant organization admin), SMS two-factor with a country allow-list, sign-up protection (domain rules, throwaway-address blocking, Turnstile), required two-factor (app-wide or per organization), security keys (WebAuthn) as a second factor, and DigitalOcean deployment. See the [guides](/docs/quickstart).
+diff --git b/content/docs/security.md a/content/docs/security.md
+index feb0e0c..ce5e376 100644
+--- b/content/docs/security.md
++++ a/content/docs/security.md
+@@ -11,7 +11,7 @@ description: What's protected, how, and what's still your responsibility.
+ | Emails, names, private metadata, session IP and browser | **AES-256-GCM** ciphertext, bound to its table, column and row |
+ | Email lookups | Keyed HMAC "blind index", scoped per instance |
+ | Refresh tokens, secret keys | SHA-256 hash only. They're 256-bit random values, so this is irreversible. |
+-| Verification and reset codes | Keyed HMAC in the cache, deleted after 10 minutes, on use, or after 5 wrong guesses |
++| Verification and reset codes | Keyed HMAC in Valkey, deleted after 10 minutes, on use, or after 5 wrong guesses |
+ | 2FA secrets | AES-256-GCM per user |
+ | Backup codes | Keyed HMAC; marked used atomically |
+ | Passkeys | Public keys only; private keys never leave the user's device |
+@@ -19,13 +19,19 @@ description: What's protected, how, and what's still your responsibility.
+ | Social account IDs | Keyed HMAC only |
+ | JWT signing keys | Private key AES-256-GCM encrypted; decrypted only into server memory |
+ 
+-**Key management.** Encryption keys are managed by the service and versioned, so they can be rotated without exposing data. Each ciphertext records its key version.
++**The key hierarchy.**
++- A single `MASTER_KEY` (48 random bytes, `openssl rand -base64 48`) is the root.
++- It never encrypts data directly; separate keys for encryption and indexing are derived from it with HKDF.
++- Each ciphertext records its key version (`v1.`), so the master key can be rotated later.
+ 
+ **Why bind ciphertext to its row?** If someone with database access copied an encrypted email from one row into another, decryption would fail rather than reveal data in the wrong place.
+ 
+ ## Data in transit
+ 
+-- All traffic to the service is over HTTPS, and connections to its data stores are encrypted.
++- In production the service **refuses to start** unless:
++  - `APP_URL` is HTTPS
++  - Postgres uses `sslmode=require` or stricter
++  - Valkey uses `rediss://` (TLS)
+ - Pages send `Strict-Transport-Security` with preload.
+ 
+ ## Sessions
+@@ -60,12 +66,13 @@ description: What's protected, how, and what's still your responsibility.
+ | Stolen password on an account without 2FA | Optional two-factor requirement: no session token without it, app-wide or per organization |
+ | Code guessing | 6 digits, 5 guesses, 10 minutes, single use |
+ | Stolen database dump | Personal data encrypted; passwords hashed; tokens hashed |
+-| Leaked logs or cache | Rate-limit keys are HMAC'd; no raw IPs or emails in the cache |
++| Leaked logs or cache | Rate-limit keys are HMAC'd; no raw IPs or emails in Valkey |
+ 
+ ## Your responsibilities
+ 
+-- **Keep your secret keys in a secrets manager.** Never put them in browser code or commit them.
++- **Keep `MASTER_KEY` and secret keys in a secrets manager.** Losing the master key makes stored personal data unrecoverable; leaking it exposes it.
+ - **Check authorization** in your own code (scope queries by `userId`).
++- **Run behind a proxy that sets `X-Forwarded-For`** correctly; IP rate limits depend on it.
+ - **Keep the allowed-origins list short**, with only domains you control.
+ 
+ ## Webhooks
+diff --git b/src/lib/docs.ts a/src/lib/docs.ts
+index d13a44f..992a4b8 100644
+--- b/src/lib/docs.ts
++++ a/src/lib/docs.ts
+@@ -63,6 +63,8 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
+     section: "Operating it",
+     pages: [
+       { slug: "security", title: "Security model" },
++      { slug: "self-hosting", title: "Self-hosting" },
++      { slug: "deployment-digitalocean", title: "Deploy on DigitalOcean" },
+       { slug: "troubleshooting", title: "Troubleshooting" },
+       { slug: "roadmap", title: "Roadmap" },
+     ],

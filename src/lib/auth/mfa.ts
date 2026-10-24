@@ -48,7 +48,7 @@ export async function hasTwoFactor(userId: string) {
 
 /** Which second factors this user can use right now (for the sign-in and account screens). */
 export async function twoFactorMethods(userId: string) {
-  const phone = smsConfigured() ? await smsPhone(userId) : null;
+  const phone = (await smsConfigured()) ? await smsPhone(userId) : null;
   return { totp: await totpOn(userId), sms: phone ? maskPhone(phone) : null, securityKeys: await countSecurityKeys(userId), backupCodes: await remainingBackupCodes(userId) };
 }
 
@@ -193,7 +193,7 @@ export async function verifySecondFactor(userId: string, code: string, method?: 
       .from(schema.mfaTotp)
       .where(and(eq(schema.mfaTotp.userId, userId), isNotNull(schema.mfaTotp.verifiedAt)));
     const viaSms = async () => {
-      const phone = smsConfigured() ? await smsPhone(userId) : null;
+      const phone = (await smsConfigured()) ? await smsPhone(userId) : null;
       return phone ? checkSmsCode(phone, c) : false;
     };
     if (method === "sms" || (!row && method !== "totp")) return viaSms();
@@ -206,7 +206,7 @@ export async function verifySecondFactor(userId: string, code: string, method?: 
 
 // ---------- SMS ----------
 
-export const smsAllowed = (inst: Instance) => smsConfigured() && inst.settings.smsSecondFactor === true;
+export const smsAllowed = async (inst: Instance) => inst.settings.smsSecondFactor === true && (await smsConfigured());
 
 /** Limits per user, per phone number and per instance-wide IP bucket, so texts can't be used to run up a bill. */
 async function smsLimit(inst: Instance, userId: string, phone: string) {
@@ -218,7 +218,7 @@ async function smsLimit(inst: Instance, userId: string, phone: string) {
 
 /** Step 1 of adding a phone: text a code to it. If two-factor is already on, a current code is required. */
 export async function startSmsEnrollment(inst: Instance, userId: string, rawPhone: string, currentCode?: string, sessionId?: string) {
-  if (!smsAllowed(inst)) throw errors.badRequest("sms_disabled", "SMS two-factor isn't available for this app");
+  if (!(await smsAllowed(inst))) throw errors.badRequest("sms_disabled", "SMS two-factor isn't available for this app");
   const phone = normalizePhone(rawPhone);
   if (!phone) throw errors.badRequest("invalid_phone", "Enter the number in international format, like +1 415 555 0100");
   // Only for new numbers: people who already added a phone keep it, so narrowing the list never locks anyone out.
@@ -246,7 +246,7 @@ export async function confirmSmsEnrollment(userId: string, code: string) {
 
 /** Texts a code to the user's verified phone (to sign in, or to confirm a change on the account page). */
 export async function sendSmsChallenge(inst: Instance, userId: string) {
-  if (!smsConfigured()) throw errors.badRequest("sms_disabled", "SMS isn't available");
+  if (!(await smsConfigured())) throw errors.badRequest("sms_disabled", "SMS isn't available");
   const phone = await smsPhone(userId);
   if (!phone) throw errors.badRequest("no_phone", "No phone is set up for two-factor");
   await smsLimit(inst, userId, phone);

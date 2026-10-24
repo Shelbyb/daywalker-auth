@@ -20,10 +20,10 @@ export function CodeInput({ name = "code", error }: { name?: string; error?: str
   );
 }
 
-export function Submit({ busy, children }: { busy: boolean; children: React.ReactNode }) {
+export function Submit({ busy, disabled, children }: { busy: boolean; disabled?: boolean; children: React.ReactNode }) {
   return (
     <button
-      disabled={busy}
+      disabled={busy || disabled}
       className="w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white transition hover:bg-dusk disabled:opacity-60"
     >
       {busy ? "Please wait…" : children}

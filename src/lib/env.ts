@@ -25,11 +25,19 @@ const schema = z
     // "resend" sends real email; "dev" logs to the server console and (outside production) keeps the last code for tests.
     MAIL_TRANSPORT: z.enum(["resend", "dev"]).default("dev"),
     RESEND_API_KEY: z.string().optional(),
-    /** Twilio Verify, for SMS two-factor. SMS stays off unless all three are set. */
+    /** Twilio Verify, for SMS two-factor. Defaults for the platform settings; SMS stays off unless all three are set (here or there). */
     TWILIO_ACCOUNT_SID: z.string().regex(/^AC[0-9a-fA-F]{32}$/, "TWILIO_ACCOUNT_SID looks like AC followed by 32 hex characters").optional().or(z.literal("")),
     TWILIO_AUTH_TOKEN: z.string().min(16).optional().or(z.literal("")),
     TWILIO_VERIFY_SERVICE_SID: z.string().regex(/^VA[0-9a-fA-F]{32}$/, "TWILIO_VERIFY_SERVICE_SID looks like VA followed by 32 hex characters").optional().or(z.literal("")),
     MAIL_FROM: z.string().default("Daywalker Auth <no-reply@users.daywalker.dev>"),
+    /**
+     * Cloudflare Turnstile for the platform's own sign-in and sign-up pages (the dashboard). On only
+     * when the secret is set. TURNSTILE_HOSTNAMES: comma-separated hostnames the widget may be solved
+     * on (defaults to APP_URL's hostname); never list localhost on a production deployment.
+     */
+    TURNSTILE_SITE_KEY: z.string().max(200).default("0x4AAAAAAFjRgGz7X9Ig6AM3"),
+    TURNSTILE_SECRET: z.string().max(200).optional().or(z.literal("")),
+    TURNSTILE_HOSTNAMES: z.string().max(2000).optional().or(z.literal("")),
   })
   // In production every hop is encrypted: HTTPS for clients, TLS to Postgres and Valkey.
   .superRefine((e, ctx) => {
@@ -38,8 +46,9 @@ const schema = z
       ctx.addIssue({ code: "custom", path: ["APP_URL"], message: "must be https in production" });
     if (!e.DATABASE_CA_CERT && !/[?&]sslmode=(require|verify-ca|verify-full)\b/.test(e.DATABASE_URL))
       ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "must set sslmode=require (or verify-full) or provide DATABASE_CA_CERT in production" });
-    if (e.MAIL_TRANSPORT !== "resend" || !e.RESEND_API_KEY)
-      ctx.addIssue({ code: "custom", path: ["MAIL_TRANSPORT"], message: "must be resend (with RESEND_API_KEY) in production" });
+    // The Resend key itself may come from the platform settings (dashboard) instead of RESEND_API_KEY.
+    if (e.MAIL_TRANSPORT !== "resend")
+      ctx.addIssue({ code: "custom", path: ["MAIL_TRANSPORT"], message: "must be resend in production" });
     if (!e.VALKEY_URL.startsWith("rediss://"))
       ctx.addIssue({ code: "custom", path: ["VALKEY_URL"], message: "must use rediss:// (TLS) in production" });
   });

@@ -188,7 +188,7 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
     return !r.jwt && r.twoFactorSetupRequired ? { status: "needs_two_factor_setup", user: r.user } : { status: "complete", user: r.user };
   }
 
-  async function signIn(input: { email: string; password: string }): Promise<SignInResult> {
+  async function signIn(input: { email: string; password: string; /** Turnstile answer, when the app has the human check on (see getEnvironment().captcha). */ captchaToken?: string }): Promise<SignInResult> {
     const r = await request<Completed | { status: "needs_second_factor" }>("sign_in", { method: "POST", body: JSON.stringify(input) });
     return r.status === "needs_second_factor" ? r : finishSignIn(r);
   }
@@ -348,8 +348,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
   }
 
   /** Starts a reset. Resolves the same way whether or not the email has an account. */
-  async function requestPasswordReset(email: string) {
-    await request("password/forgot", { method: "POST", body: JSON.stringify({ email }) });
+  async function requestPasswordReset(email: string, opts: { /** Turnstile answer, when the app has the human check on. */ captchaToken?: string } = {}) {
+    await request("password/forgot", { method: "POST", body: JSON.stringify({ email, ...opts }) });
   }
 
   /** Sets a new password with the emailed code. Signs the user out on every device. */
@@ -387,6 +387,8 @@ export function createAuthClient(config: Config & { /** Mirror the JWT into a co
       /** Users can add a phone for SMS two-factor. */
       smsSecondFactor: boolean;
       legal: { required: boolean; termsUrl: string | null; privacyUrl: string | null; version: string };
+      /** Cloudflare Turnstile: when set, sign-up, sign-in, email codes and password reset need a `captchaToken`. */
+      captcha: { provider: "turnstile"; siteKey: string } | null;
     }>("environment", { method: "GET" });
   }
 

@@ -63,8 +63,6 @@ export const NAV: { section: string; pages: { slug: string; title: string }[] }[
     section: "Operating it",
     pages: [
       { slug: "security", title: "Security model" },
-      { slug: "self-hosting", title: "Self-hosting" },
-      { slug: "deployment-digitalocean", title: "Deploy on DigitalOcean" },
       { slug: "troubleshooting", title: "Troubleshooting" },
       { slug: "roadmap", title: "Roadmap" },
     ],

@@ -1,6 +1,7 @@
 import { ForgotPassword } from "@/app/components/forgot-password";
 import { parsePublishableKey, getInstance } from "@/lib/auth/instance";
 import { safeRedirect } from "@/lib/auth/redirect";
+import { captchaInfo } from "@/lib/auth/signup-protection";
 
 export const metadata = { title: "Reset your password" };
 
@@ -14,7 +15,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
       <div className="mb-6 h-1 w-10 rounded-full bg-gradient-to-r from-dawn to-ember" />
       <h1 className="mb-1 text-xl font-semibold">Reset your password</h1>
       <p className="mb-6 text-sm text-stone-500">for {inst.name}</p>
-      <ForgotPassword pk={pk} redirect={safeRedirect(redirect_url, inst.allowedOrigins) ?? undefined} />
+      <ForgotPassword pk={pk} redirect={safeRedirect(redirect_url, inst.allowedOrigins) ?? undefined} captchaSiteKey={captchaInfo(inst)?.siteKey} />
     </>
   );
 }

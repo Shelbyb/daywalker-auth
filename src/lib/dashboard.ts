@@ -26,6 +26,8 @@ import { PROVIDERS, callbackUrl, isProvider, labelFor, setProviderConfig } from 
 import { parseSettings, type ProviderSettings } from "./auth/oauth-providers";
 import { legalInput, legalOf } from "./auth/legal";
 import type { Instance } from "./db/schema";
+import { platformRole } from "./platform-staff";
+import { recordPlatform } from "./platform-audit";
 
 const MAX_INSTANCES = 5;
 const MAX_KEYS = 10;
@@ -96,14 +98,31 @@ async function accountIds(userId: string) {
   return (await db().select({ id: schema.accountMembers.accountId }).from(schema.accountMembers).where(eq(schema.accountMembers.userId, userId))).map((r) => r.id);
 }
 
-/** The instance, only if this user's account owns it. Anything else is a 404 (existence isn't revealed). */
+/**
+ * The instance, only if this user's account owns it, or the user is platform staff (who can manage
+ * every customer instance; that access is logged in the platform audit log, at most hourly per
+ * instance). Anything else is a 404 (existence isn't revealed).
+ */
 export async function ownedInstance(userId: string, instanceId: string): Promise<Instance> {
   const ids = await accountIds(userId);
-  const [row] = ids.length
+  let [row] = ids.length
     ? await db().select().from(schema.instances).where(and(eq(schema.instances.id, instanceId), inArray(schema.instances.accountId, ids)))
     : [];
+  if (!row && typeof instanceId === "string" && instanceId.length <= 100 && (await platformRole(userId))) {
+    [row] = await db().select().from(schema.instances).where(eq(schema.instances.id, instanceId));
+    if (row && row.id !== platformInstanceId() && (await cache().set(`platform:accessed:${userId}:${row.id}`, "1", "EX", 3600, "NX")))
+      void recordPlatform("instance.accessed", { actorId: userId, instanceId: row.id, data: { instanceName: row.name } });
+  }
   if (!row || row.id === platformInstanceId()) throw errors.notFound("Instance not found");
   return row;
+}
+
+/** True when the instance is reachable only because the viewer is platform staff (not their own). */
+export async function viewingAsStaff(userId: string, instanceId: string) {
+  const ids = await accountIds(userId);
+  if (!ids.length) return true;
+  const [row] = await db().select({ id: schema.instances.id }).from(schema.instances).where(and(eq(schema.instances.id, instanceId), inArray(schema.instances.accountId, ids)));
+  return !row;
 }
 
 // ---------- Instances ----------
@@ -215,7 +234,7 @@ export async function instanceDetails(userId: string, instanceId: string) {
     frontendApi: env().APP_URL,
     allowedOrigins: inst.allowedOrigins,
     settings: inst.settings,
-    smsConfigured: smsConfigured(),
+    smsConfigured: await smsConfigured(),
     legal: legalOf(inst),
     userCount: users,
     createdAt: inst.createdAt,

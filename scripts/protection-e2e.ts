@@ -21,7 +21,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 
 // ---------- Mock Turnstile ----------
 const SECRET = "0x4AAAAAAAtest-secret-key";
-const issued = new Set<string>();
+const issued = new Map<string, { action: string; hostname: string }>();
 let lastIp = "";
 let turnstileUp = true;
 const turnstile: Server = createServer(async (req, res) => {
@@ -30,13 +30,15 @@ const turnstile: Server = createServer(async (req, res) => {
   const f = new URLSearchParams(raw);
   lastIp = f.get("remoteip") ?? "";
   const tok = f.get("response") ?? "";
+  const meta = issued.get(tok);
   const ok = req.url === "/turnstile/v0/siteverify" && f.get("secret") === SECRET && issued.delete(tok); // single use, like Turnstile
-  res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ success: ok }));
+  res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ success: ok, ...(ok ? meta : {}) }));
 });
 await new Promise<void>((r) => turnstile.listen(3993, r));
-const newCaptcha = () => {
+/** An answer as Turnstile would issue it for the widget's `action`, solved on `hostname`. */
+const newCaptcha = (action = "signup", hostname = new URL(AUTH).hostname) => {
   const t = `tok-${Date.now()}-${randomInt(1e9)}`;
-  issued.add(t);
+  issued.set(t, { action, hostname });
   return t;
 };
 
@@ -116,8 +118,14 @@ check("an answer can't be used twice", code(await signUp(`h4.${t}@example.com`, 
 await db().execute(sql`update instances set settings = settings || '{"emailCodeSignIn": true}'::jsonb where id = ${instanceId}`);
 await api("PATCH", "instance/protection", {}); // refresh the cached instance (and must not undo the change above)
 check("emailing a sign-in code needs it too", code(await new Browser().post("sign_in/email_code", { email: `h3.${t}@example.com` })) === "captcha_required");
-check("…and works with an answer", (await new Browser().post("sign_in/email_code", { email: `h3.${t}@example.com`, captchaToken: newCaptcha() })).status === 200);
-check("password sign-in doesn't need it", (await new Browser().post("sign_in", { email: `h3.${t}@example.com`, password: PW })).body?.status === "complete");
+check("…and works with an answer", (await new Browser().post("sign_in/email_code", { email: `h3.${t}@example.com`, captchaToken: newCaptcha("email_code") })).status === 200);
+check("an answer from another form is refused", code(await new Browser().post("sign_in/email_code", { email: `h3.${t}@example.com`, captchaToken: newCaptcha("signup") })) === "captcha_failed");
+check("an answer solved on a site the instance doesn't allow is refused", code(await signUp(`h7.${t}@example.com`, { captchaToken: newCaptcha("signup", "evil.example") })) === "captcha_failed");
+check("password sign-in needs it", code(await new Browser().post("sign_in", { email: `h3.${t}@example.com`, password: PW })) === "captcha_required");
+check("…and works with a sign-in answer", (await new Browser().post("sign_in", { email: `h3.${t}@example.com`, password: PW, captchaToken: newCaptcha("login") })).body?.status === "complete");
+check("…the check runs before the password is looked at", code(await new Browser().post("sign_in", { email: `h3.${t}@example.com`, password: "wrong-password-x" })) === "captcha_required");
+check("password reset needs it", code(await new Browser().post("password/forgot", { email: `h3.${t}@example.com` })) === "captcha_required");
+check("…and works with an answer", (await new Browser().post("password/forgot", { email: `h3.${t}@example.com`, captchaToken: newCaptcha("password_reset") })).status === 200);
 turnstileUp = false;
 await new Promise<void>((r) => turnstile.close(() => r()));
 check("if Turnstile can't be reached, sign-up is refused (fails closed)", code(await signUp(`h5.${t}@example.com`, { captchaToken: newCaptcha() })) === "captcha_failed");

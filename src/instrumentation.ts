@@ -7,9 +7,11 @@ export async function register() {
   const { processDue, purgeOld } = await import("./lib/webhooks");
   const { purgeRetiredKeys } = await import("./lib/auth/keys");
   const { purgeAudit } = await import("./lib/audit");
+  const { purgePlatformAudit } = await import("./lib/platform-audit");
   const tick = () => processDue().catch((e) => console.error("[webhooks] worker", (e as Error).message));
   setInterval(tick, 15_000).unref();
   setInterval(() => purgeOld().catch(() => {}), 6 * 3_600_000).unref();
   setInterval(() => purgeAudit().catch(() => {}), 6 * 3_600_000).unref();
+  setInterval(() => purgePlatformAudit().catch(() => {}), 6 * 3_600_000).unref();
   setInterval(() => purgeRetiredKeys().catch(() => {}), 6 * 3_600_000).unref();
 }

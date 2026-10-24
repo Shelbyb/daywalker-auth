@@ -16,7 +16,7 @@ const emailIndex = (instanceId: string, email: string) => blindIndex(email, `ema
 const normEmail = z.string().trim().toLowerCase().email().max(254);
 
 export const verifyInput = z.object({ code: z.string().trim() });
-export const forgotInput = z.object({ email: normEmail });
+export const forgotInput = z.object({ email: normEmail, captchaToken: z.string().max(2048).optional() });
 export const resetInput = z.object({ email: normEmail, code: z.string().trim(), password: z.string().max(256) });
 
 async function primaryEmail(instanceId: string, userId: string) {

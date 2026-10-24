@@ -19,7 +19,7 @@ export const GET = handler(async (req: Request) => {
     totpEnabled: m.totp,
     /** Masked number, e.g. "+1 ••• ••• 0100", or null. */
     smsPhone: m.sms,
-    smsAvailable: smsAllowed(ctx.inst),
+    smsAvailable: await smsAllowed(ctx.inst),
     securityKeys: await listSecurityKeys(s.userId),
     backupCodesRemaining: twoFactorEnabled ? await remainingBackupCodes(s.userId) : 0,
     connectedAccounts: await linkedProviders(s.userId),

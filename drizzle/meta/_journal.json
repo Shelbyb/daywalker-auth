@@ -134,6 +134,13 @@
       "when": 1792768929390,
       "tag": "0018_signup_rules_2fa_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792802722984,
+      "tag": "0019_platform_staff",
+      "breakpoints": true
     }
   ]
 }

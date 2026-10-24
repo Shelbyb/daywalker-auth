@@ -45,7 +45,7 @@ if (r.status === "complete" && r.redirectUrl) location.assign(r.redirectUrl);
 - **Limited guesses.** 5 wrong codes and that email's code and link stop working.
 - **Nothing to find out.** The send step answers the same way whether or not the email has an account, and nothing is sent to unknown addresses.
 - **Throttled.** At most 5 emails an hour per address, plus per-IP limits.
-- **Not stored in the clear.** Only a keyed hash of the code and a SHA-256 of the link token are kept, in Valkey.
+- **Not stored in the clear.** Only a keyed hash of the code and a SHA-256 of the link token are kept, in the cache.
 - **Safe against link scanners.** The token is in the URL fragment, so it's never sent to a server or written to logs, and the page needs a click. Mail filters that open links can't use it up.
 - **Logged.** Sign-ins (with `method: "email_code"` or `"magic_link"`) and wrong codes appear in the [audit log](/docs/guides/audit-logs).
 

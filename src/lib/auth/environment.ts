@@ -17,7 +17,7 @@ export async function publicEnvironment(inst: Instance) {
     legal: legalOf(inst),
     emailCodeSignIn: emailCodeEnabled(inst),
     ssoEnabled: await hasSso(inst.id),
-    smsSecondFactor: smsAllowed(inst),
+    smsSecondFactor: await smsAllowed(inst),
     captcha: captchaInfo(inst),
   };
 }
