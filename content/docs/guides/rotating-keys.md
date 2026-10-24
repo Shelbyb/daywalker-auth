@@ -27,7 +27,7 @@ The new key signs everything from now on. The old key is retired but stays in yo
 Lookups by email use a blind index. To keep those working while the master key changes, the index key is pinned separately as `INDEX_KEY`.
 
 1. **Pin the index key first.** With your current key set, run `npm run keys:print-index-key` and add the printed `INDEX_KEY=...` to your environment. Redeploy.
-2. **Generate a new key:** `openssl rand -base64 32`.
+2. **Generate a new key:** `openssl rand -base64 48`.
 3. **Schedule a short maintenance window.** The rotation locks the encrypted tables while it runs.
 4. **Rehearse:** `OLD_MASTER_KEY=... NEW_MASTER_KEY=... INDEX_KEY=... DRY_RUN=1 npm run keys:rotate-master`. Nothing is changed.
 5. **Run it for real** without `DRY_RUN`. It re-encrypts every value in one transaction, verifies each one, and rolls back on any error.

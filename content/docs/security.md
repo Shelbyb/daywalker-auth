@@ -20,7 +20,7 @@ description: What's protected, how, and what's still your responsibility.
 | JWT signing keys | Private key AES-256-GCM encrypted; decrypted only into server memory |
 
 **The key hierarchy.**
-- A single `MASTER_KEY` (32 random bytes) is the root.
+- A single `MASTER_KEY` (48 random bytes, `openssl rand -base64 48`) is the root.
 - It never encrypts data directly; separate keys for encryption and indexing are derived from it with HKDF.
 - Each ciphertext records its key version (`v1.`), so the master key can be rotated later.
 

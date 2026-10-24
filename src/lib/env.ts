@@ -14,7 +14,7 @@ const schema = z
     VALKEY_URL: z.string().default("redis://localhost:6379"),
     MASTER_KEY: z
       .string()
-      .refine((v) => Buffer.from(v, "base64").length === 32, "MASTER_KEY must be 32 random bytes, base64-encoded"),
+      .refine((v) => Buffer.from(v, "base64").length === 48, "MASTER_KEY must be 48 random bytes, base64-encoded (openssl rand -base64 48)"),
     // Optional. Pins the key used for lookup indexes so MASTER_KEY can be rotated. See `npm run keys:print-index-key`.
     INDEX_KEY: z
       .string()

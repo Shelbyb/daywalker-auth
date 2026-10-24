@@ -14,7 +14,7 @@ description: Run Daywalker Auth on your own infrastructure.
 ```bash
 cp .env.example .env
 # put the output of this into MASTER_KEY:
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+openssl rand -base64 48
 
 docker compose up -d     # Postgres + Valkey
 npm install
@@ -31,7 +31,7 @@ In development, emails aren't sent; they're printed in the server console.
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres URL. In production, include `?sslmode=verify-full`. |
 | `VALKEY_URL` | yes | `redis://…` locally, `rediss://…` (TLS) in production |
-| `MASTER_KEY` | yes | 32 random bytes, base64. Encrypts everything sensitive. |
+| `MASTER_KEY` | yes | 48 random bytes (`openssl rand -base64 48`), base64. Encrypts everything sensitive. |
 | `APP_URL` | yes | Public URL of this service. Becomes part of token issuers, so don't change it casually. |
 | `MAIL_TRANSPORT` | prod | `resend` in production, `dev` locally |
 | `RESEND_API_KEY` | prod | API key for sending email through Resend |

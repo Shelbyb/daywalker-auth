@@ -22,26 +22,28 @@ export const dummyHash = () => (dummy ??= hashPassword(randomBytes(24).toString(
 // stored. So INDEX_KEY can be pinned: rotating MASTER_KEY then re-encrypts data without
 // invalidating any index. When INDEX_KEY is unset, it's derived from MASTER_KEY as before.
 const KEY_VERSION = "v1";
+/** MASTER_KEY is 48 random bytes (`openssl rand -base64 48`); HKDF derives the 32-byte subkeys from it. */
+export const MASTER_KEY_BYTES = 48;
 
-const b64key = (v: string, name: string) => {
+const b64key = (v: string, name: string, bytes: number) => {
   const k = Buffer.from(v, "base64");
-  if (k.length !== 32) throw new Error(`${name} must be 32 random bytes, base64-encoded`);
+  if (k.length !== bytes) throw new Error(`${name} must be ${bytes} random bytes, base64-encoded`);
   return k;
 };
 const derive = (master: Buffer, purpose: "enc" | "index") =>
   Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), `daywalker-auth/${KEY_VERSION}/${purpose}`, 32));
 
 /** The index key MASTER_KEY currently implies. Print it, then set it as INDEX_KEY before rotating. */
-export const deriveIndexKey = (masterKeyB64: string) => derive(b64key(masterKeyB64, "MASTER_KEY"), "index").toString("base64");
+export const deriveIndexKey = (masterKeyB64: string) => derive(b64key(masterKeyB64, "MASTER_KEY", MASTER_KEY_BYTES), "index").toString("base64");
 
 /**
  * A cipher bound to specific keys. The app uses one built from the environment; the rotation
  * script builds two (old and new) to re-encrypt data.
  */
 export function createCipher(masterKeyB64: string, indexKeyB64?: string) {
-  const master = b64key(masterKeyB64, "MASTER_KEY");
+  const master = b64key(masterKeyB64, "MASTER_KEY", MASTER_KEY_BYTES);
   const encKey = derive(master, "enc");
-  const indexKey = indexKeyB64 ? b64key(indexKeyB64, "INDEX_KEY") : derive(master, "index");
+  const indexKey = indexKeyB64 ? b64key(indexKeyB64, "INDEX_KEY", 32) : derive(master, "index");
 
   /**
    * AES-256-GCM. Output: "v1.<base64(iv|tag|ciphertext)>".

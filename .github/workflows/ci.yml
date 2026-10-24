@@ -53,7 +53,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Generate a throwaway MASTER_KEY
-        run: echo "MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+        run: echo "MASTER_KEY=$(openssl rand -base64 48)" >> "$GITHUB_ENV"
       - run: npx tsc --noEmit
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run db:migrate

@@ -68,7 +68,7 @@ services:
       - key: MASTER_KEY
         scope: RUN_TIME
         type: SECRET
-        value: "<set-in-dashboard>" # openssl rand -base64 32
+        value: "<set-in-dashboard>" # openssl rand -base64 48
       - key: RESEND_API_KEY
         scope: RUN_TIME
         type: SECRET

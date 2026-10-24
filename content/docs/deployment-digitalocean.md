@@ -22,8 +22,8 @@ If you use the app spec in step 3, it can also create small dev databases for yo
 ## 2. Generate your secrets
 
 ```bash
-# MASTER_KEY: 32 random bytes, base64. Encrypts signing keys at rest.
-openssl rand -base64 32
+# MASTER_KEY: 48 random bytes, base64. Encrypts signing keys at rest.
+openssl rand -base64 48
 ```
 
 Store `MASTER_KEY` in a password manager. **If you lose it, encrypted data cannot be recovered**, and changing it locks everyone out. Create a [Resend](https://resend.com) API key too and verify your sending domain (SPF and DKIM).

@@ -34,7 +34,7 @@ await admin.unsafe(`create database ${dbName}`);
 const url = new URL(mainUrl);
 url.pathname = `/${dbName}`;
 
-const oldKey = randomBytes(32).toString("base64"), newKey = randomBytes(32).toString("base64");
+const oldKey = randomBytes(48).toString("base64"), newKey = randomBytes(48).toString("base64");
 const indexKey = deriveIndexKey(oldKey);
 const base = { ...process.env, DATABASE_URL: url.toString(), VALKEY_URL: "redis://localhost:6379/7", MAIL_TRANSPORT: "dev" };
 const run = (file: string, env: Record<string, string>, ...args: string[]) => {
@@ -69,7 +69,7 @@ try {
   const afterDry = result(run("scripts/masterkey-fixture.ts", { MASTER_KEY: oldKey, INDEX_KEY: indexKey }, "verify").out);
   check("after a dry run the old key still works", Object.values(afterDry.checks).every(Boolean));
 
-  const wrongOld = run("scripts/rotate-master-key.ts", { OLD_MASTER_KEY: randomBytes(32).toString("base64"), NEW_MASTER_KEY: newKey, INDEX_KEY: indexKey });
+  const wrongOld = run("scripts/rotate-master-key.ts", { OLD_MASTER_KEY: randomBytes(48).toString("base64"), NEW_MASTER_KEY: newKey, INDEX_KEY: indexKey });
   check("a wrong old key fails cleanly", wrongOld.code === 1);
   const stillOld = result(run("scripts/masterkey-fixture.ts", { MASTER_KEY: oldKey, INDEX_KEY: indexKey }, "verify").out);
   check("failed attempts leave the data untouched", Object.values(stillOld.checks).every(Boolean));
